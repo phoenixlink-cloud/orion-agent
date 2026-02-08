@@ -23,7 +23,7 @@ if errorlevel 1 (
 )
 
 REM Launch
-python orion.py %*
+python launch.py %*
 
 REM Keep window open on error
 if errorlevel 1 (

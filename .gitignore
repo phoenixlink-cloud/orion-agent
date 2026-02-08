@@ -41,5 +41,10 @@ htmlcov/
 data/ledger.jsonl
 data/traces/
 
+# Node / Web UI
+node_modules/
+.next/
+out/
+
 # Docker
 docker-compose.override.yml

@@ -1,0 +1,65 @@
+:root {
+  /* Colors */
+  --bg0: #060913;
+  --bg1: #091429;
+  --tile: rgba(6, 9, 19, 0.85);
+  --tile-hover: rgba(9, 20, 41, 0.9);
+  --glow: #9FD6FF;
+  --text: #EAF4FF;
+  --muted: #AFC3D6;
+  --line: rgba(159, 214, 255, 0.22);
+  --grid: rgba(159, 214, 255, 0.10);
+
+  /* Radius */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --h1-size: 52px;
+  --h1-weight: 500;
+  --h2-size: 18px;
+  --h2-weight: 450;
+  --body-size: 18px;
+  --body-weight: 400;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --slow: 1200ms;
+  --pulse: 9000ms;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  min-height: 100vh;
+  color: var(--text);
+  background: radial-gradient(1200px 700px at 50% 45%, var(--bg1), var(--bg0));
+  font-family: var(--font-sans);
+  font-size: var(--body-size);
+  font-weight: var(--body-weight);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

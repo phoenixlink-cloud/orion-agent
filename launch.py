@@ -3,10 +3,10 @@
 ORION — Unified Launcher (v6.4.0)
 
 Single entry point for all Orion modes:
-    python orion.py              # Interactive menu
-    python orion.py cli          # CLI mode (terminal interface)
-    python orion.py web          # Web UI mode (browser interface)
-    python orion.py api          # API server only (for development)
+    python launch.py              # Interactive menu
+    python launch.py cli          # CLI mode (terminal interface)
+    python launch.py web          # Web UI mode (browser interface)
+    python launch.py api          # API server only (for development)
 
 This replaces all other startup scripts for a clean user experience.
 """
@@ -186,10 +186,10 @@ def start_web_server(port: int, api_port: int) -> Optional[subprocess.Popen]:
             print("  Error installing dependencies. Is Node.js installed?")
             return None
 
-    # Start Next.js
+    # Start Next.js with explicit port
     if sys.platform == "win32":
         process = subprocess.Popen(
-            f"cmd /c npm run dev",
+            f"cmd /c npx next dev -p {port}",
             cwd=web_dir,
             shell=True,
             env=env,
@@ -198,7 +198,7 @@ def start_web_server(port: int, api_port: int) -> Optional[subprocess.Popen]:
         )
     else:
         process = subprocess.Popen(
-            ["npm", "run", "dev"],
+            ["npx", "next", "dev", "-p", str(port)],
             cwd=web_dir,
             env=env,
             stdout=subprocess.DEVNULL,
@@ -340,7 +340,7 @@ def main():
         elif mode in ['api', 'server']:
             run_api_mode()
         elif mode in ['help', '-h', '--help']:
-            print("  Usage: python orion.py [mode]")
+            print("  Usage: python launch.py [mode]")
             print()
             print("  Modes:")
             print("    cli    - Terminal interface")

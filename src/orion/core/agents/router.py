@@ -215,15 +215,13 @@ class RequestRouter:
 
     async def _handle_fast_path(self, request: str, report) -> dict:
         if self.fast_path is None:
-            return {"content": "FastPath not available."}
+            return {"content": "FastPath not available. Run /doctor to check configuration."}
         try:
             if self.stream_output:
-                content = ""
-                async for token in self.fast_path.execute_streaming(request, report):
-                    print(token, end="", flush=True)
-                    content += token
-                print()
-                return {"content": content}
+                result = await self.fast_path.execute(request, report)
+                if result.success:
+                    print(result.response)
+                return {"content": result.response}
             else:
                 result = await self.fast_path.execute(request, report)
                 return {"content": result.response}
@@ -232,7 +230,8 @@ class RequestRouter:
 
     async def _handle_council(self, request: str, report) -> dict:
         if self.council is None:
-            return {"content": "Council not available."}
+            # Fallback: route complex requests through FastPath
+            return await self._handle_fast_path(request, report)
         context = self.repo_map.get_repo_map(report.relevant_files) if self.repo_map else ""
         try:
             result = await self._run_council(request, context)

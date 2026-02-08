@@ -201,7 +201,9 @@ def start_repl():
                 result = asyncio.run(router.handle_request(user_input))
 
                 if result.get("success"):
-                    console.print_response(result.get("response", ""))
+                    # Router already printed response in stream mode
+                    if not router.stream_output:
+                        console.print_response(result.get("response", ""))
                     if result.get("files_modified"):
                         console.print_info(
                             f"Files modified: {', '.join(result['files_modified'])}"
