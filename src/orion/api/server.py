@@ -62,6 +62,30 @@ class PresetRequest(BaseModel):
     name: str
 
 
+class APIKeySetRequest(BaseModel):
+    provider: str
+    key: str
+
+
+class OAuthConfigureRequest(BaseModel):
+    provider: str
+    client_id: str
+    client_secret: Optional[str] = None
+
+
+class OAuthLoginRequest(BaseModel):
+    provider: str
+
+
+class OAuthRevokeRequest(BaseModel):
+    provider: str
+
+
+class ProviderToggleRequest(BaseModel):
+    provider: str
+    enabled: bool
+
+
 class SettingsUpdate(BaseModel):
     enable_table_of_three: Optional[bool] = None
     enable_file_tools: Optional[bool] = None
@@ -301,6 +325,210 @@ async def apply_preset_endpoint(request: PresetRequest):
             status_code=400,
             detail=f"Unknown preset: {request.name}. Available: {list(PRESETS.keys())}"
         )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# API KEY MANAGEMENT
+# =============================================================================
+
+API_KEY_PROVIDERS = [
+    {"provider": "openai", "description": "OpenAI (GPT models)"},
+    {"provider": "anthropic", "description": "Anthropic (Claude models)"},
+    {"provider": "google", "description": "Google (Gemini models)"},
+    {"provider": "groq", "description": "Groq (fast inference)"},
+]
+
+
+def _load_api_keys() -> dict:
+    keys_file = SETTINGS_DIR / "api_keys.json"
+    if keys_file.exists():
+        try:
+            return json.loads(keys_file.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _save_api_keys(keys: dict):
+    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    (SETTINGS_DIR / "api_keys.json").write_text(json.dumps(keys, indent=2))
+
+
+@app.get("/api/keys/status")
+async def get_api_key_status():
+    """Get configured status of all API keys (never exposes actual keys)."""
+    stored = _load_api_keys()
+    result = []
+    for entry in API_KEY_PROVIDERS:
+        provider = entry["provider"]
+        # Check env var first, then stored keys
+        env_key = os.environ.get(f"{provider.upper()}_API_KEY", "")
+        has_key = bool(env_key) or bool(stored.get(provider))
+        result.append({
+            "provider": provider,
+            "configured": has_key,
+            "description": entry["description"],
+            "source": "environment" if env_key else ("stored" if stored.get(provider) else "none"),
+        })
+    return result
+
+
+@app.post("/api/keys/set")
+async def set_api_key(request: APIKeySetRequest):
+    """Store an API key securely."""
+    valid_providers = [p["provider"] for p in API_KEY_PROVIDERS]
+    if request.provider not in valid_providers:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
+    if not request.key or len(request.key) < 8:
+        raise HTTPException(status_code=400, detail="API key too short")
+    keys = _load_api_keys()
+    keys[request.provider] = request.key
+    _save_api_keys(keys)
+    # Also set in environment for current session
+    os.environ[f"{request.provider.upper()}_API_KEY"] = request.key
+    return {"status": "success", "provider": request.provider}
+
+
+@app.delete("/api/keys/{provider}")
+async def remove_api_key(provider: str):
+    """Remove a stored API key."""
+    keys = _load_api_keys()
+    keys.pop(provider, None)
+    _save_api_keys(keys)
+    os.environ.pop(f"{provider.upper()}_API_KEY", None)
+    return {"status": "success", "provider": provider}
+
+
+# =============================================================================
+# OAUTH AUTHENTICATION
+# =============================================================================
+
+OAUTH_PLATFORMS = {
+    "google": {
+        "name": "Google",
+        "description": "Access Gemini AI, Google Workspace, YouTube",
+        "scopes": "gemini, drive, docs, sheets",
+        "free_tier": "1500 req/day Gemini free",
+        "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+    },
+    "github": {
+        "name": "GitHub",
+        "description": "Repository access, issues, pull requests, Copilot",
+        "scopes": "repo, read:org, read:user",
+        "free_tier": "Public repos free",
+        "auth_url": "https://github.com/login/oauth/authorize",
+    },
+    "gitlab": {
+        "name": "GitLab",
+        "description": "Repository access, CI/CD, merge requests",
+        "scopes": "api, read_user, read_repository",
+        "free_tier": "Public repos free",
+        "auth_url": "https://gitlab.com/oauth/authorize",
+    },
+    "microsoft": {
+        "name": "Microsoft",
+        "description": "Azure OpenAI, OneDrive, Office 365",
+        "scopes": "openid, profile, User.Read",
+        "free_tier": "Azure free tier available",
+        "auth_url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    },
+}
+
+
+def _load_oauth_state() -> dict:
+    oauth_file = SETTINGS_DIR / "oauth_state.json"
+    if oauth_file.exists():
+        try:
+            return json.loads(oauth_file.read_text())
+        except Exception:
+            pass
+    return {}
+
+
+def _save_oauth_state(state: dict):
+    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    (SETTINGS_DIR / "oauth_state.json").write_text(json.dumps(state, indent=2))
+
+
+@app.get("/api/oauth/status")
+async def get_oauth_status():
+    """Get OAuth status for all supported platforms."""
+    saved = _load_oauth_state()
+    result = {}
+    for key, platform in OAUTH_PLATFORMS.items():
+        state = saved.get(key, {})
+        result[key] = {
+            "name": platform["name"],
+            "description": platform["description"],
+            "scopes": platform["scopes"],
+            "free_tier": platform["free_tier"],
+            "configured": bool(state.get("client_id")),
+            "authenticated": bool(state.get("access_token")),
+            "expires_at": state.get("expires_at"),
+        }
+    return result
+
+
+@app.post("/api/oauth/configure")
+async def configure_oauth(request: OAuthConfigureRequest):
+    """Configure OAuth client credentials for a platform."""
+    if request.provider not in OAUTH_PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
+    state = _load_oauth_state()
+    if request.provider not in state:
+        state[request.provider] = {}
+    state[request.provider]["client_id"] = request.client_id
+    if request.client_secret:
+        state[request.provider]["client_secret"] = request.client_secret
+    _save_oauth_state(state)
+    return {"status": "success", "provider": request.provider}
+
+
+@app.post("/api/oauth/login")
+async def oauth_login(request: OAuthLoginRequest):
+    """Initiate OAuth login flow for a platform."""
+    if request.provider not in OAUTH_PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
+    state = _load_oauth_state()
+    provider_state = state.get(request.provider, {})
+    if not provider_state.get("client_id"):
+        raise HTTPException(status_code=400, detail="OAuth not configured for this provider. Set client_id first.")
+    platform = OAUTH_PLATFORMS[request.provider]
+    auth_url = f"{platform['auth_url']}?client_id={provider_state['client_id']}&response_type=code&scope={platform['scopes']}"
+    return {"status": "redirect", "auth_url": auth_url, "provider": request.provider}
+
+
+@app.post("/api/oauth/revoke")
+async def oauth_revoke(request: OAuthRevokeRequest):
+    """Revoke OAuth tokens for a platform."""
+    if request.provider not in OAUTH_PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
+    state = _load_oauth_state()
+    if request.provider in state:
+        state[request.provider].pop("access_token", None)
+        state[request.provider].pop("refresh_token", None)
+        state[request.provider].pop("expires_at", None)
+        _save_oauth_state(state)
+    return {"status": "success", "provider": request.provider}
+
+
+# =============================================================================
+# PROVIDER TOGGLE
+# =============================================================================
+
+@app.post("/api/models/providers/toggle")
+async def toggle_provider(request: ProviderToggleRequest):
+    """Enable or disable an LLM provider."""
+    try:
+        from orion.core.llm.config import set_provider_enabled, PROVIDERS
+        if request.provider not in PROVIDERS:
+            raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
+        set_provider_enabled(request.provider, request.enabled)
+        return {"status": "success", "provider": request.provider, "enabled": request.enabled}
     except HTTPException:
         raise
     except Exception as e:

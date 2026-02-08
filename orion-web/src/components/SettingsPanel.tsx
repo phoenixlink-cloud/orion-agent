@@ -445,11 +445,147 @@ export default function SettingsPanel() {
   const [reviewerModel, setReviewerModel] = useState('qwen2.5:14b')
   const [reviewerLightModel, setReviewerLightModel] = useState('')
   const [reviewerUseTiers, setReviewerUseTiers] = useState(false)
-  const [presets, setPresets] = useState<Record<string, any>>({})
-  const [providers, setProviders] = useState<Record<string, any>>({})
+
+  // Fallback providers data so dropdowns are always populated
+  const DEFAULT_PROVIDERS: Record<string, any> = {
+    openai: {
+      name: 'OpenAI', cost: 'paid', enabled: true,
+      default_light: 'gpt-4o-mini', default_heavy: 'gpt-4o',
+      models: [
+        { id: 'gpt-4o', label: 'GPT-4o', tier: 'heavy' },
+        { id: 'gpt-4o-mini', label: 'GPT-4o Mini', tier: 'light' },
+        { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', tier: 'heavy' },
+        { id: 'o3', label: 'o3 (Deep Reasoning)', tier: 'heavy' },
+        { id: 'o4-mini', label: 'o4-mini (Fast Reasoning)', tier: 'light' },
+      ],
+    },
+    anthropic: {
+      name: 'Anthropic', cost: 'paid', enabled: true,
+      default_light: 'claude-3-5-haiku-20241022', default_heavy: 'claude-sonnet-4-20250514',
+      models: [
+        { id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', tier: 'heavy' },
+        { id: 'claude-opus-4-20250514', label: 'Claude Opus 4', tier: 'heavy' },
+        { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', tier: 'heavy' },
+        { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', tier: 'light' },
+      ],
+    },
+    ollama: {
+      name: 'Ollama (Local)', cost: 'free', enabled: true,
+      default_light: 'qwen2.5:7b', default_heavy: 'qwen2.5:14b',
+      models: [
+        { id: 'qwen3:32b', label: 'Qwen 3 32B', tier: 'heavy' },
+        { id: 'qwen2.5:14b', label: 'Qwen 2.5 14B', tier: 'heavy' },
+        { id: 'qwen2.5-coder:14b', label: 'Qwen 2.5 Coder 14B', tier: 'heavy' },
+        { id: 'deepseek-coder-v2:16b', label: 'DeepSeek Coder V2 16B', tier: 'heavy' },
+        { id: 'llama3.3:70b', label: 'Llama 3.3 70B', tier: 'heavy' },
+        { id: 'qwen3:8b', label: 'Qwen 3 8B', tier: 'light' },
+        { id: 'qwen2.5:7b', label: 'Qwen 2.5 7B', tier: 'light' },
+        { id: 'qwen2.5-coder:7b', label: 'Qwen 2.5 Coder 7B', tier: 'light' },
+        { id: 'llama3.1:8b', label: 'Llama 3.1 8B', tier: 'light' },
+        { id: 'mistral:7b', label: 'Mistral 7B', tier: 'light' },
+      ],
+    },
+    google: {
+      name: 'Google Gemini', cost: 'free_tier', enabled: true,
+      default_light: 'gemini-2.5-flash', default_heavy: 'gemini-2.5-pro',
+      models: [
+        { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', tier: 'heavy' },
+        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tier: 'light' },
+        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', tier: 'light' },
+        { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', tier: 'heavy' },
+      ],
+    },
+    groq: {
+      name: 'Groq', cost: 'free_tier', enabled: true,
+      default_light: 'llama-3.1-8b-instant', default_heavy: 'llama-3.3-70b-versatile',
+      models: [
+        { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', tier: 'heavy' },
+        { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', tier: 'light' },
+      ],
+    },
+  }
+
+  const DEFAULT_PRESETS: Record<string, any> = {
+    local_free: {
+      mode: 'single',
+      builder: { provider: 'ollama', model: 'qwen2.5:14b' },
+      reviewer: { provider: 'ollama', model: 'qwen2.5:14b' },
+      required_keys: [],
+    },
+    cloud_dual: {
+      mode: 'dual',
+      builder: { provider: 'openai', model: 'gpt-4o' },
+      reviewer: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+      required_keys: ['openai', 'anthropic'],
+    },
+    cloud_budget: {
+      mode: 'dual',
+      builder: { provider: 'openai', model: 'gpt-4o' },
+      reviewer: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+      required_keys: ['openai', 'anthropic'],
+    },
+    cloud_openai_only: {
+      mode: 'single',
+      builder: { provider: 'openai', model: 'gpt-4o' },
+      reviewer: { provider: 'openai', model: 'gpt-4o' },
+      required_keys: ['openai'],
+    },
+    cloud_anthropic_only: {
+      mode: 'single',
+      builder: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+      reviewer: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+      required_keys: ['anthropic'],
+    },
+    google_free: {
+      mode: 'single',
+      builder: { provider: 'google', model: 'gemini-2.5-pro' },
+      reviewer: { provider: 'google', model: 'gemini-2.5-pro' },
+      required_keys: [],
+    },
+    hybrid_budget: {
+      mode: 'dual',
+      builder: { provider: 'ollama', model: 'qwen2.5:14b' },
+      reviewer: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+      required_keys: ['anthropic'],
+    },
+  }
+
+  const DEFAULT_OAUTH: Record<string, any> = {
+    google: {
+      name: 'Google',
+      description: 'Access Gemini AI, Google Workspace, YouTube',
+      scopes: 'gemini, drive, docs, sheets',
+      free_tier: '1500 req/day Gemini free',
+      configured: false, authenticated: false,
+    },
+    github: {
+      name: 'GitHub',
+      description: 'Repository access, issues, pull requests, Copilot',
+      scopes: 'repo, read:org, read:user',
+      free_tier: 'Public repos free',
+      configured: false, authenticated: false,
+    },
+    gitlab: {
+      name: 'GitLab',
+      description: 'Repository access, CI/CD, merge requests',
+      scopes: 'api, read_user, read_repository',
+      free_tier: 'Public repos free',
+      configured: false, authenticated: false,
+    },
+    microsoft: {
+      name: 'Microsoft',
+      description: 'Azure OpenAI, OneDrive, Office 365',
+      scopes: 'openid, profile, User.Read',
+      free_tier: 'Azure free tier available',
+      configured: false, authenticated: false,
+    },
+  }
+
+  const [presets, setPresets] = useState<Record<string, any>>(DEFAULT_PRESETS)
+  const [providers, setProviders] = useState<Record<string, any>>(DEFAULT_PROVIDERS)
 
   // OAuth (v2.4.0)
-  const [oauthStatus, setOauthStatus] = useState<Record<string, any>>({})
+  const [oauthStatus, setOauthStatus] = useState<Record<string, any>>(DEFAULT_OAUTH)
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
@@ -761,7 +897,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* OAuth Authentication (v2.4.0) */}
-      <CollapsibleSection title="OAuth Login" description="Authenticate with Google, GitHub via OAuth2 — no API key needed">
+      <CollapsibleSection title="OAuth Login" description="Authenticate with Google, GitHub, GitLab, Microsoft via OAuth2">
         <div style={{ padding: '12px 16px', background: 'rgba(34, 211, 238, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.2)' }}>
           <div style={{ fontSize: 13, color: 'var(--glow)' }}>
             OAuth lets you use existing accounts instead of raw API keys. Google Gemini free tier = 1500 req/day at no cost.
@@ -779,11 +915,16 @@ export default function SettingsPanel() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: status.authenticated ? 'var(--glow)' : 'var(--text)' }}>
-                  {name.charAt(0).toUpperCase() + name.slice(1)}
+                  {status.name || name.charAt(0).toUpperCase() + name.slice(1)}
                 </span>
                 <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>
                   {status.authenticated ? 'Authenticated' : status.configured ? 'Configured' : 'Not configured'}
                 </span>
+                {status.free_tier && (
+                  <span style={{ fontSize: 11, color: '#64c864', marginLeft: 8 }}>
+                    {status.free_tier}
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {status.configured && !status.authenticated && (
@@ -814,6 +955,12 @@ export default function SettingsPanel() {
                 )}
               </div>
             </div>
+
+            {status.description && (
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
+                {status.description}
+              </div>
+            )}
 
             {status.authenticated && status.expires_at && (
               <div style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -870,7 +1017,7 @@ export default function SettingsPanel() {
 
         {Object.keys(oauthStatus).length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>
-            Connect to Orion backend to see OAuth providers.
+            No OAuth platforms available. Check your Orion installation.
           </div>
         )}
       </CollapsibleSection>
