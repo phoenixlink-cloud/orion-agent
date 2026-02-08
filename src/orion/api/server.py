@@ -50,6 +50,8 @@ class ModelModeRequest(BaseModel):
 class RoleConfigRequest(BaseModel):
     provider: str
     model: str
+    light_model: Optional[str] = ""
+    use_tiers: Optional[bool] = False
 
 
 class ModelConfigRequest(BaseModel):
@@ -87,18 +89,46 @@ class ProviderToggleRequest(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
+    # Core Features
     enable_table_of_three: Optional[bool] = None
     enable_file_tools: Optional[bool] = None
+    enable_passive_memory: Optional[bool] = None
+    enable_intelligent_orion: Optional[bool] = None
     enable_streaming: Optional[bool] = None
+    # Intelligent Orion
+    quality_threshold: Optional[float] = None
+    max_refinement_iterations: Optional[int] = None
+    # Governance
     default_mode: Optional[str] = None
+    aegis_strict_mode: Optional[bool] = None
+    # Command Execution
+    enable_command_execution: Optional[bool] = None
+    command_timeout_seconds: Optional[int] = None
+    # Limits
     max_evidence_files: Optional[int] = None
     max_file_size_bytes: Optional[int] = None
+    max_evidence_retry: Optional[int] = None
+    # Web Access
+    enable_web_access: Optional[bool] = None
+    web_cache_ttl: Optional[int] = None
+    allowed_domains: Optional[str] = None
+    # Image Generation
+    image_provider: Optional[str] = None
+    sdxl_enabled: Optional[bool] = None
+    sdxl_endpoint: Optional[str] = None
+    flux_enabled: Optional[bool] = None
+    dalle_enabled: Optional[bool] = None
+    dalle_model: Optional[str] = None
+    # Models (legacy)
     use_local_models: Optional[bool] = None
     gpt_model: Optional[str] = None
     claude_model: Optional[str] = None
     ollama_base_url: Optional[str] = None
     ollama_builder_model: Optional[str] = None
     ollama_reviewer_model: Optional[str] = None
+    # Paths
+    data_dir: Optional[str] = None
+    ledger_file: Optional[str] = None
 
 
 # =============================================================================
@@ -236,8 +266,18 @@ async def get_model_config_endpoint():
         reviewer = cfg.get_reviewer()
         return {
             "mode": cfg.mode,
-            "builder": {"provider": cfg.builder.provider, "model": cfg.builder.model},
-            "reviewer": {"provider": reviewer.provider, "model": reviewer.model},
+            "builder": {
+                "provider": cfg.builder.provider,
+                "model": cfg.builder.model,
+                "light_model": cfg.builder.light_model,
+                "use_tiers": cfg.builder.use_tiers,
+            },
+            "reviewer": {
+                "provider": reviewer.provider,
+                "model": reviewer.model,
+                "light_model": reviewer.light_model,
+                "use_tiers": reviewer.use_tiers,
+            },
             "governor": "orion (hardcoded)",
             "required_keys": cfg.get_required_keys(),
             "summary": cfg.summary(),
@@ -261,10 +301,20 @@ async def set_model_config_endpoint(request: ModelConfigRequest):
             cfg.mode = request.mode
 
         if request.builder:
-            cfg.builder = RoleConfig(provider=request.builder.provider, model=request.builder.model)
+            cfg.builder = RoleConfig(
+                provider=request.builder.provider,
+                model=request.builder.model,
+                light_model=request.builder.light_model or "",
+                use_tiers=request.builder.use_tiers or False,
+            )
 
         if request.reviewer:
-            cfg.reviewer = RoleConfig(provider=request.reviewer.provider, model=request.reviewer.model)
+            cfg.reviewer = RoleConfig(
+                provider=request.reviewer.provider,
+                model=request.reviewer.model,
+                light_model=request.reviewer.light_model or "",
+                use_tiers=request.reviewer.use_tiers or False,
+            )
             if cfg.mode == "single" and request.builder is None:
                 cfg.mode = "dual"
 
@@ -584,13 +634,38 @@ async def get_all_settings() -> Dict[str, Any]:
     """Get all current settings."""
     user_settings = _load_user_settings()
     defaults = {
+        # Core Features
         "enable_table_of_three": True,
         "enable_file_tools": True,
+        "enable_passive_memory": True,
+        "enable_intelligent_orion": True,
         "enable_streaming": True,
+        # Intelligent Orion
+        "quality_threshold": 0.7,
+        "max_refinement_iterations": 3,
+        # Governance
         "default_mode": "safe",
         "valid_modes": ["safe", "pro", "project"],
+        "aegis_strict_mode": True,
+        # Command Execution
+        "enable_command_execution": False,
+        "command_timeout_seconds": 30,
+        # Limits
         "max_evidence_files": 20,
         "max_file_size_bytes": 100000,
+        "max_evidence_retry": 2,
+        # Web Access
+        "enable_web_access": False,
+        "web_cache_ttl": 3600,
+        "allowed_domains": "github.com, docs.python.org",
+        # Image Generation
+        "image_provider": "auto",
+        "sdxl_enabled": False,
+        "sdxl_endpoint": "http://localhost:8188",
+        "flux_enabled": False,
+        "dalle_enabled": False,
+        "dalle_model": "dall-e-3",
+        # Models (legacy)
         "use_local_models": True,
         "model_mode": "local",
         "gpt_model": "gpt-4o",
@@ -598,6 +673,10 @@ async def get_all_settings() -> Dict[str, Any]:
         "ollama_base_url": "http://localhost:11434",
         "ollama_builder_model": "qwen2.5-coder:14b",
         "ollama_reviewer_model": "qwen2.5-coder:14b",
+        # Paths
+        "data_dir": "data",
+        "ledger_file": "data/ledger.jsonl",
+        # Workspace
         "workspace": "",
     }
     merged = {**defaults, **user_settings}
@@ -678,6 +757,118 @@ async def get_context_stats(workspace: str):
     except Exception:
         stats["python"] = {"error": "not available"}
     return stats
+
+
+# =============================================================================
+# GDPR COMPLIANCE
+# =============================================================================
+
+GDPR_CONSENTS_FILE = SETTINGS_DIR / "gdpr_consents.json"
+GDPR_AUDIT_FILE = SETTINGS_DIR / "gdpr_audit.jsonl"
+
+
+def _load_gdpr_consents() -> dict:
+    if GDPR_CONSENTS_FILE.exists():
+        try:
+            return json.loads(GDPR_CONSENTS_FILE.read_text())
+        except Exception:
+            pass
+    return {"consents": {}, "policy_version": "1.0.0"}
+
+
+def _save_gdpr_consents(data: dict):
+    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    GDPR_CONSENTS_FILE.write_text(json.dumps(data, indent=2))
+
+
+def _append_audit_log(action: str, data_type: str, details: str = None):
+    from datetime import datetime
+    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+    entry = json.dumps({
+        "action": action,
+        "data_type": data_type,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "details": details,
+    })
+    with open(GDPR_AUDIT_FILE, "a") as f:
+        f.write(entry + "\n")
+
+
+@app.get("/api/gdpr/consents")
+async def get_gdpr_consents():
+    """Get GDPR consent statuses."""
+    return _load_gdpr_consents()
+
+
+@app.post("/api/gdpr/consent/{consent_type}")
+async def set_gdpr_consent(consent_type: str, granted: bool = True):
+    """Set a GDPR consent."""
+    data = _load_gdpr_consents()
+    data["consents"][consent_type] = granted
+    _save_gdpr_consents(data)
+    _append_audit_log("consent_update", consent_type, f"granted={granted}")
+    return {"status": "success", "consent_type": consent_type, "granted": granted}
+
+
+@app.get("/api/gdpr/export")
+async def export_all_data():
+    """Export all user data (GDPR right to data portability)."""
+    _append_audit_log("data_export", "all", "User requested full data export")
+    export = {
+        "settings": _load_user_settings(),
+        "api_keys_configured": [
+            p["provider"] for p in (await get_api_key_status())
+            if p["configured"]
+        ],
+        "oauth_state": _load_oauth_state(),
+        "gdpr_consents": _load_gdpr_consents(),
+    }
+    # Include model config
+    try:
+        model_config_file = SETTINGS_DIR / "model_config.json"
+        if model_config_file.exists():
+            export["model_config"] = json.loads(model_config_file.read_text())
+    except Exception:
+        pass
+    return export
+
+
+@app.delete("/api/gdpr/data")
+async def delete_all_data():
+    """Delete all user data (GDPR right to erasure)."""
+    _append_audit_log("data_deletion", "all", "User requested full data deletion")
+    files_to_delete = [
+        SETTINGS_FILE,
+        SETTINGS_DIR / "api_keys.json",
+        SETTINGS_DIR / "oauth_state.json",
+        SETTINGS_DIR / "model_config.json",
+        SETTINGS_DIR / "provider_settings.json",
+        GDPR_CONSENTS_FILE,
+    ]
+    deleted = []
+    for f in files_to_delete:
+        if f.exists():
+            try:
+                f.unlink()
+                deleted.append(f.name)
+            except Exception:
+                pass
+    return {"status": "success", "deleted_files": deleted}
+
+
+@app.get("/api/gdpr/audit")
+async def get_audit_log(limit: int = 100):
+    """Get GDPR audit log."""
+    entries = []
+    if GDPR_AUDIT_FILE.exists():
+        try:
+            lines = GDPR_AUDIT_FILE.read_text().strip().split("\n")
+            for line in lines[-limit:]:
+                if line.strip():
+                    entries.append(json.loads(line))
+        except Exception:
+            pass
+    return {"audit_log": entries}
 
 
 # =============================================================================

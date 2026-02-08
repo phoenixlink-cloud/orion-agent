@@ -597,9 +597,55 @@ export default function SettingsPanel() {
       .catch(() => {})
   }
 
-  // Load model config + OAuth status on mount
+  // Load all settings + model config + OAuth status on mount
   useEffect(() => {
     if (!isConnected) return
+    // Load general settings
+    fetch(`${API_BASE}/api/settings`)
+      .then(r => r.ok ? r.json() : null)
+      .then(s => {
+        if (!s) return
+        setCoreFeatures({
+          tableOfThree: s.enable_table_of_three ?? true,
+          fileTools: s.enable_file_tools ?? true,
+          passiveMemory: s.enable_passive_memory ?? true,
+          intelligentOrion: s.enable_intelligent_orion ?? true,
+          streaming: s.enable_streaming ?? true,
+        })
+        setQualityThreshold(s.quality_threshold ?? 0.8)
+        setMaxRefinementIterations(s.max_refinement_iterations ?? 3)
+        setDefaultMode(s.default_mode ?? 'safe')
+        setAegisStrictMode(s.aegis_strict_mode ?? true)
+        setCommandExecution({
+          enabled: s.enable_command_execution ?? false,
+          timeout: s.command_timeout_seconds ?? 60,
+        })
+        setLimits({
+          maxEvidenceFiles: s.max_evidence_files ?? 250,
+          maxFileSizeBytes: s.max_file_size_bytes ?? 100000,
+          maxEvidenceRetry: s.max_evidence_retry ?? 1,
+        })
+        setWebAccess({
+          enabled: s.enable_web_access ?? false,
+          cacheTTL: s.web_cache_ttl ?? 3600,
+        })
+        setAllowedDomains(s.allowed_domains ?? 'github.com, docs.python.org')
+        setImageProvider(s.image_provider ?? 'auto')
+        setImageSettings(prev => ({
+          ...prev,
+          sdxlEnabled: s.sdxl_enabled ?? prev.sdxlEnabled,
+          sdxlEndpoint: s.sdxl_endpoint ?? prev.sdxlEndpoint,
+          fluxEnabled: s.flux_enabled ?? prev.fluxEnabled,
+          dalleEnabled: s.dalle_enabled ?? prev.dalleEnabled,
+          dalleModel: s.dalle_model ?? prev.dalleModel,
+        }))
+        setPaths({
+          dataDir: s.data_dir ?? 'data',
+          ledgerFile: s.ledger_file ?? 'data/ledger.jsonl',
+        })
+        if (s.workspace) setWorkspace(s.workspace)
+      })
+      .catch(() => {})
     loadOAuthStatus()
     fetch(`${API_BASE}/api/models/config`)
       .then(r => r.ok ? r.json() : null)
@@ -743,6 +789,47 @@ export default function SettingsPanel() {
       loadOAuthStatus()
     } catch (err) {
       console.error('OAuth revoke failed:', err)
+    }
+  }
+
+  const handleSaveAllSettings = async () => {
+    if (!isConnected) return
+    try {
+      await fetch(`${API_BASE}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enable_table_of_three: coreFeatures.tableOfThree,
+          enable_file_tools: coreFeatures.fileTools,
+          enable_passive_memory: coreFeatures.passiveMemory,
+          enable_intelligent_orion: coreFeatures.intelligentOrion,
+          enable_streaming: coreFeatures.streaming,
+          quality_threshold: qualityThreshold,
+          max_refinement_iterations: maxRefinementIterations,
+          default_mode: defaultMode,
+          aegis_strict_mode: aegisStrictMode,
+          enable_command_execution: commandExecution.enabled,
+          command_timeout_seconds: commandExecution.timeout,
+          max_evidence_files: limits.maxEvidenceFiles,
+          max_file_size_bytes: limits.maxFileSizeBytes,
+          max_evidence_retry: limits.maxEvidenceRetry,
+          enable_web_access: webAccess.enabled,
+          web_cache_ttl: webAccess.cacheTTL,
+          allowed_domains: allowedDomains,
+          image_provider: imageProvider,
+          sdxl_enabled: imageSettings.sdxlEnabled,
+          sdxl_endpoint: imageSettings.sdxlEndpoint,
+          flux_enabled: imageSettings.fluxEnabled,
+          dalle_enabled: imageSettings.dalleEnabled,
+          dalle_model: imageSettings.dalleModel,
+          data_dir: paths.dataDir,
+          ledger_file: paths.ledgerFile,
+        }),
+      })
+      // Also save model config
+      await handleSaveModelConfig()
+    } catch (err) {
+      console.error('Failed to save settings:', err)
     }
   }
 
@@ -1583,7 +1670,7 @@ export default function SettingsPanel() {
 
       {/* Save Button */}
       <div style={{ marginTop: 32, display: 'flex', gap: 12 }}>
-        <Button variant="primary">Save Settings</Button>
+        <Button variant="primary" onClick={handleSaveAllSettings}>Save Settings</Button>
         <Link href="/chat">
           <Button variant="secondary">Ask Orion</Button>
         </Link>
