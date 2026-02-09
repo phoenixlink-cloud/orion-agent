@@ -1,5 +1,5 @@
 """
-Orion Agent — AEGIS Governance (v6.4.0)
+Orion Agent — AEGIS Governance (v6.5.0)
 
 AEGIS is a HARD GATE, not a feature system.
 
@@ -13,6 +13,8 @@ Required checks:
 - SAFE vs PRO mode
 - Action scope validation
 - Risk validation
+- Command execution scope
+- External access control (credential + API)
 
 AEGIS must NOT:
 - Drive flow
@@ -20,9 +22,12 @@ AEGIS must NOT:
 - Speak unless blocking
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 from pathlib import Path
+import logging
+
+logger = logging.getLogger("orion.governance.aegis")
 
 
 @dataclass
@@ -42,10 +47,22 @@ class AegisResult:
     passed: bool
     violations: List[str]
     warnings: List[str]
-    action_type: str  # "deliberation" or "execution"
+    action_type: str  # "deliberation", "execution", or "external_access"
+    requires_approval: bool = False  # True = MUST get human confirmation before proceeding
+    approval_prompt: str = ""       # Human-readable description of what needs approval
 
     def __bool__(self):
         return self.passed
+
+
+@dataclass
+class ExternalAccessRequest:
+    """Request to access an external platform via API."""
+    platform_id: str          # e.g. "github", "slack"
+    method: str               # HTTP method: GET, POST, PUT, DELETE, PATCH
+    url: str                  # Target URL
+    description: str = ""     # Human-readable description of the action
+    is_read_only: bool = False  # Computed by classify_external_access()
 
 
 def check_aegis_gate(
@@ -145,6 +162,125 @@ def check_aegis_gate(
         violations=violations,
         warnings=warnings,
         action_type=action_type
+    )
+
+
+# =============================================================================
+# INVARIANT 6: External Access Control (HARDCODED — NOT CONFIGURABLE)
+# =============================================================================
+#
+# This is the gate that prevents Orion from using stored credentials
+# to make external API calls without human approval.
+#
+# Rules (IMMUTABLE):
+#   - READ operations (GET) → auto-approved, logged
+#   - WRITE operations (POST, PUT, PATCH, DELETE) → BLOCKED until human approves
+#   - Credential reads → always logged in audit trail
+#   - No code path may bypass this gate
+#
+# This function is PURE — it classifies and returns a result.
+# Enforcement happens in PlatformService.
+# =============================================================================
+
+# HTTP methods that NEVER modify external state
+_READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+# HTTP methods that CAN modify external state — REQUIRE human approval
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+# Write endpoints that are safe to auto-approve (search via POST, etc.)
+_SAFE_WRITE_URLS = frozenset({
+    "https://api.notion.com/v1/search",       # Notion search uses POST but is read-only
+    "https://slack.com/api/conversations.list",  # Listing channels
+    "https://slack.com/api/users.list",        # Listing users
+})
+
+
+def check_external_access(request: ExternalAccessRequest) -> AegisResult:
+    """
+    AEGIS Invariant 6: External Access Control.
+
+    This is a PURE FUNCTION. It classifies an external API request
+    and determines whether human approval is required.
+
+    HARDCODED RULES (not configurable — this is a security invariant):
+      - GET/HEAD/OPTIONS → auto-approved (read-only)
+      - POST/PUT/PATCH/DELETE → requires human approval (write/mutate)
+      - Exceptions: known safe POST endpoints (e.g. search)
+
+    Returns:
+        AegisResult with requires_approval=True if human must confirm.
+    """
+    method = request.method.upper()
+    violations = []
+    warnings = []
+
+    # Classify the request
+    if method in _READ_ONLY_METHODS:
+        request.is_read_only = True
+        return AegisResult(
+            passed=True,
+            violations=[],
+            warnings=[],
+            action_type="external_access",
+            requires_approval=False,
+            approval_prompt="",
+        )
+
+    # Check if this is a known-safe write endpoint
+    if request.url in _SAFE_WRITE_URLS:
+        request.is_read_only = True
+        return AegisResult(
+            passed=True,
+            violations=[],
+            warnings=[f"AEGIS-6: POST to {request.url} auto-approved (known read-only)"],
+            action_type="external_access",
+            requires_approval=False,
+            approval_prompt="",
+        )
+
+    # WRITE operation — REQUIRES human approval
+    platform_name = request.platform_id.title()
+    action_desc = request.description or f"{method} {request.url}"
+
+    return AegisResult(
+        passed=True,  # Not a violation — but requires approval
+        violations=[],
+        warnings=[f"AEGIS-6: Write operation on {platform_name} requires human approval"],
+        action_type="external_access",
+        requires_approval=True,
+        approval_prompt=(
+            f"Orion wants to perform a WRITE action on {platform_name}:\n"
+            f"  Action: {action_desc}\n"
+            f"  Method: {method}\n"
+            f"  URL: {request.url}\n"
+            f"\nApprove this action? (y/n)"
+        ),
+    )
+
+
+def classify_credential_access(provider: str, caller: str) -> AegisResult:
+    """
+    AEGIS Invariant 6b: Credential Access Audit.
+
+    Every credential read is logged. This function classifies the access
+    and returns warnings if the access pattern is unusual.
+
+    Args:
+        provider: The credential being accessed (e.g. "openai", "github")
+        caller: Who is requesting it (e.g. "fast_path", "platform_service")
+
+    Returns:
+        AegisResult — always passes (reads are allowed) but logs the access.
+    """
+    logger.info(f"AEGIS-6: Credential access — provider={provider}, caller={caller}")
+
+    return AegisResult(
+        passed=True,
+        violations=[],
+        warnings=[f"AEGIS-6: Credential read for '{provider}' by {caller}"],
+        action_type="credential_access",
+        requires_approval=False,
     )
 
 

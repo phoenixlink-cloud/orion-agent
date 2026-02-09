@@ -21,7 +21,7 @@ Usage by agents:
 
 import os
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 
 logger = logging.getLogger("orion.integrations.platform_service")
 
@@ -40,6 +40,10 @@ class PlatformService:
     def __init__(self):
         self._store = None
         self._registry = None
+        # AEGIS Invariant 6: Human approval callback for write operations.
+        # If not set, ALL write operations are BLOCKED by default.
+        # This is a security invariant — Orion cannot bypass this.
+        self._approval_callback: Optional[Callable[[str], bool]] = None
 
     @property
     def store(self):
@@ -147,6 +151,18 @@ class PlatformService:
     # AUTHENTICATED HTTP CALLS
     # =========================================================================
 
+    def set_approval_callback(self, callback: Callable[[str], bool]):
+        """
+        Set the human approval callback for write operations.
+
+        The callback receives a human-readable prompt string and must
+        return True (approved) or False (denied).
+
+        Without this callback, ALL write operations are BLOCKED.
+        This is AEGIS Invariant 6 — not configurable, not bypassable.
+        """
+        self._approval_callback = callback
+
     async def api_call(
         self,
         platform_id: str,
@@ -155,9 +171,13 @@ class PlatformService:
         json_data: Optional[Dict] = None,
         params: Optional[Dict] = None,
         headers: Optional[Dict] = None,
+        description: str = "",
     ) -> Dict[str, Any]:
         """
         Make an authenticated API call to a platform.
+
+        ALL calls pass through AEGIS Invariant 6 (External Access Control).
+        Write operations (POST/PUT/PATCH/DELETE) REQUIRE human approval.
 
         Args:
             platform_id: Which platform to call
@@ -166,10 +186,65 @@ class PlatformService:
             json_data: JSON body for POST/PUT/PATCH
             params: Query parameters
             headers: Additional headers
+            description: Human-readable description of the action
 
         Returns:
             {"status": int, "data": dict, "ok": bool}
         """
+        # =====================================================================
+        # AEGIS INVARIANT 6: External Access Control (HARDCODED)
+        # This gate CANNOT be removed, disabled, or bypassed.
+        # =====================================================================
+        from orion.core.governance.aegis import (
+            check_external_access, ExternalAccessRequest
+        )
+
+        access_request = ExternalAccessRequest(
+            platform_id=platform_id,
+            method=method.upper(),
+            url=url,
+            description=description,
+        )
+        aegis_result = check_external_access(access_request)
+
+        if aegis_result.requires_approval:
+            if self._approval_callback is None:
+                logger.warning(
+                    f"AEGIS-6 BLOCKED: {method.upper()} {url} — "
+                    f"no approval callback registered, write denied"
+                )
+                return {
+                    "ok": False,
+                    "status": 0,
+                    "error": (
+                        f"AEGIS BLOCKED: Orion cannot perform write operations "
+                        f"on {platform_id} without human approval. "
+                        f"Action: {description or method.upper() + ' ' + url}"
+                    ),
+                    "data": None,
+                    "aegis_blocked": True,
+                }
+
+            # Ask human for approval
+            approved = self._approval_callback(aegis_result.approval_prompt)
+            if not approved:
+                logger.info(
+                    f"AEGIS-6 DENIED by human: {method.upper()} {url}"
+                )
+                return {
+                    "ok": False,
+                    "status": 0,
+                    "error": f"Action denied by user: {description or method.upper() + ' ' + url}",
+                    "data": None,
+                    "aegis_denied": True,
+                }
+
+            logger.info(f"AEGIS-6 APPROVED by human: {method.upper()} {url}")
+
+        # =====================================================================
+        # END AEGIS GATE — proceed with authenticated request
+        # =====================================================================
+
         token = self.get_token(platform_id)
         if not token:
             return {
