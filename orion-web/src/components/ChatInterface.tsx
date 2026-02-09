@@ -11,7 +11,7 @@ interface Message {
   role: 'user' | 'orion' | 'system'
   content: string
   timestamp: Date
-  type?: 'routing' | 'status' | 'complete' | 'escalation' | 'error'
+  type?: 'routing' | 'status' | 'complete' | 'escalation' | 'error' | 'streaming' | 'council'
   meta?: Record<string, unknown>
 }
 
@@ -31,6 +31,7 @@ export default function ChatInterface() {
   const wsRef = useRef<WebSocket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null)
+  const streamingRef = useRef<string>('')  // Accumulates streaming tokens
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -129,13 +130,57 @@ export default function ChatInterface() {
       case 'status':
         addOrionMessage(data.message as string, 'status')
         break
-      case 'complete':
+      case 'token': {
+        // Token-by-token streaming: accumulate and update the last message
+        const token = data.content as string
+        streamingRef.current += token
+        const currentText = streamingRef.current
+        setMessages(prev => {
+          const last = prev[prev.length - 1]
+          if (last && last.type === 'streaming') {
+            // Update the existing streaming message
+            return [...prev.slice(0, -1), { ...last, content: currentText }]
+          } else {
+            // Create a new streaming message
+            return [...prev, {
+              role: 'orion' as const,
+              content: currentText,
+              timestamp: new Date(),
+              type: 'streaming' as const,
+            }]
+          }
+        })
+        break
+      }
+      case 'council_phase': {
+        const phase = data.phase as string
+        const message = data.message as string
+        addOrionMessage(message, 'council')
+        break
+      }
+      case 'complete': {
         setIsProcessing(false)
-        addOrionMessage(
-          (data.response as string) || 'Done.',
-          'complete',
-          data
-        )
+        // If we were streaming, finalize the streaming message
+        if (streamingRef.current) {
+          setMessages(prev => {
+            const last = prev[prev.length - 1]
+            if (last && last.type === 'streaming') {
+              return [...prev.slice(0, -1), { ...last, type: 'complete' as const, meta: data }]
+            }
+            return prev
+          })
+          streamingRef.current = ''
+        } else {
+          addOrionMessage(
+            (data.response as string) || 'Done.',
+            'complete',
+            data
+          )
+        }
+        break
+      }
+      case 'feedback_ack':
+        // Silent acknowledgment — could show a toast
         break
       case 'escalation':
         setIsProcessing(false)
@@ -147,6 +192,7 @@ export default function ChatInterface() {
         break
       case 'error':
         setIsProcessing(false)
+        streamingRef.current = ''
         addOrionMessage(`Error: ${data.message}`, 'error')
         break
       default:
@@ -253,6 +299,8 @@ export default function ChatInterface() {
       case 'error': return { bg: 'rgba(248, 113, 113, 0.08)', border: 'rgba(248, 113, 113, 0.3)' }
       case 'escalation': return { bg: 'rgba(251, 146, 60, 0.08)', border: 'rgba(251, 146, 60, 0.3)' }
       case 'complete': return { bg: 'rgba(52, 211, 153, 0.08)', border: 'rgba(52, 211, 153, 0.3)' }
+      case 'streaming': return { bg: 'rgba(52, 211, 153, 0.05)', border: 'rgba(52, 211, 153, 0.2)' }
+      case 'council': return { bg: 'rgba(168, 85, 247, 0.08)', border: 'rgba(168, 85, 247, 0.3)' }
       default: return { bg: 'var(--tile)', border: 'var(--line)' }
     }
   }
@@ -264,6 +312,8 @@ export default function ChatInterface() {
       case 'status': return 'Orion'
       case 'error': return 'Error'
       case 'escalation': return 'AEGIS'
+      case 'streaming': return 'Orion'
+      case 'council': return 'Council'
       default: return 'Orion'
     }
   }
