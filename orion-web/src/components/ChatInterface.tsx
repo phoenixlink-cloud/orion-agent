@@ -189,6 +189,12 @@ export default function ChatInterface() {
       const newWs = currentInput.replace('/workspace ', '').trim()
       setWorkspace(newWs)
       addOrionMessage(`Workspace set to: ${newWs}`, 'status')
+      // Persist to backend
+      fetch(`${API_BASE}/api/settings/workspace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newWs),
+      }).catch(() => {})
       return
     }
 
@@ -198,6 +204,12 @@ export default function ChatInterface() {
       if (['safe', 'pro', 'project'].includes(newMode)) {
         setMode(newMode)
         addOrionMessage(`Mode set to: ${newMode}`, 'status')
+        // Persist to backend
+        fetch(`${API_BASE}/api/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ default_mode: newMode }),
+        }).catch(() => {})
       } else {
         addOrionMessage('Invalid mode. Use: safe, pro, or project', 'error')
       }
@@ -413,9 +425,18 @@ export default function ChatInterface() {
             opacity: isProcessing ? 0.6 : 1,
           }}
         />
-        <Button variant="primary" onClick={handleSend}>
-          Send
-        </Button>
+        <button
+          onClick={handleSend}
+          disabled={isProcessing || !input.trim()}
+          style={{
+            padding: '14px 24px', fontSize: 15, fontWeight: 600,
+            background: isProcessing || !input.trim() ? 'rgba(159,214,255,0.2)' : 'var(--glow)',
+            color: isProcessing || !input.trim() ? 'var(--muted)' : '#000',
+            border: 'none', borderRadius: 'var(--r-md)', cursor: isProcessing ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isProcessing ? 'Thinking...' : 'Send'}
+        </button>
       </div>
 
       {/* Quick Commands */}
