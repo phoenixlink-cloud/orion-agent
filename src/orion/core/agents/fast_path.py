@@ -169,22 +169,46 @@ IMPORTANT RULES:
         """
         Execute a simple request directly.
 
-        Tries providers in order: Ollama (local/free) → OpenAI → Anthropic.
-        All calls are fully async via httpx — never blocks the event loop.
+        Uses the centralized call_provider which handles all providers,
+        model config, key retrieval, and retry logic correctly.
+        Falls back to direct Ollama/OpenAI/Anthropic calls if needed.
         """
         user_prompt = self._build_prompt(request, scout_report)
 
-        # Try Ollama first (local, free)
+        # Primary path: use centralized call_provider (handles all providers)
+        try:
+            from orion.core.llm.providers import call_provider
+            from orion.core.llm.config import get_model_config
+
+            cfg = get_model_config()
+            builder_rc = cfg.builder
+            response = await call_provider(
+                role_config=builder_rc,
+                system_prompt=self.SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                max_tokens=4000,
+                component="fast_path",
+            )
+
+            # Check if the response is an error JSON from call_provider
+            if response and not response.startswith('{"outcome": "ANSWER", "response": "API error'):
+                return FastPathResult(success=True, response=response)
+
+            # call_provider returned an error — fall through to direct calls
+        except Exception:
+            pass
+
+        # Fallback: Try Ollama directly (local, free)
         result = await self._call_ollama(user_prompt)
         if result.success:
             return result
 
-        # Try OpenAI
+        # Fallback: Try OpenAI directly
         result = await self._call_openai(user_prompt)
         if result.success:
             return result
 
-        # Try Anthropic
+        # Fallback: Try Anthropic directly
         result = await self._call_anthropic(user_prompt)
         if result.success:
             return result
