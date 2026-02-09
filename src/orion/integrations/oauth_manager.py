@@ -32,22 +32,12 @@ SETTINGS_DIR = Path.home() / ".orion"
 # ---------------------------------------------------------------------------
 
 PROVIDERS: Dict[str, Dict[str, Any]] = {
-    "github": {
-        "name": "GitHub",
-        "description": "Repository access, issues, pull requests",
-        "auth_type": "device_flow",  # Best for desktop apps
-        "device_auth_url": "https://github.com/login/device/code",
-        "device_token_url": "https://github.com/login/oauth/access_token",
-        "auth_url": "https://github.com/login/oauth/authorize",
-        "token_url": "https://github.com/login/oauth/access_token",
-        "userinfo_url": "https://api.github.com/user",
-        "scopes": ["read:user", "user:email", "repo"],
-        "supports_pkce": False,
-        "icon": "🐙",
-    },
+    # Only Google and Microsoft need OAuth — all other platforms now use
+    # CLI tools (gh, glab) or bot tokens (Slack, Discord, Notion, etc.)
+    # per the CLI delegation pattern. See internal-audit-reference.
     "google": {
         "name": "Google",
-        "description": "Gemini AI, Google Workspace, YouTube",
+        "description": "Gemini AI, Google Workspace, Drive, YouTube",
         "auth_type": "pkce",
         "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
         "token_url": "https://oauth2.googleapis.com/token",
@@ -67,74 +57,6 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "scopes": ["openid", "profile", "User.Read"],
         "supports_pkce": True,
         "icon": "🟦",
-    },
-    "gitlab": {
-        "name": "GitLab",
-        "description": "Repository access, CI/CD, merge requests",
-        "auth_type": "pkce",
-        "auth_url": "https://gitlab.com/oauth/authorize",
-        "token_url": "https://gitlab.com/oauth/token",
-        "revoke_url": "https://gitlab.com/oauth/revoke",
-        "scopes": ["api", "read_user", "read_repository"],
-        "supports_pkce": True,
-        "icon": "🦊",
-    },
-    "linear": {
-        "name": "Linear",
-        "description": "Issue tracking and project management",
-        "auth_type": "pkce",
-        "auth_url": "https://linear.app/oauth/authorize",
-        "token_url": "https://api.linear.app/oauth/token",
-        "revoke_url": "https://api.linear.app/oauth/revoke",
-        "scopes": ["read", "write", "issues:create"],
-        "supports_pkce": True,
-        "icon": "📐",
-    },
-    "atlassian": {
-        "name": "Jira / Atlassian",
-        "description": "Issue tracking, Confluence docs, Bitbucket",
-        "auth_type": "pkce",
-        "auth_url": "https://auth.atlassian.com/authorize",
-        "token_url": "https://auth.atlassian.com/oauth/token",
-        "scopes": ["read:jira-work", "write:jira-work", "read:jira-user", "offline_access"],
-        "supports_pkce": True,
-        "extra_params": {"audience": "api.atlassian.com", "prompt": "consent"},
-        "icon": "📋",
-    },
-    "notion": {
-        "name": "Notion",
-        "description": "Access pages, databases, and project docs",
-        "auth_type": "oauth_secret",  # Requires client_secret, uses Basic auth
-        "auth_url": "https://api.notion.com/v1/oauth/authorize",
-        "token_url": "https://api.notion.com/v1/oauth/token",
-        "scopes": [],
-        "supports_pkce": False,
-        "extra_params": {"owner": "user"},
-        "token_auth": "basic",  # Use Basic auth for token exchange
-        "icon": "📝",
-    },
-    "slack": {
-        "name": "Slack",
-        "description": "Send messages, read channels, notifications",
-        "auth_type": "oauth_secret",  # Requires client_secret
-        "auth_url": "https://slack.com/oauth/v2/authorize",
-        "token_url": "https://slack.com/api/oauth.v2.access",
-        "revoke_url": "https://slack.com/api/auth.revoke",
-        "scopes": ["channels:read", "chat:write", "users:read", "team:read"],
-        "supports_pkce": False,
-        "token_path": "authed_user.access_token",  # Nested token response
-        "icon": "💬",
-    },
-    "discord": {
-        "name": "Discord",
-        "description": "Send messages, read servers, notifications",
-        "auth_type": "oauth_secret",  # Requires client_secret
-        "auth_url": "https://discord.com/api/oauth2/authorize",
-        "token_url": "https://discord.com/api/oauth2/token",
-        "revoke_url": "https://discord.com/api/oauth2/token/revoke",
-        "scopes": ["identify", "email", "guilds"],
-        "supports_pkce": False,
-        "icon": "🎮",
     },
 }
 
@@ -493,36 +415,16 @@ def get_provider_status() -> Dict[str, Any]:
 
 def _get_setup_steps(provider_id: str, prov: Dict) -> list:
     """Get user-friendly setup steps for a provider."""
-    auth_type = prov["auth_type"]
-
-    if auth_type == "device_flow":
-        return [
-            {"step": 1, "text": "Click 'Connect' below", "action": "connect"},
-            {"step": 2, "text": "A code will appear — copy it", "action": "copy_code"},
-            {"step": 3, "text": "Sign in at GitHub and paste the code", "action": "open_browser"},
-            {"step": 4, "text": "Done! Connection completes automatically", "action": "wait"},
-        ]
-    elif auth_type == "pkce":
-        if prov.get("supports_pkce"):
-            return [
-                {"step": 1, "text": "Click 'Connect' to sign in", "action": "connect"},
-                {"step": 2, "text": "Authorize Orion in your browser", "action": "authorize"},
-                {"step": 3, "text": "Done! Window closes automatically", "action": "wait"},
-            ]
-        return []
-    elif auth_type == "oauth_secret":
-        setup_urls = {
-            "slack": "https://api.slack.com/apps",
-            "discord": "https://discord.com/developers/applications",
-            "notion": "https://www.notion.so/my-integrations",
-        }
-        url = setup_urls.get(provider_id, "")
-        return [
-            {"step": 1, "text": f"Create an app at {prov['name']}", "action": "open_url", "url": url},
-            {"step": 2, "text": "Copy the Client ID and Client Secret", "action": "copy"},
-            {"step": 3, "text": "Paste them below and click Connect", "action": "configure"},
-        ]
-    return []
+    setup_urls = {
+        "google": "https://console.cloud.google.com/apis/credentials",
+        "microsoft": "https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps",
+    }
+    url = setup_urls.get(provider_id, "")
+    return [
+        {"step": 1, "text": f"Create an OAuth app at {prov['name']}", "action": "open_url", "url": url},
+        {"step": 2, "text": "Copy the Client ID", "action": "copy"},
+        {"step": 3, "text": "Paste below, then click 'Sign In & Connect'", "action": "configure"},
+    ]
 
 
 # ---------------------------------------------------------------------------
