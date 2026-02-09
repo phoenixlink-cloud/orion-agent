@@ -525,7 +525,19 @@ class SecureStore:
 
     def _audit(self, action: str, provider: str, backend: str,
                success: bool, detail: str = ""):
-        """Append to audit log."""
+        """Append to audit log with caller tracking."""
+        import inspect
+        # Walk the stack to find the first caller outside this module
+        caller = "unknown"
+        try:
+            for frame_info in inspect.stack()[2:6]:
+                mod = frame_info.filename.replace("\\", "/")
+                if "security/store" not in mod:
+                    caller = f"{mod.split('/')[-1]}:{frame_info.function}:{frame_info.lineno}"
+                    break
+        except Exception:
+            pass
+
         event = AuditEvent(
             timestamp=time.time(),
             action=action,
@@ -543,6 +555,7 @@ class SecureStore:
                     "backend": event.backend,
                     "success": event.success,
                     "detail": event.detail,
+                    "caller": caller,
                 }) + "\n")
         except Exception:
             pass  # Audit logging is best-effort

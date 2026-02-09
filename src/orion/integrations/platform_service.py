@@ -39,13 +39,33 @@ class PlatformService:
       - Platform-specific helper methods
     """
 
+    # Per-platform rate limits (requests per minute)
+    _PLATFORM_RATE_LIMITS = {
+        "github": 80,      # GitHub: 5000/hr ≈ 83/min
+        "slack": 50,       # Slack: ~50/min for most tiers
+        "notion": 30,      # Notion: 3 req/sec avg
+        "jira": 60,        # Jira Cloud: varies
+        "linear": 50,      # Linear: 50/min
+        "discord": 50,     # Discord: varies
+    }
+    _DEFAULT_RATE_LIMIT = 60  # Default: 60 req/min
+
     def __init__(self):
         self._store = None
         self._registry = None
+        self._rate_limiters: Dict[str, Any] = {}
         # AEGIS Invariant 6: Human approval callback for write operations.
         # If not set, ALL write operations are BLOCKED by default.
         # This is a security invariant — Orion cannot bypass this.
         self._approval_callback: Optional[Callable[[str], bool]] = None
+
+    def _get_rate_limiter(self, platform_id: str):
+        """Get or create a rate limiter for a platform."""
+        if platform_id not in self._rate_limiters:
+            from orion.core.production.metrics import RateLimiter
+            limit = self._PLATFORM_RATE_LIMITS.get(platform_id, self._DEFAULT_RATE_LIMIT)
+            self._rate_limiters[platform_id] = RateLimiter(max_requests=limit, window_seconds=60.0)
+        return self._rate_limiters[platform_id]
 
     @property
     def store(self):
@@ -249,6 +269,21 @@ class PlatformService:
         # =====================================================================
         # END AEGIS GATE — proceed with authenticated request
         # =====================================================================
+
+        # =====================================================================
+        # RATE LIMITING: Per-platform token bucket (Phase 3B)
+        # =====================================================================
+        limiter = self._get_rate_limiter(platform_id)
+        if not limiter.allow():
+            logger.warning(f"Rate limit exceeded for {platform_id}: {method.upper()} {url}")
+            return {
+                "ok": False,
+                "status": 429,
+                "error": f"Rate limit exceeded for {platform_id}. Try again shortly.",
+                "data": None,
+                "rate_limited": True,
+                "remaining": limiter.remaining(),
+            }
 
         token = self.get_token(platform_id)
         if not token:
