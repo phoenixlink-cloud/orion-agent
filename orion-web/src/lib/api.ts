@@ -32,7 +32,6 @@ export interface Settings {
   // Command Execution
   enable_command_execution: boolean
   command_timeout_seconds: number
-  allowed_commands: string[]
   
   // Limits
   max_evidence_files: number
@@ -41,7 +40,8 @@ export interface Settings {
   
   // Web Access
   web_cache_ttl: number
-  allowed_domains: string[]
+  enable_web_access: boolean
+  allowed_domains: string
   
   // Image Generation
   image_provider: string
@@ -135,27 +135,12 @@ export async function removeAPIKey(provider: string): Promise<void> {
 }
 
 /**
- * Get current model mode
+ * Get current model config (replaces legacy getModelMode)
  */
-export async function getModelMode(): Promise<ModelMode> {
-  const res = await fetch(`${API_BASE}/api/models/mode`)
-  if (!res.ok) throw new Error('Failed to get model mode')
+export async function getModelConfig(): Promise<object> {
+  const res = await fetch(`${API_BASE}/api/models/config`)
+  if (!res.ok) throw new Error('Failed to get model config')
   return res.json()
-}
-
-/**
- * Set model mode
- */
-export async function setModelMode(mode: 'local' | 'cloud'): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/models/mode`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode })
-  })
-  if (!res.ok) {
-    const error = await res.json()
-    throw new Error(error.detail || 'Failed to set model mode')
-  }
 }
 
 /**
@@ -198,12 +183,22 @@ export async function setWorkspace(workspace: string): Promise<void> {
 }
 
 /**
- * Get Ollama status
+ * Get Ollama status via integration health
  */
 export async function getOllamaStatus(): Promise<OllamaStatus> {
-  const res = await fetch(`${API_BASE}/api/ollama/status`)
-  if (!res.ok) throw new Error('Failed to get Ollama status')
-  return res.json()
+  try {
+    const res = await fetch(`${API_BASE}/api/integrations/health`)
+    if (!res.ok) return { available: false, endpoint: 'http://localhost:11434', error: 'Health check failed' }
+    const data = await res.json()
+    const ollamaCheck = data?.checks?.find?.((c: any) => c.name?.includes?.('ollama'))
+    return {
+      available: ollamaCheck?.healthy ?? false,
+      endpoint: 'http://localhost:11434',
+      error: ollamaCheck?.error,
+    }
+  } catch {
+    return { available: false, endpoint: 'http://localhost:11434', error: 'Connection failed' }
+  }
 }
 
 // =============================================================================

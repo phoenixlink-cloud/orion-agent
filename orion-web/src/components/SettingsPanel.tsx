@@ -5,6 +5,72 @@ import Link from 'next/link'
 import Button from './Button'
 import * as api from '@/lib/api'
 
+// Tooltip component — hover "?" icon shows helpful explanation
+function Tooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex', marginLeft: 6, cursor: 'help' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onClick={() => setShow(!show)}
+    >
+      <span style={{
+        width: 16, height: 16, borderRadius: '50%', fontSize: 10, fontWeight: 700,
+        background: 'rgba(159,214,255,0.15)', color: 'var(--glow)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        border: '1px solid rgba(159,214,255,0.3)',
+      }}>?</span>
+      {show && (
+        <div style={{
+          position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
+          marginBottom: 8, padding: '10px 14px', width: 260,
+          background: '#1a2236', border: '1px solid var(--line)',
+          borderRadius: 'var(--r-sm)', fontSize: 12, lineHeight: 1.5,
+          color: 'var(--text)', boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+          zIndex: 100, pointerEvents: 'none',
+        }}>
+          {text}
+          <div style={{
+            position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+            width: 0, height: 0, borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent', borderTop: '6px solid #1a2236',
+          }} />
+        </div>
+      )}
+    </span>
+  )
+}
+
+// Save status toast
+function SaveToast({ status, onDismiss }: { status: 'saving' | 'saved' | 'error'; onDismiss: () => void }) {
+  useEffect(() => {
+    if (status === 'saved') {
+      const t = setTimeout(onDismiss, 3000)
+      return () => clearTimeout(t)
+    }
+  }, [status, onDismiss])
+
+  const config = {
+    saving: { bg: 'rgba(255,200,100,0.15)', border: 'rgba(255,200,100,0.4)', color: '#ffcc66', text: 'Saving...' },
+    saved: { bg: 'rgba(100,255,100,0.15)', border: 'rgba(100,255,100,0.4)', color: '#64ff64', text: 'Settings saved successfully' },
+    error: { bg: 'rgba(255,100,100,0.15)', border: 'rgba(255,100,100,0.4)', color: '#ff6464', text: 'Failed to save. Check your connection.' },
+  }[status]
+
+  return (
+    <div style={{
+      position: 'fixed', top: 20, right: 20, zIndex: 1000,
+      padding: '12px 20px', borderRadius: 'var(--r-md)',
+      background: config.bg, border: `1px solid ${config.border}`,
+      color: config.color, fontSize: 14, fontWeight: 500,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+      animation: 'fadeIn 0.2s ease',
+    }}>
+      {config.text}
+    </div>
+  )
+}
+
 interface FeatureToggleProps {
   label: string
   description: string
@@ -157,7 +223,6 @@ interface SecureInputProps {
 function SecureInput({ label, description, value, onChange, placeholder }: SecureInputProps) {
   const [showKey, setShowKey] = useState(false)
   const hasValue = value.length > 0
-  const maskedValue = hasValue ? '•'.repeat(Math.min(value.length, 32)) : ''
 
   return (
     <div
@@ -392,7 +457,7 @@ export default function SettingsPanel() {
   })
 
   // Intelligent Orion
-  const [qualityThreshold, setQualityThreshold] = useState(0.8)
+  const [qualityThreshold, setQualityThreshold] = useState(0.7)
   const [maxRefinementIterations, setMaxRefinementIterations] = useState(3)
 
   // Governance
@@ -401,15 +466,15 @@ export default function SettingsPanel() {
 
   // Command Execution
   const [commandExecution, setCommandExecution] = useState({
-    enabled: true,
-    timeout: 60,
+    enabled: false,
+    timeout: 30,
   })
 
   // Limits
   const [limits, setLimits] = useState({
-    maxEvidenceFiles: 250,
+    maxEvidenceFiles: 20,
     maxFileSizeBytes: 100000,
-    maxEvidenceRetry: 1,
+    maxEvidenceRetry: 2,
   })
 
   // Web Access
@@ -718,14 +783,14 @@ export default function SettingsPanel() {
     }
   }
 
-  const handleSaveModelConfig = async () => {
+  const handleSaveModelConfig = async (overrideMode?: string) => {
     if (!isConnected) return
     try {
       await fetch(`${API_BASE}/api/models/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          mode: modelMode,
+          mode: overrideMode || modelMode,
           builder: {
             provider: builderProvider,
             model: builderModel,
@@ -794,6 +859,7 @@ export default function SettingsPanel() {
 
   const handleSaveAllSettings = async () => {
     if (!isConnected) return
+    setSaveStatus('saving')
     try {
       await fetch(`${API_BASE}/api/settings`, {
         method: 'POST',
@@ -824,33 +890,41 @@ export default function SettingsPanel() {
           dalle_model: imageSettings.dalleModel,
           data_dir: paths.dataDir,
           ledger_file: paths.ledgerFile,
+          workspace: workspace,
         }),
       })
-      // Also save model config
       await handleSaveModelConfig()
+      // Save each API key that has a value
+      for (const [provider, key] of Object.entries(apiKeys)) {
+        if (key) await api.setAPIKey(provider === 'openaiDalle' ? 'openai_dalle' : provider, key)
+      }
+      setSaveStatus('saved')
     } catch (err) {
       console.error('Failed to save settings:', err)
+      setSaveStatus('error')
     }
   }
 
-  const [oauthClientId, setOauthClientId] = useState('')
-  const [oauthClientSecret, setOauthClientSecret] = useState('')
+  const [oauthCredentials, setOauthCredentials] = useState<Record<string, { clientId: string; clientSecret: string }>>({})
+  const getOauthCred = (provider: string) => oauthCredentials[provider] || { clientId: '', clientSecret: '' }
+  const setOauthCred = (provider: string, field: 'clientId' | 'clientSecret', value: string) =>
+    setOauthCredentials(prev => ({ ...prev, [provider]: { ...getOauthCred(provider), [field]: value } }))
 
   const handleOAuthConfigure = async (provider: string) => {
-    if (!isConnected || !oauthClientId) return
+    const cred = getOauthCred(provider)
+    if (!isConnected || !cred.clientId) return
     try {
       const res = await fetch(`${API_BASE}/api/oauth/configure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           provider,
-          client_id: oauthClientId,
-          client_secret: oauthClientSecret || undefined,
+          client_id: cred.clientId,
+          client_secret: cred.clientSecret || undefined,
         }),
       })
       if (res.ok) {
-        setOauthClientId('')
-        setOauthClientSecret('')
+        setOauthCredentials(prev => { const next = { ...prev }; delete next[provider]; return next })
         loadOAuthStatus()
       }
     } catch (err) {
@@ -877,10 +951,13 @@ export default function SettingsPanel() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '40px 20px' }}>
+      {saveStatus !== 'idle' && (
+        <SaveToast status={saveStatus} onDismiss={() => setSaveStatus('idle')} />
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div>
           <div style={{ fontSize: 28, fontWeight: 500, color: 'var(--text)' }}>Settings</div>
-          <div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4 }}>Configure Orion features and behavior</div>
+          <div style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4 }}>Customize how Orion works for you. Hover over <Tooltip text="Tooltips provide extra details about technical settings. Look for the ? icon next to settings you're unsure about." /> for help.</div>
         </div>
         <Link href="/">
           <Button variant="secondary">← Back</Button>
@@ -919,7 +996,7 @@ export default function SettingsPanel() {
       </div>
 
       {/* API Keys */}
-      <CollapsibleSection title="API Keys" description="Configure API keys for cloud AI providers" defaultOpen={true}>
+      <CollapsibleSection title="API Keys" description="Connect to cloud AI services like OpenAI and Anthropic. Not needed if you only use free local models." defaultOpen={true}>
         <div style={{ padding: '12px 16px', background: 'rgba(255, 200, 100, 0.1)', borderRadius: 'var(--r-sm)', marginBottom: 12, border: '1px solid rgba(255, 200, 100, 0.3)' }}>
           <div style={{ fontSize: 13, color: '#ffcc66' }}>
             🔐 API keys are stored securely and never exposed in logs or responses.
@@ -949,7 +1026,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* LLM Provider Enable/Disable (v5.1.0) */}
-      <CollapsibleSection title="LLM Providers" description="Enable or disable LLM providers shown in model dropdowns">
+      <CollapsibleSection title="AI Providers" description="Choose which AI services are available. Disable any you don't use to keep things simple.">
         <div style={{ padding: '12px 16px', background: 'rgba(34, 211, 238, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.2)' }}>
           <div style={{ fontSize: 13, color: 'var(--glow)' }}>
             Toggle providers on/off. Disabled providers won't appear in Builder/Reviewer dropdowns. All providers are enabled by default.
@@ -984,7 +1061,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* OAuth Authentication (v2.4.0) */}
-      <CollapsibleSection title="OAuth Login" description="Authenticate with Google, GitHub, GitLab, Microsoft via OAuth2">
+      <CollapsibleSection title="Connected Accounts" description="Link your Google, GitHub, GitLab, or Microsoft accounts to unlock extra features and free AI access.">
         <div style={{ padding: '12px 16px', background: 'rgba(34, 211, 238, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.2)' }}>
           <div style={{ fontSize: 13, color: 'var(--glow)' }}>
             OAuth lets you use existing accounts instead of raw API keys. Google Gemini free tier = 1500 req/day at no cost.
@@ -1065,8 +1142,8 @@ export default function SettingsPanel() {
                   <input
                     type="text"
                     placeholder="Client ID"
-                    value={oauthClientId}
-                    onChange={(e) => setOauthClientId(e.target.value)}
+                    value={getOauthCred(name).clientId}
+                    onChange={(e) => setOauthCred(name, 'clientId', e.target.value)}
                     style={{
                       flex: 1, minWidth: 180, padding: '8px 12px', fontSize: 13,
                       background: 'var(--tile)', border: '1px solid var(--line)',
@@ -1076,8 +1153,8 @@ export default function SettingsPanel() {
                   <input
                     type="password"
                     placeholder="Client Secret (optional)"
-                    value={oauthClientSecret}
-                    onChange={(e) => setOauthClientSecret(e.target.value)}
+                    value={getOauthCred(name).clientSecret}
+                    onChange={(e) => setOauthCred(name, 'clientSecret', e.target.value)}
                     style={{
                       flex: 1, minWidth: 180, padding: '8px 12px', fontSize: 13,
                       background: 'var(--tile)', border: '1px solid var(--line)',
@@ -1086,11 +1163,11 @@ export default function SettingsPanel() {
                   />
                   <button
                     onClick={() => handleOAuthConfigure(name)}
-                    disabled={!oauthClientId}
+                    disabled={!getOauthCred(name).clientId}
                     style={{
                       padding: '8px 16px', fontSize: 12, fontWeight: 600,
-                      background: oauthClientId ? 'var(--glow)' : 'var(--tile)',
-                      color: oauthClientId ? '#000' : 'var(--muted)',
+                      background: getOauthCred(name).clientId ? 'var(--glow)' : 'var(--tile)',
+                      color: getOauthCred(name).clientId ? '#000' : 'var(--muted)',
                       border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer',
                     }}
                   >
@@ -1126,7 +1203,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Core Features */}
-      <CollapsibleSection title="Core Features" description="Enable or disable main Orion capabilities">
+      <CollapsibleSection title="Core Features" description="Turn Orion's main capabilities on or off. All are enabled by default.">
         <FeatureToggle
           label="Table of Three"
           description="GPT → Claude → Orion deliberation pipeline"
@@ -1160,7 +1237,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Intelligent Orion Settings */}
-      <CollapsibleSection title="Intelligent Orion" description="Quality thresholds and refinement settings">
+      <CollapsibleSection title="Quality Control" description="Control how strict Orion is when checking its own work before showing you results.">
         <NumberInput
           label="Quality Threshold"
           description="Minimum quality score to pass (0.0 to 1.0)"
@@ -1180,7 +1257,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Governance */}
-      <CollapsibleSection title="Governance (AEGIS)" description="Safety modes and governance settings">
+      <CollapsibleSection title="Safety Mode" description="Choose how cautious Orion should be. Safe mode asks before every action. Pro mode is faster.">
         <SelectInput
           label="Default Mode"
           description="Starting governance mode"
@@ -1201,7 +1278,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Command Execution */}
-      <CollapsibleSection title="Command Execution" description="PROJECT mode command settings">
+      <CollapsibleSection title="Run Commands" description="Allow Orion to run terminal commands like npm install or pytest. Only available in Project mode.">
         <FeatureToggle
           label="Enable Command Execution"
           description="Allow commands in PROJECT mode"
@@ -1225,7 +1302,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Limits */}
-      <CollapsibleSection title="Limits" description="File and evidence processing limits">
+      <CollapsibleSection title="Processing Limits" description="Control how many files Orion reads at once. Lower values = faster, higher values = more thorough.">
         <NumberInput
           label="Max Evidence Files"
           description="Maximum files in evidence snapshot"
@@ -1253,7 +1330,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Web Access */}
-      <CollapsibleSection title="Web Access (AEGIS-6)" description="Controlled web fetching settings">
+      <CollapsibleSection title="Web Access" description="Let Orion fetch documentation and code from the internet. Only allowed domains are accessed.">
         <FeatureToggle
           label="Enable Web Access"
           description="Allow fetching from allowed domains"
@@ -1278,7 +1355,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Image Generation */}
-      <CollapsibleSection title="Image Generation" description="SDXL, FLUX, and DALL-E providers">
+      <CollapsibleSection title="Image Generation" description="Generate images using local (free) or cloud (paid) AI. SDXL runs on your GPU, DALL-E uses OpenAI.">
         <SelectInput
           label="Image Provider"
           description="Which provider to use for image generation"
@@ -1331,7 +1408,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Model Configuration */}
-      <CollapsibleSection title="Model Configuration" description="Choose AI models for Builder and Reviewer roles. Governor is always Orion.">
+      <CollapsibleSection title="AI Model Setup" description="Pick which AI models Orion uses. Start with a preset or customize each role individually.">
         {/* Quick Presets */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 12 }}>Quick Presets</div>
@@ -1372,7 +1449,7 @@ export default function SettingsPanel() {
           <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 8 }}>Mode</div>
           <div style={{ display: 'flex', gap: 12 }}>
             <button
-              onClick={() => { setModelMode('single'); handleSaveModelConfig() }}
+              onClick={() => { setModelMode('single'); handleSaveModelConfig('single') }}
               style={{
                 flex: 1, padding: '12px 16px',
                 background: modelMode === 'single' ? 'rgba(159, 214, 255, 0.15)' : 'var(--tile)',
@@ -1386,7 +1463,7 @@ export default function SettingsPanel() {
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>One model for both Builder and Reviewer</div>
             </button>
             <button
-              onClick={() => { setModelMode('dual'); handleSaveModelConfig() }}
+              onClick={() => { setModelMode('dual'); handleSaveModelConfig('dual') }}
               style={{
                 flex: 1, padding: '12px 16px',
                 background: modelMode === 'dual' ? 'rgba(159, 214, 255, 0.15)' : 'var(--tile)',
@@ -1528,7 +1605,7 @@ export default function SettingsPanel() {
 
         {/* Save Button */}
         <button
-          onClick={handleSaveModelConfig}
+          onClick={() => handleSaveModelConfig()}
           style={{
             width: '100%', padding: '12px', fontSize: 14, fontWeight: 600,
             background: 'var(--glow)', color: '#000', border: 'none',
@@ -1540,7 +1617,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Paths */}
-      <CollapsibleSection title="Paths" description="Data and ledger file locations">
+      <CollapsibleSection title="Storage Paths" description="Where Orion keeps its data files. Usually you don't need to change these.">
         <TextInput
           label="Data Directory"
           description="Directory for Orion data files"
@@ -1556,20 +1633,20 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Privacy & Data (GDPR) */}
-      <CollapsibleSection title="Privacy & Data" description="GDPR compliance, data export, and deletion">
+      <CollapsibleSection title="Privacy & Your Data" description="See what data Orion stores, export it, or delete everything. Your data never leaves your computer.">
         <div style={{ padding: '12px 16px', background: 'rgba(100, 200, 100, 0.1)', borderRadius: 'var(--r-sm)', marginBottom: 12, border: '1px solid rgba(100, 200, 100, 0.3)' }}>
           <div style={{ fontSize: 13, color: '#64c864' }}>
-            🔒 All your data is encrypted at rest and never leaves your machine.
+            🔒 All your data stays on your machine and is never shared with third parties.
           </div>
         </div>
         
         <div style={{ padding: '16px', background: 'var(--tile)', borderRadius: 'var(--r-md)', marginBottom: 12 }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 8 }}>Data Storage</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
-            • API keys are encrypted using AES-256<br/>
-            • Settings stored locally in ~/.orion/<br/>
-            • Conversation history encrypted with retention policy<br/>
-            • No data is sent to external servers (except AI API calls)
+            • API keys are stored locally in ~/.orion/<br/>
+            • Settings stored locally in JSON files<br/>
+            • No data is sent to external servers (except your chosen AI provider API calls)<br/>
+            • You can export or delete all data at any time using the buttons below
           </div>
         </div>
 
@@ -1636,7 +1713,7 @@ export default function SettingsPanel() {
       </CollapsibleSection>
 
       {/* Commands Reference */}
-      <CollapsibleSection title="Commands Reference" description="Available CLI commands">
+      <CollapsibleSection title="Quick Reference" description="Handy commands you can type in the chat. Use these to control Orion directly.">
         <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>Workspace</div>
         <CommandItem command="/workspace <path>" description="Set project workspace" />
         <CommandItem command="/workspace add <name> <path>" description="Add named workspace" />
