@@ -64,18 +64,35 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
 
     elif command == "/doctor":
         try:
-            from orion.cli.doctor import handle_doctor_command
-            handle_doctor_command(parts[1:], console, workspace_path=workspace_path)
-        except ImportError:
-            console.print_error("Doctor module not available")
+            import asyncio
+            from orion.cli.doctor import run_doctor
+            try:
+                loop = asyncio.get_running_loop()
+                # Already in async context — schedule as task
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    loop.run_in_executor(pool, lambda: asyncio.run(run_doctor(console, workspace_path)))
+            except RuntimeError:
+                # No running loop — safe to use asyncio.run
+                asyncio.run(run_doctor(console, workspace_path))
+        except Exception as e:
+            console.print_error(f"Doctor failed: {e}")
         return {}
 
     elif command == "/settings":
         try:
-            from orion.cli.settings import handle_settings_command
-            handle_settings_command(parts[1:], console)
-        except ImportError:
-            console.print_error("Settings module not available")
+            import asyncio
+            from orion.cli.settings_manager import run_settings
+            action = parts[1] if len(parts) > 1 else "view"
+            try:
+                loop = asyncio.get_running_loop()
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    loop.run_in_executor(pool, lambda: asyncio.run(run_settings(console, action)))
+            except RuntimeError:
+                asyncio.run(run_settings(console, action))
+        except Exception as e:
+            console.print_error(f"Settings failed: {e}")
         return {}
 
     elif command == "/health":

@@ -34,6 +34,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+security = [
+    "keyring>=25.0",
+    "cryptography>=42.0",
+]
 cloud = [
     "google-generativeai>=0.3",
     "groq>=0.4",
@@ -65,7 +69,7 @@ dev = [
     "safety>=3.0",
     "pre-commit>=3.6",
 ]
-all = ["orion-agent[cloud,voice,web,dev]"]
+all = ["orion-agent[security,cloud,voice,web,dev]"]
 
 [project.scripts]
 orion = "orion.cli.app:main"
@@ -87,7 +91,11 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests requiring external services",
     "e2e: marks end-to-end tests",
+    "asyncio: marks async tests",
 ]
+
+[tool.pytest-asyncio]
+mode = "auto"
 
 [tool.ruff]
 target-version = "py310"

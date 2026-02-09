@@ -11,15 +11,22 @@ This handles:
 - Quick searches
 
 Target: <3 seconds for simple requests
+
+Architecture:
+  - Uses httpx (async) for non-blocking HTTP — never blocks the event loop
+  - True token-by-token streaming via SSE for both Ollama and OpenAI
+  - Centralized model config from orion.core.llm.config
+  - Secure API key retrieval via orion.security.store
 """
 
 import os
 import json
 import asyncio
-import fnmatch
 from typing import Dict, Any, List, Optional, AsyncGenerator
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import httpx
 
 
 @dataclass
@@ -36,7 +43,9 @@ class FastPath:
     Execute simple requests directly without Council deliberation.
 
     Single LLM call with tool access → Execute → Done.
-    Tries Ollama (local) first, then OpenAI if API key is available.
+    Tries Ollama (local) first, then cloud providers via centralized config.
+
+    Uses httpx for fully async HTTP — never blocks the event loop.
     """
 
     SYSTEM_PROMPT = """You are Orion, a governed AI coding assistant with AEGIS safety.
@@ -50,22 +59,67 @@ IMPORTANT RULES:
 - If you can't do something, explain why briefly
 """
 
+    # Timeout config: connect 5s, read 120s (LLM generation can be slow)
+    _TIMEOUT = httpx.Timeout(5.0, read=120.0)
+
     def __init__(self, workspace_path: str, model: str = "gpt-4o"):
         self.workspace = str(Path(workspace_path).resolve())
         self.model = model
 
-    async def execute(self, request: str, scout_report=None) -> FastPathResult:
+    def _get_model_config(self) -> Dict[str, Any]:
         """
-        Execute a simple request directly.
+        Get model configuration from centralized config module.
 
-        Args:
-            request: User's request
-            scout_report: Scout analysis with relevant files
-
-        Returns:
-            FastPathResult with response and actions taken
+        Falls back to environment variables and sensible defaults.
         """
-        # Build context from relevant files
+        config = {
+            "ollama_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+            "ollama_model": os.environ.get("OLLAMA_BUILDER_MODEL", "qwen2.5-coder:14b"),
+            "openai_model": self.model,
+        }
+
+        # Try centralized config first
+        try:
+            from orion.core.llm.config import get_model_config
+            mc = get_model_config()
+            if hasattr(mc, "builder"):
+                b = mc.builder
+                if hasattr(b, "provider") and b.provider == "ollama":
+                    config["ollama_model"] = getattr(b, "model", config["ollama_model"])
+                elif hasattr(b, "provider") and b.provider in ("openai", "anthropic", "google", "groq"):
+                    config["openai_model"] = getattr(b, "model", config["openai_model"])
+        except Exception:
+            pass
+
+        return config
+
+    def _get_api_key(self, provider: str) -> Optional[str]:
+        """
+        Retrieve API key using enterprise credential chain:
+          1. Environment variable
+          2. SecureStore (keyring / encrypted file)
+        """
+        # Environment variable (standard names)
+        env_map = {
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "google": "GOOGLE_API_KEY",
+            "groq": "GROQ_API_KEY",
+        }
+        env_key = os.environ.get(env_map.get(provider, ""), "")
+        if env_key:
+            return env_key
+
+        # SecureStore
+        try:
+            from orion.security.store import get_secure_store
+            store = get_secure_store()
+            return store.get_key(provider)
+        except Exception:
+            return None
+
+    def _build_prompt(self, request: str, scout_report=None) -> str:
+        """Build the full prompt with file context and repo map."""
         file_contents = []
         if scout_report and hasattr(scout_report, 'relevant_files'):
             for fpath in scout_report.relevant_files[:3]:
@@ -79,7 +133,6 @@ IMPORTANT RULES:
                 except Exception:
                     pass
 
-        # Try repo map context
         repo_context = ""
         try:
             from orion.core.context.repo_map import generate_repo_map
@@ -93,69 +146,112 @@ IMPORTANT RULES:
         if file_contents:
             user_prompt += f"\n\nRelevant Files:\n{chr(10).join(file_contents)}"
 
-        # Try Ollama first (local, free), then OpenAI
+        return user_prompt
+
+    async def execute(self, request: str, scout_report=None) -> FastPathResult:
+        """
+        Execute a simple request directly.
+
+        Tries providers in order: Ollama (local/free) → OpenAI → Anthropic.
+        All calls are fully async via httpx — never blocks the event loop.
+        """
+        user_prompt = self._build_prompt(request, scout_report)
+
+        # Try Ollama first (local, free)
         result = await self._call_ollama(user_prompt)
-        if not result.success:
-            result = await self._call_openai(user_prompt)
-        return result
+        if result.success:
+            return result
+
+        # Try OpenAI
+        result = await self._call_openai(user_prompt)
+        if result.success:
+            return result
+
+        # Try Anthropic
+        result = await self._call_anthropic(user_prompt)
+        if result.success:
+            return result
+
+        # No LLM available
+        return FastPathResult(
+            success=False,
+            response=(
+                "No LLM available. Either:\n"
+                "  1. Start Ollama: ollama serve\n"
+                "  2. Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable\n"
+                "  3. Add an API key in Settings → API Keys\n"
+                "  4. Run /doctor to check your configuration"
+            ),
+        )
 
     async def execute_streaming(
         self,
         request: str,
         scout_report=None
     ) -> AsyncGenerator[str, None]:
-        """Execute with streaming output. Yields tokens as they arrive."""
-        result = await self.execute(request, scout_report)
-        # Yield response in chunks
-        chunk_size = 40
-        for i in range(0, len(result.response), chunk_size):
-            yield result.response[i:i + chunk_size]
-            await asyncio.sleep(0.01)
+        """
+        Execute with true token-by-token streaming.
 
-    async def _call_ollama(self, prompt: str) -> FastPathResult:
-        """Try Ollama (local model) first."""
+        Yields tokens as they arrive from the LLM provider.
+        Uses SSE (Server-Sent Events) for both Ollama and OpenAI.
+        """
+        user_prompt = self._build_prompt(request, scout_report)
+        config = self._get_model_config()
+
+        # Try Ollama streaming first
         try:
-            import requests as http_requests
-        except ImportError:
-            return FastPathResult(success=False, response="requests package not installed")
+            async for token in self._stream_ollama(user_prompt, config):
+                yield token
+            return
+        except Exception:
+            pass
 
-        # Get Ollama config
-        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-        ollama_model = os.environ.get("OLLAMA_BUILDER_MODEL", "qwen2.5-coder:14b")
-
-        # Also check settings file
-        settings_file = Path.home() / ".orion" / "settings.json"
-        if settings_file.exists():
+        # Fallback to OpenAI streaming
+        api_key = self._get_api_key("openai")
+        if api_key:
             try:
-                settings = json.loads(settings_file.read_text())
-                ollama_url = settings.get("ollama_base_url", ollama_url)
-                ollama_model = settings.get("ollama_builder_model", ollama_model)
+                async for token in self._stream_openai(user_prompt, api_key, config):
+                    yield token
+                return
             except Exception:
                 pass
 
+        # No streaming available — fall back to non-streaming
+        result = await self.execute(request, scout_report)
+        yield result.response
+
+    # =========================================================================
+    # Ollama (async via httpx)
+    # =========================================================================
+
+    async def _call_ollama(self, prompt: str) -> FastPathResult:
+        """Call Ollama using async httpx. Non-blocking."""
+        config = self._get_model_config()
+        ollama_url = config["ollama_url"]
+        ollama_model = config["ollama_model"]
+
         try:
-            response = http_requests.post(
-                f"{ollama_url}/api/generate",
-                json={
-                    "model": ollama_model,
-                    "prompt": f"{self.SYSTEM_PROMPT}\n\n{prompt}",
-                    "stream": False,
-                },
-                timeout=120,
-            )
-            if response.ok:
-                data = response.json()
-                return FastPathResult(
-                    success=True,
-                    response=data.get("response", ""),
-                    tokens_used=data.get("eval_count", 0),
+            async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
+                response = await client.post(
+                    f"{ollama_url}/api/generate",
+                    json={
+                        "model": ollama_model,
+                        "prompt": f"{self.SYSTEM_PROMPT}\n\n{prompt}",
+                        "stream": False,
+                    },
                 )
-            else:
+                if response.status_code == 200:
+                    data = response.json()
+                    return FastPathResult(
+                        success=True,
+                        response=data.get("response", ""),
+                        tokens_used=data.get("eval_count", 0),
+                    )
                 return FastPathResult(
                     success=False,
                     response=f"Ollama returned {response.status_code}",
                 )
-        except http_requests.ConnectionError:
+        except httpx.ConnectError:
             return FastPathResult(
                 success=False,
                 response="Ollama not running (connection refused)",
@@ -163,54 +259,160 @@ IMPORTANT RULES:
         except Exception as e:
             return FastPathResult(success=False, response=f"Ollama error: {e}")
 
+    async def _stream_ollama(
+        self, prompt: str, config: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
+        """True token-by-token streaming from Ollama via NDJSON."""
+        ollama_url = config["ollama_url"]
+        ollama_model = config["ollama_model"]
+
+        async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
+            async with client.stream(
+                "POST",
+                f"{ollama_url}/api/generate",
+                json={
+                    "model": ollama_model,
+                    "prompt": f"{self.SYSTEM_PROMPT}\n\n{prompt}",
+                    "stream": True,
+                },
+            ) as response:
+                if response.status_code != 200:
+                    raise RuntimeError(f"Ollama streaming failed: {response.status_code}")
+                async for line in response.aiter_lines():
+                    if line.strip():
+                        try:
+                            data = json.loads(line)
+                            token = data.get("response", "")
+                            if token:
+                                yield token
+                            if data.get("done"):
+                                break
+                        except json.JSONDecodeError:
+                            pass
+
+    # =========================================================================
+    # OpenAI (async via httpx — avoids openai SDK sync overhead)
+    # =========================================================================
+
     async def _call_openai(self, prompt: str) -> FastPathResult:
-        """Fallback to OpenAI if Ollama unavailable."""
-        api_key = os.environ.get("OPENAI_API_KEY")
-
-        # Check secure store
+        """Call OpenAI using async httpx. Non-blocking."""
+        api_key = self._get_api_key("openai")
         if not api_key:
-            try:
-                from orion.security.store import get_secure_store
-                store = get_secure_store()
-                api_key = store.get_key("openai")
-            except Exception:
-                pass
+            return FastPathResult(success=False, response="No OpenAI API key")
 
-        if not api_key:
-            return FastPathResult(
-                success=False,
-                response=(
-                    "No LLM available. Either:\n"
-                    "  1. Start Ollama: ollama serve\n"
-                    "  2. Set OPENAI_API_KEY environment variable\n"
-                    "  3. Run /doctor to check your configuration"
-                ),
-            )
+        config = self._get_model_config()
 
         try:
-            import openai
-            client = openai.OpenAI(api_key=api_key)
-
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-            )
-
-            content = response.choices[0].message.content or ""
-            tokens = response.usage.total_tokens if response.usage else 0
-
-            return FastPathResult(success=True, response=content, tokens_used=tokens)
-
-        except ImportError:
-            return FastPathResult(
-                success=False,
-                response="openai package not installed. Run: pip install openai",
-            )
+            async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": config["openai_model"],
+                        "messages": [
+                            {"role": "system", "content": self.SYSTEM_PROMPT},
+                            {"role": "user", "content": prompt},
+                        ],
+                    },
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data["choices"][0]["message"]["content"]
+                    tokens = data.get("usage", {}).get("total_tokens", 0)
+                    return FastPathResult(
+                        success=True, response=content, tokens_used=tokens
+                    )
+                return FastPathResult(
+                    success=False,
+                    response=f"OpenAI returned {response.status_code}: {response.text[:200]}",
+                )
         except Exception as e:
             return FastPathResult(success=False, response=f"OpenAI error: {e}")
+
+    async def _stream_openai(
+        self, prompt: str, api_key: str, config: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
+        """True token-by-token streaming from OpenAI via SSE."""
+        async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
+            async with client.stream(
+                "POST",
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": config["openai_model"],
+                    "messages": [
+                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "stream": True,
+                },
+            ) as response:
+                if response.status_code != 200:
+                    raise RuntimeError(f"OpenAI streaming failed: {response.status_code}")
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        payload = line[6:]
+                        if payload.strip() == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(payload)
+                            delta = data["choices"][0].get("delta", {})
+                            token = delta.get("content", "")
+                            if token:
+                                yield token
+                        except (json.JSONDecodeError, KeyError, IndexError):
+                            pass
+
+    # =========================================================================
+    # Anthropic (async via httpx)
+    # =========================================================================
+
+    async def _call_anthropic(self, prompt: str) -> FastPathResult:
+        """Call Anthropic Claude using async httpx. Non-blocking."""
+        api_key = self._get_api_key("anthropic")
+        if not api_key:
+            return FastPathResult(success=False, response="No Anthropic API key")
+
+        try:
+            async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
+                response = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "claude-sonnet-4-20250514",
+                        "max_tokens": 4096,
+                        "system": self.SYSTEM_PROMPT,
+                        "messages": [
+                            {"role": "user", "content": prompt},
+                        ],
+                    },
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data["content"][0]["text"]
+                    input_tokens = data.get("usage", {}).get("input_tokens", 0)
+                    output_tokens = data.get("usage", {}).get("output_tokens", 0)
+                    return FastPathResult(
+                        success=True,
+                        response=content,
+                        tokens_used=input_tokens + output_tokens,
+                    )
+                return FastPathResult(
+                    success=False,
+                    response=f"Anthropic returned {response.status_code}: {response.text[:200]}",
+                )
+        except Exception as e:
+            return FastPathResult(success=False, response=f"Anthropic error: {e}")
 
 
 def get_fast_path(workspace_path: str, model: str = "gpt-4o") -> FastPath:

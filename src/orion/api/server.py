@@ -10,12 +10,22 @@ Run with: uvicorn orion.api.server:app --reload --port 8000
 
 import os
 import json
+import time
+import hashlib
+import base64
+import secrets
+import string
+import logging
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+from urllib.parse import urlencode, quote_plus
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger("orion.api.server")
 
 app = FastAPI(
     title="Orion Agent API",
@@ -77,10 +87,17 @@ class OAuthConfigureRequest(BaseModel):
 
 class OAuthLoginRequest(BaseModel):
     provider: str
+    redirect_uri: Optional[str] = None
 
 
 class OAuthRevokeRequest(BaseModel):
     provider: str
+
+
+class OAuthCallbackRequest(BaseModel):
+    provider: str
+    code: str
+    state: str
 
 
 class ProviderToggleRequest(BaseModel):
@@ -393,7 +410,20 @@ API_KEY_PROVIDERS = [
 ]
 
 
-def _load_api_keys() -> dict:
+def _get_secure_store():
+    """Get SecureStore singleton. Falls back to legacy plaintext if unavailable."""
+    try:
+        from orion.security.store import get_secure_store
+        store = get_secure_store()
+        if store.is_available:
+            return store
+    except Exception as e:
+        logger.debug(f"SecureStore unavailable: {e}")
+    return None
+
+
+def _load_api_keys_legacy() -> dict:
+    """Legacy plaintext key loading — used only as fallback."""
     keys_file = SETTINGS_DIR / "api_keys.json"
     if keys_file.exists():
         try:
@@ -403,54 +433,108 @@ def _load_api_keys() -> dict:
     return {}
 
 
-def _save_api_keys(keys: dict):
-    SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    (SETTINGS_DIR / "api_keys.json").write_text(json.dumps(keys, indent=2))
-
-
 @app.get("/api/keys/status")
 async def get_api_key_status():
     """Get configured status of all API keys (never exposes actual keys)."""
-    stored = _load_api_keys()
+    store = _get_secure_store()
+    legacy_keys = _load_api_keys_legacy() if not store else {}
     result = []
     for entry in API_KEY_PROVIDERS:
         provider = entry["provider"]
-        # Check env var first, then stored keys
         env_key = os.environ.get(f"{provider.upper()}_API_KEY", "")
-        has_key = bool(env_key) or bool(stored.get(provider))
+        has_secure = store.has_key(provider) if store else False
+        has_legacy = bool(legacy_keys.get(provider))
+        has_key = bool(env_key) or has_secure or has_legacy
+
+        if env_key:
+            source = "environment"
+        elif has_secure:
+            source = f"secure_store ({store.backend_name})"
+        elif has_legacy:
+            source = "legacy_plaintext"
+        else:
+            source = "none"
+
         result.append({
             "provider": provider,
             "configured": has_key,
             "description": entry["description"],
-            "source": "environment" if env_key else ("stored" if stored.get(provider) else "none"),
+            "source": source,
         })
     return result
 
 
 @app.post("/api/keys/set")
 async def set_api_key(request: APIKeySetRequest):
-    """Store an API key securely."""
+    """Store an API key in the secure credential store."""
     valid_providers = [p["provider"] for p in API_KEY_PROVIDERS]
     if request.provider not in valid_providers:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
     if not request.key or len(request.key) < 8:
         raise HTTPException(status_code=400, detail="API key too short")
-    keys = _load_api_keys()
-    keys[request.provider] = request.key
-    _save_api_keys(keys)
-    # Also set in environment for current session
-    os.environ[f"{request.provider.upper()}_API_KEY"] = request.key
-    return {"status": "success", "provider": request.provider}
+
+    store = _get_secure_store()
+    if store:
+        try:
+            backend = store.set_key(request.provider, request.key)
+            os.environ[f"{request.provider.upper()}_API_KEY"] = request.key
+            return {
+                "status": "success",
+                "provider": request.provider,
+                "backend": backend,
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to store key: {e}")
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "No secure storage backend available. "
+                "Install 'keyring' or 'cryptography': pip install keyring cryptography"
+            ),
+        )
 
 
 @app.delete("/api/keys/{provider}")
 async def remove_api_key(provider: str):
-    """Remove a stored API key."""
-    keys = _load_api_keys()
-    keys.pop(provider, None)
-    _save_api_keys(keys)
+    """Remove a stored API key from secure store."""
+    store = _get_secure_store()
+    if store:
+        store.delete_key(provider)
+    # Also remove from legacy
+    keys_file = SETTINGS_DIR / "api_keys.json"
+    if keys_file.exists():
+        try:
+            keys = json.loads(keys_file.read_text())
+            keys.pop(provider, None)
+            keys_file.write_text(json.dumps(keys, indent=2))
+        except Exception:
+            pass
     os.environ.pop(f"{provider.upper()}_API_KEY", None)
     return {"status": "success", "provider": provider}
+
+
+@app.post("/api/keys/migrate")
+async def migrate_legacy_keys():
+    """Migrate plaintext API keys to secure store."""
+    store = _get_secure_store()
+    if not store:
+        raise HTTPException(status_code=503, detail="No secure storage backend available")
+    migrated = store.migrate_plaintext_keys()
+    return {"status": "success", "migrated": migrated}
+
+
+@app.get("/api/keys/store-status")
+async def get_key_store_status():
+    """Get secure store diagnostics."""
+    store = _get_secure_store()
+    if store:
+        return store.get_status()
+    return {
+        "available": False,
+        "backend": "none",
+        "message": "Install 'keyring' or 'cryptography' for secure storage",
+    }
 
 
 # =============================================================================
@@ -461,36 +545,61 @@ OAUTH_PLATFORMS = {
     "google": {
         "name": "Google",
         "description": "Access Gemini AI, Google Workspace, YouTube",
-        "scopes": "gemini, drive, docs, sheets",
+        "scopes": ["openid", "profile", "email"],
         "free_tier": "1500 req/day Gemini free",
         "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
+        "token_url": "https://oauth2.googleapis.com/token",
+        "revoke_url": "https://oauth2.googleapis.com/revoke",
+        "supports_pkce": True,
     },
     "github": {
         "name": "GitHub",
         "description": "Repository access, issues, pull requests, Copilot",
-        "scopes": "repo, read:org, read:user",
+        "scopes": ["repo", "read:org", "read:user"],
         "free_tier": "Public repos free",
         "auth_url": "https://github.com/login/oauth/authorize",
+        "token_url": "https://github.com/login/oauth/access_token",
+        "revoke_url": None,
+        "supports_pkce": False,
     },
     "gitlab": {
         "name": "GitLab",
         "description": "Repository access, CI/CD, merge requests",
-        "scopes": "api, read_user, read_repository",
+        "scopes": ["api", "read_user", "read_repository"],
         "free_tier": "Public repos free",
         "auth_url": "https://gitlab.com/oauth/authorize",
+        "token_url": "https://gitlab.com/oauth/token",
+        "revoke_url": "https://gitlab.com/oauth/revoke",
+        "supports_pkce": True,
     },
     "microsoft": {
         "name": "Microsoft",
         "description": "Azure OpenAI, OneDrive, Office 365",
-        "scopes": "openid, profile, User.Read",
+        "scopes": ["openid", "profile", "User.Read"],
         "free_tier": "Azure free tier available",
         "auth_url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+        "token_url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        "revoke_url": None,
+        "supports_pkce": True,
     },
 }
 
+# In-memory PKCE state storage (short-lived, per-session)
+_oauth_pending: Dict[str, Dict[str, str]] = {}
+
+
+def _generate_pkce_pair() -> tuple:
+    """Generate PKCE code_verifier + code_challenge (S256)."""
+    rand = secrets.SystemRandom()
+    code_verifier = ''.join(rand.choices(string.ascii_letters + string.digits, k=128))
+    code_sha256 = hashlib.sha256(code_verifier.encode('utf-8')).digest()
+    code_challenge = base64.urlsafe_b64encode(code_sha256).decode('utf-8').rstrip('=')
+    return code_verifier, code_challenge
+
 
 def _load_oauth_state() -> dict:
-    oauth_file = SETTINGS_DIR / "oauth_state.json"
+    """Load OAuth token state. Client credentials stored in SecureStore."""
+    oauth_file = SETTINGS_DIR / "oauth_tokens.json"
     if oauth_file.exists():
         try:
             return json.loads(oauth_file.read_text())
@@ -501,55 +610,249 @@ def _load_oauth_state() -> dict:
 
 def _save_oauth_state(state: dict):
     SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    (SETTINGS_DIR / "oauth_state.json").write_text(json.dumps(state, indent=2))
+    (SETTINGS_DIR / "oauth_tokens.json").write_text(json.dumps(state, indent=2))
 
 
 @app.get("/api/oauth/status")
 async def get_oauth_status():
     """Get OAuth status for all supported platforms."""
     saved = _load_oauth_state()
+    store = _get_secure_store()
     result = {}
     for key, platform in OAUTH_PLATFORMS.items():
-        state = saved.get(key, {})
+        token_state = saved.get(key, {})
+        has_client_id = False
+        if store:
+            has_client_id = store.has_key(f"oauth_{key}_client_id")
+        # Fallback: check legacy oauth_state.json
+        if not has_client_id:
+            legacy_file = SETTINGS_DIR / "oauth_state.json"
+            if legacy_file.exists():
+                try:
+                    legacy = json.loads(legacy_file.read_text())
+                    has_client_id = bool(legacy.get(key, {}).get("client_id"))
+                except Exception:
+                    pass
+
+        is_authenticated = bool(token_state.get("access_token"))
+        expires_at = token_state.get("expires_at")
+        if expires_at and time.time() > expires_at:
+            is_authenticated = False  # Token expired
+
         result[key] = {
             "name": platform["name"],
             "description": platform["description"],
-            "scopes": platform["scopes"],
+            "scopes": ", ".join(platform["scopes"]),
             "free_tier": platform["free_tier"],
-            "configured": bool(state.get("client_id")),
-            "authenticated": bool(state.get("access_token")),
-            "expires_at": state.get("expires_at"),
+            "configured": has_client_id,
+            "authenticated": is_authenticated,
+            "expires_at": expires_at,
+            "supports_pkce": platform["supports_pkce"],
         }
     return result
 
 
 @app.post("/api/oauth/configure")
 async def configure_oauth(request: OAuthConfigureRequest):
-    """Configure OAuth client credentials for a platform."""
+    """Store OAuth client credentials in SecureStore."""
     if request.provider not in OAUTH_PLATFORMS:
         raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
-    state = _load_oauth_state()
-    if request.provider not in state:
-        state[request.provider] = {}
-    state[request.provider]["client_id"] = request.client_id
-    if request.client_secret:
-        state[request.provider]["client_secret"] = request.client_secret
-    _save_oauth_state(state)
-    return {"status": "success", "provider": request.provider}
+
+    store = _get_secure_store()
+    if store:
+        store.set_key(f"oauth_{request.provider}_client_id", request.client_id)
+        if request.client_secret:
+            store.set_key(f"oauth_{request.provider}_client_secret", request.client_secret)
+        return {"status": "success", "provider": request.provider, "backend": store.backend_name}
+    else:
+        raise HTTPException(
+            status_code=503,
+            detail="No secure storage backend. Install 'keyring' or 'cryptography'.",
+        )
 
 
 @app.post("/api/oauth/login")
 async def oauth_login(request: OAuthLoginRequest):
-    """Initiate OAuth login flow for a platform."""
+    """
+    Initiate OAuth2 Authorization Code flow with PKCE.
+
+    Returns the auth_url for the frontend to redirect the user to.
+    The callback will be handled by /api/oauth/callback.
+    """
     if request.provider not in OAUTH_PLATFORMS:
         raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
-    state = _load_oauth_state()
-    provider_state = state.get(request.provider, {})
-    if not provider_state.get("client_id"):
-        raise HTTPException(status_code=400, detail="OAuth not configured for this provider. Set client_id first.")
+
     platform = OAUTH_PLATFORMS[request.provider]
-    auth_url = f"{platform['auth_url']}?client_id={provider_state['client_id']}&response_type=code&scope={platform['scopes']}"
-    return {"status": "redirect", "auth_url": auth_url, "provider": request.provider}
+    store = _get_secure_store()
+
+    # Retrieve client_id from secure store or legacy
+    client_id = None
+    if store:
+        client_id = store.get_key(f"oauth_{request.provider}_client_id")
+    if not client_id:
+        legacy_file = SETTINGS_DIR / "oauth_state.json"
+        if legacy_file.exists():
+            try:
+                legacy = json.loads(legacy_file.read_text())
+                client_id = legacy.get(request.provider, {}).get("client_id")
+            except Exception:
+                pass
+    if not client_id:
+        raise HTTPException(
+            status_code=400,
+            detail="OAuth not configured. Set client_id first via /api/oauth/configure.",
+        )
+
+    # Generate PKCE pair and state token
+    code_verifier, code_challenge = _generate_pkce_pair()
+    state_token = secrets.token_urlsafe(32)
+
+    # Store pending auth (short-lived)
+    _oauth_pending[state_token] = {
+        "provider": request.provider,
+        "code_verifier": code_verifier,
+        "created_at": str(time.time()),
+    }
+
+    # Use provided redirect_uri or default to our callback
+    redirect_uri = request.redirect_uri or "http://localhost:8000/api/oauth/callback"
+
+    # Build authorization URL
+    params = {
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": redirect_uri,
+        "scope": " ".join(platform["scopes"]),
+        "state": state_token,
+    }
+    if platform["supports_pkce"]:
+        params["code_challenge"] = code_challenge
+        params["code_challenge_method"] = "S256"
+
+    auth_url = f"{platform['auth_url']}?{urlencode(params)}"
+    return {
+        "status": "redirect",
+        "auth_url": auth_url,
+        "provider": request.provider,
+        "state": state_token,
+    }
+
+
+@app.get("/api/oauth/callback")
+async def oauth_callback(
+    code: str = Query(...),
+    state: str = Query(...),
+):
+    """
+    OAuth2 callback handler.
+
+    Receives the authorization code from the OAuth provider,
+    exchanges it for access + refresh tokens using PKCE verification.
+    Returns an HTML page that closes itself and notifies the parent window.
+    """
+    # Validate state token
+    pending = _oauth_pending.pop(state, None)
+    if not pending:
+        return HTMLResponse(
+            "<html><body><h2>Error: Invalid or expired OAuth state.</h2>"
+            "<p>Please try logging in again from the Settings page.</p></body></html>",
+            status_code=400,
+        )
+
+    provider = pending["provider"]
+    code_verifier = pending["code_verifier"]
+    platform = OAUTH_PLATFORMS[provider]
+    store = _get_secure_store()
+
+    # Retrieve client credentials
+    client_id = store.get_key(f"oauth_{provider}_client_id") if store else None
+    client_secret = store.get_key(f"oauth_{provider}_client_secret") if store else None
+
+    # Fallback to legacy
+    if not client_id:
+        legacy_file = SETTINGS_DIR / "oauth_state.json"
+        if legacy_file.exists():
+            try:
+                legacy = json.loads(legacy_file.read_text())
+                pstate = legacy.get(provider, {})
+                client_id = client_id or pstate.get("client_id")
+                client_secret = client_secret or pstate.get("client_secret")
+            except Exception:
+                pass
+
+    if not client_id:
+        return HTMLResponse(
+            "<html><body><h2>Error: OAuth client_id not found.</h2></body></html>",
+            status_code=400,
+        )
+
+    # Exchange authorization code for tokens
+    import httpx
+    token_data = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": "http://localhost:8000/api/oauth/callback",
+        "client_id": client_id,
+    }
+    if client_secret:
+        token_data["client_secret"] = client_secret
+    if platform["supports_pkce"]:
+        token_data["code_verifier"] = code_verifier
+
+    headers = {"Accept": "application/json"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                platform["token_url"],
+                data=token_data,
+                headers=headers,
+            )
+            if resp.status_code != 200:
+                return HTMLResponse(
+                    f"<html><body><h2>Token exchange failed</h2>"
+                    f"<p>{resp.status_code}: {resp.text[:500]}</p></body></html>",
+                    status_code=400,
+                )
+            tokens = resp.json()
+    except Exception as e:
+        return HTMLResponse(
+            f"<html><body><h2>Token exchange error</h2><p>{e}</p></body></html>",
+            status_code=500,
+        )
+
+    # Store tokens
+    oauth_state = _load_oauth_state()
+    oauth_state[provider] = {
+        "access_token": tokens.get("access_token"),
+        "refresh_token": tokens.get("refresh_token"),
+        "token_type": tokens.get("token_type", "Bearer"),
+        "expires_at": time.time() + tokens.get("expires_in", 3600),
+        "scope": tokens.get("scope", ""),
+    }
+    _save_oauth_state(oauth_state)
+
+    # Also store access token in secure store for other modules
+    if store and tokens.get("access_token"):
+        store.set_key(f"oauth_{provider}_access_token", tokens["access_token"])
+        if tokens.get("refresh_token"):
+            store.set_key(f"oauth_{provider}_refresh_token", tokens["refresh_token"])
+
+    # Return HTML that closes the popup and signals the parent
+    return HTMLResponse(
+        f"""<html>
+<head><title>Orion — OAuth Success</title></head>
+<body style="font-family: system-ui; text-align: center; padding: 40px;">
+  <h2 style="color: #22c55e;">✓ {OAUTH_PLATFORMS[provider]['name']} Connected</h2>
+  <p>You can close this window. The Settings page will update automatically.</p>
+  <script>
+    if (window.opener) {{
+      window.opener.postMessage({{type: 'oauth_success', provider: '{provider}'}}, '*');
+    }}
+    setTimeout(() => window.close(), 2000);
+  </script>
+</body></html>"""
+    )
 
 
 @app.post("/api/oauth/revoke")
@@ -557,12 +860,35 @@ async def oauth_revoke(request: OAuthRevokeRequest):
     """Revoke OAuth tokens for a platform."""
     if request.provider not in OAUTH_PLATFORMS:
         raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
+
+    platform = OAUTH_PLATFORMS[request.provider]
     state = _load_oauth_state()
+    token_state = state.get(request.provider, {})
+    access_token = token_state.get("access_token")
+
+    # Attempt remote revocation if the provider supports it
+    if access_token and platform.get("revoke_url"):
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    platform["revoke_url"],
+                    data={"token": access_token},
+                )
+        except Exception as e:
+            logger.debug(f"Remote revocation failed for {request.provider}: {e}")
+
+    # Clear local tokens
     if request.provider in state:
-        state[request.provider].pop("access_token", None)
-        state[request.provider].pop("refresh_token", None)
-        state[request.provider].pop("expires_at", None)
+        state.pop(request.provider)
         _save_oauth_state(state)
+
+    # Clear from secure store
+    store = _get_secure_store()
+    if store:
+        store.delete_key(f"oauth_{request.provider}_access_token")
+        store.delete_key(f"oauth_{request.provider}_refresh_token")
+
     return {"status": "success", "provider": request.provider}
 
 
@@ -837,12 +1163,28 @@ async def export_all_data():
 async def delete_all_data():
     """Delete all user data (GDPR right to erasure)."""
     _append_audit_log("data_deletion", "all", "User requested full data deletion")
+
+    # Clear secure store
+    store = _get_secure_store()
+    if store:
+        for provider in store.list_providers():
+            try:
+                store.delete_key(provider)
+            except Exception:
+                pass
+
     files_to_delete = [
         SETTINGS_FILE,
         SETTINGS_DIR / "api_keys.json",
+        SETTINGS_DIR / "api_keys.json.migrated",
         SETTINGS_DIR / "oauth_state.json",
+        SETTINGS_DIR / "oauth_tokens.json",
         SETTINGS_DIR / "model_config.json",
         SETTINGS_DIR / "provider_settings.json",
+        SETTINGS_DIR / "security" / "vault.enc",
+        SETTINGS_DIR / "security" / "vault.salt",
+        SETTINGS_DIR / "security" / "credentials.meta.json",
+        SETTINGS_DIR / "security" / "audit.log",
         GDPR_CONSENTS_FILE,
     ]
     deleted = []

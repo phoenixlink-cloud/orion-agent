@@ -28,11 +28,11 @@ class Intent:
     raw_input: str
 
 
-def classify_intent(user_input: str) -> Intent:
+def classify_intent(user_input: str, workspace_path: str = ".") -> Intent:
     """Legacy intent classification - now uses Scout internally."""
     try:
         from orion.core.agents.scout import Scout, Route
-        scout = Scout(".")
+        scout = Scout(workspace_path)
         report = scout.analyze(user_input)
 
         if report.route == Route.FAST_PATH:
@@ -104,7 +104,11 @@ class RequestRouter:
     def _init_sandbox(self) -> Path:
         """Create a sandbox session from the source repo."""
         try:
-            from orion.core.editing.sandbox import SandboxManager
+            # Try the correct module path for sandbox
+            try:
+                from orion.security.sandbox import SandboxManager
+            except ImportError:
+                from orion.core.editing.sandbox import SandboxManager
             self._sandbox_mgr = SandboxManager(
                 sandbox_root=os.environ.get("ORION_SANDBOX_ROOT"),
                 use_git_clone=os.environ.get("ORION_SANDBOX_USE_GIT_CLONE", "true").lower() in ("true", "1"),
@@ -218,10 +222,20 @@ class RequestRouter:
             return {"content": "FastPath not available. Run /doctor to check configuration."}
         try:
             if self.stream_output:
-                result = await self.fast_path.execute(request, report)
-                if result.success:
-                    print(result.response)
-                return {"content": result.response}
+                # Use true token-by-token streaming
+                collected = []
+                try:
+                    async for token in self.fast_path.execute_streaming(request, report):
+                        print(token, end="", flush=True)
+                        collected.append(token)
+                    print()  # Final newline after streaming
+                    return {"content": "".join(collected)}
+                except Exception:
+                    # Fallback to non-streaming if streaming fails
+                    result = await self.fast_path.execute(request, report)
+                    if result.success:
+                        print(result.response)
+                    return {"content": result.response}
             else:
                 result = await self.fast_path.execute(request, report)
                 return {"content": result.response}
