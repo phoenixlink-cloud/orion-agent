@@ -227,12 +227,12 @@ class Scout:
         """Extract file paths mentioned in the request."""
         files = []
 
-        # Common file extensions
-        extensions = r'\.(py|js|ts|jsx|tsx|go|rs|java|cs|cpp|c|h|hpp|json|yaml|yml|md|txt|html|css|sql)'
+        # Common file extensions (non-capturing group so findall returns full match)
+        extensions = r'\.(?:py|js|ts|jsx|tsx|go|rs|java|cs|cpp|c|h|hpp|json|yaml|yml|md|txt|html|css|sql)'
 
         # Pattern for file paths
         patterns = [
-            rf'[\w\-./\\]+{extensions}',  # path/to/file.ext
+            rf'([\w\-./\\]+{extensions})',  # path/to/file.ext
             r'`([^`]+)`',  # `filename` in backticks
         ]
 

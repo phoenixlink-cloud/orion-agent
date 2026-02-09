@@ -140,6 +140,10 @@ class EditValidator:
         warnings = []
         auto_fixes = []
 
+        # ── Path safety check (AEGIS) ──────────────────────────────
+        path_issues = self._check_path_safety(file_path)
+        issues.extend(path_issues)
+
         ext = Path(file_path).suffix.lower() if file_path else ""
 
         syntax_valid = True
@@ -455,8 +459,43 @@ class EditValidator:
         blocking_keywords = [
             "Syntax error", "Unbalanced brackets",
             "Empty content", "targets not found",
+            "Path escape", "Absolute path", "Dangerous path",
         ]
         return any(kw in issue for kw in blocking_keywords)
+
+
+    def _check_path_safety(self, file_path: str) -> List[str]:
+        """Check file path for traversal attacks and workspace escapes."""
+        issues = []
+        if not file_path:
+            issues.append("Empty file path")
+            return issues
+
+        normalized = file_path.replace("\\", "/")
+
+        # Path traversal
+        if ".." in normalized:
+            issues.append(f"Path escape: '{file_path}' contains '..' traversal")
+
+        # Absolute paths
+        if normalized.startswith("/") or (len(normalized) > 1 and normalized[1] == ":"):
+            if self.workspace_path:
+                ws = str(Path(self.workspace_path).resolve()).replace("\\", "/")
+                resolved = str(Path(file_path).resolve()).replace("\\", "/")
+                if not resolved.startswith(ws):
+                    issues.append(f"Absolute path outside workspace: '{file_path}'")
+            else:
+                issues.append(f"Absolute path without workspace context: '{file_path}'")
+
+        # Dangerous system paths
+        danger_prefixes = ["/etc/", "/var/", "/usr/", "/root/", "/bin/", "/sbin/",
+                           "C:/Windows", "C:/Program Files"]
+        for prefix in danger_prefixes:
+            if normalized.lower().startswith(prefix.lower()):
+                issues.append(f"Dangerous path target: '{file_path}'")
+                break
+
+        return issues
 
 
 # =============================================================================
