@@ -655,10 +655,13 @@ export default function SettingsPanel() {
 
   // Connected Services (v6.4.0) — All platforms
   const [platformData, setPlatformData] = useState<any>(null)
+  const [oauthProviders, setOauthProviders] = useState<Record<string, any>>({})
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
   const [tokenInput, setTokenInput] = useState<Record<string, string>>({})
-  const [oauthSetup, setOauthSetup] = useState<Record<string, { clientId: string }>>({})
+  const [oauthSetup, setOauthSetup] = useState<Record<string, { clientId: string; clientSecret?: string }>>({})
   const [platformMessage, setPlatformMessage] = useState<Record<string, string>>({})
+  const [deviceFlow, setDeviceFlow] = useState<{ provider: string; userCode: string; verificationUri: string; deviceCode: string; interval: number } | null>(null)
+  const [devicePollTimer, setDevicePollTimer] = useState<any>(null)
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -676,24 +679,39 @@ export default function SettingsPanel() {
       .catch(() => {})
   }
 
+  const loadOAuthProviders = () => {
+    fetch(`${API_BASE}/api/oauth/providers`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setOauthProviders(data) })
+      .catch(() => {})
+  }
+
   // Listen for OAuth popup success
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'oauth_success') {
         loadOAuthStatus()
         loadPlatforms()
-        setPlatformMessage(prev => ({ ...prev, [event.data.provider]: `${event.data.provider} connected successfully!` }))
-        setTimeout(() => setPlatformMessage(prev => { const n = { ...prev }; delete n[event.data.provider]; return n }), 5000)
+        loadOAuthProviders()
+        const prov = event.data.provider
+        setPlatformMessage(prev => ({ ...prev, [prov]: `✓ ${prov} connected successfully!` }))
+        setTimeout(() => setPlatformMessage(prev => { const n = { ...prev }; delete n[prov]; return n }), 5000)
       }
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
   }, [])
 
+  // Cleanup device flow polling on unmount
+  useEffect(() => {
+    return () => { if (devicePollTimer) clearInterval(devicePollTimer) }
+  }, [devicePollTimer])
+
   // Load all settings + model config + OAuth status on mount
   useEffect(() => {
     if (!isConnected) return
     loadPlatforms()
+    loadOAuthProviders()
     // Load general settings
     fetch(`${API_BASE}/api/settings`)
       .then(r => r.ok ? r.json() : null)
@@ -886,44 +904,77 @@ export default function SettingsPanel() {
     }
   }
 
-  // Platform connect handlers (v6.4.0)
-  const handlePlatformConnect = async (platformId: string, authMethod: string, oauthProvider?: string) => {
+  // Platform connect handlers (v6.4.0 — one-click OAuth)
+  const handlePlatformConnect = async (platformId: string, authMethod?: string) => {
     if (!isConnected) return
     setConnectingPlatform(platformId)
 
     try {
-      if (authMethod === 'oauth' && oauthProvider) {
-        // OAuth flow: try one-click connect first
-        const res = await fetch(`${API_BASE}/api/platforms/${platformId}/oauth-connect`, {
+      // Check if this is an OAuth provider (from /api/oauth/providers)
+      const oauthProv = oauthProviders[platformId]
+      if (oauthProv && !oauthProv.connected) {
+        // Use the new one-click connect endpoint
+        const res = await fetch(`${API_BASE}/api/oauth/connect/${platformId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         })
         const data = await res.json()
 
-        if (data.status === 'redirect' && data.auth_url) {
-          // Open popup for OAuth
-          const popup = window.open(data.auth_url, `orion_oauth_${oauthProvider}`, 'width=600,height=700,menubar=no,toolbar=no')
+        if (data.status === 'device_flow') {
+          // GitHub Device Flow — show user_code and start polling
+          setDeviceFlow({
+            provider: platformId,
+            userCode: data.user_code,
+            verificationUri: data.verification_uri,
+            deviceCode: data.device_code,
+            interval: data.interval || 5,
+          })
+          window.open(data.verification_uri, '_blank')
+
+          // Start polling
+          const timer = setInterval(async () => {
+            try {
+              const pollRes = await fetch(`${API_BASE}/api/oauth/device-poll/${platformId}?device_code=${data.device_code}`, { method: 'POST' })
+              const pollData = await pollRes.json()
+              if (pollData.status === 'success') {
+                clearInterval(timer)
+                setDeviceFlow(null)
+                setDevicePollTimer(null)
+                setPlatformMessage(prev => ({ ...prev, [platformId]: `✓ ${pollData.name} connected!` }))
+                loadOAuthProviders()
+                loadPlatforms()
+                setTimeout(() => setPlatformMessage(prev => { const n = { ...prev }; delete n[platformId]; return n }), 5000)
+              } else if (pollData.status === 'error') {
+                clearInterval(timer)
+                setDeviceFlow(null)
+                setDevicePollTimer(null)
+                setPlatformMessage(prev => ({ ...prev, [platformId]: pollData.message }))
+              }
+            } catch { /* keep polling */ }
+          }, (data.interval || 5) * 1000)
+          setDevicePollTimer(timer)
+          return // Don't clear connectingPlatform yet
+
+        } else if (data.status === 'redirect' && data.auth_url) {
+          // PKCE/OAuth popup
+          const popup = window.open(data.auth_url, `orion_oauth_${platformId}`, 'width=600,height=700,menubar=no,toolbar=no')
           if (!popup) {
-            setPlatformMessage(prev => ({ ...prev, [platformId]: 'Popup blocked. Please allow popups for this site.' }))
+            setPlatformMessage(prev => ({ ...prev, [platformId]: 'Popup blocked — please allow popups for this site.' }))
           }
-        } else if (data.status === 'setup_required') {
-          // Show setup dialog inline
-          setPlatformMessage(prev => ({ ...prev, [platformId]: data.hint || data.message }))
+        } else if (data.status === 'needs_setup') {
+          // Show setup form inline
+          setPlatformMessage(prev => ({ ...prev, [platformId]: data.message }))
         }
-      } else if ((authMethod === 'api_key' || authMethod === 'token') && tokenInput[platformId]) {
-        // Direct token/key storage
-        const res = await fetch(`${API_BASE}/api/platforms/connect`, {
+      } else if (tokenInput[platformId]) {
+        // Manual token/key — use new endpoint
+        const res = await fetch(`${API_BASE}/api/oauth/token/${platformId}?token=${encodeURIComponent(tokenInput[platformId])}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform_id: platformId,
-            [authMethod === 'api_key' ? 'api_key' : 'token']: tokenInput[platformId],
-          }),
         })
         if (res.ok) {
-          setPlatformMessage(prev => ({ ...prev, [platformId]: 'Connected!' }))
+          setPlatformMessage(prev => ({ ...prev, [platformId]: '✓ Connected!' }))
           setTokenInput(prev => ({ ...prev, [platformId]: '' }))
           loadPlatforms()
+          loadOAuthProviders()
           setTimeout(() => setPlatformMessage(prev => { const n = { ...prev }; delete n[platformId]; return n }), 3000)
         } else {
           const err = await res.json()
@@ -932,40 +983,43 @@ export default function SettingsPanel() {
       }
     } catch (err) {
       console.error('Platform connect failed:', err)
-      setPlatformMessage(prev => ({ ...prev, [platformId]: 'Connection failed. Check the API server.' }))
+      setPlatformMessage(prev => ({ ...prev, [platformId]: 'Connection failed. Is the API server running?' }))
     } finally {
-      setConnectingPlatform(null)
+      if (!deviceFlow) setConnectingPlatform(null)
     }
   }
 
   const handlePlatformDisconnect = async (platformId: string) => {
     if (!isConnected) return
     try {
-      await fetch(`${API_BASE}/api/platforms/disconnect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform_id: platformId }),
-      })
+      // Try new endpoint first, fall back to old
+      const res = await fetch(`${API_BASE}/api/oauth/disconnect/${platformId}`, { method: 'POST' })
+      if (!res.ok) {
+        await fetch(`${API_BASE}/api/platforms/disconnect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform_id: platformId }),
+        })
+      }
       loadPlatforms()
+      loadOAuthProviders()
     } catch (err) {
       console.error('Platform disconnect failed:', err)
     }
   }
 
-  const handleOAuthSetup = async (platformId: string, oauthProvider: string) => {
+  const handleOAuthSetup = async (platformId: string) => {
     if (!isConnected) return
     const setup = oauthSetup[platformId]
     if (!setup?.clientId) return
     try {
-      const res = await fetch(`${API_BASE}/api/oauth/configure`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: oauthProvider, client_id: setup.clientId }),
-      })
+      const params = new URLSearchParams({ client_id: setup.clientId })
+      if (setup.clientSecret) params.append('client_secret', setup.clientSecret)
+      const res = await fetch(`${API_BASE}/api/oauth/setup/${platformId}?${params}`, { method: 'POST' })
       if (res.ok) {
-        setPlatformMessage(prev => ({ ...prev, [platformId]: 'Configured! Click Connect to sign in.' }))
-        loadOAuthStatus()
-        loadPlatforms()
+        setPlatformMessage(prev => ({ ...prev, [platformId]: '✓ Configured! Now click Connect to sign in.' }))
+        setOauthSetup(prev => { const n = { ...prev }; delete n[platformId]; return n })
+        loadOAuthProviders()
       }
     } catch (err) {
       console.error('OAuth setup failed:', err)
@@ -1175,32 +1229,198 @@ export default function SettingsPanel() {
         ))}
       </CollapsibleSection>
 
-      {/* Connected Services (v6.4.0) — ALL platforms */}
-      <CollapsibleSection title="Connected Services" description="Connect platforms so Orion can use them when you ask. Click Connect to sign in or paste a token." defaultOpen={true}>
-        <div style={{ padding: '12px 16px', background: 'rgba(34, 211, 238, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.2)' }}>
-          <div style={{ fontSize: 13, color: 'var(--glow)' }}>
-            {platformData ? `${platformData.connected} of ${platformData.total} services connected.` : 'Loading platforms...'}{' '}
-            Connected services let Orion search repos, create issues, send messages, and more — just ask.
+      {/* Connected Services (v6.4.0) — One-Click OAuth */}
+      <CollapsibleSection title="Connected Services" description="Connect platforms so Orion can use them. Most require a one-time OAuth app setup, then it's one-click." defaultOpen={true}>
+        {/* Device Flow Modal — shown when GitHub auth is in progress */}
+        {deviceFlow && (
+          <div style={{
+            padding: '16px 20px', background: 'rgba(34, 211, 238, 0.12)', borderRadius: 'var(--r-sm)',
+            marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.3)', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--glow)', marginBottom: 8 }}>
+              Connecting to GitHub...
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
+              Enter this code at <a href={deviceFlow.verificationUri} target="_blank" rel="noopener noreferrer"
+                style={{ color: 'var(--glow)' }}>{deviceFlow.verificationUri}</a>:
+            </div>
+            <div style={{
+              fontSize: 28, fontWeight: 700, fontFamily: 'monospace', letterSpacing: 4,
+              color: '#fff', background: 'rgba(0,0,0,0.4)', padding: '12px 24px',
+              borderRadius: 'var(--r-sm)', display: 'inline-block', marginBottom: 8,
+              userSelect: 'all', cursor: 'pointer',
+            }}
+              title="Click to copy"
+              onClick={() => navigator.clipboard?.writeText(deviceFlow.userCode)}
+            >{deviceFlow.userCode}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+              Click the code to copy. Waiting for authorization...
+            </div>
+            <button onClick={() => {
+              if (devicePollTimer) clearInterval(devicePollTimer)
+              setDeviceFlow(null)
+              setDevicePollTimer(null)
+              setConnectingPlatform(null)
+            }} style={{
+              marginTop: 10, padding: '4px 12px', fontSize: 11, background: 'transparent',
+              color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.4)', borderRadius: 'var(--r-sm)', cursor: 'pointer',
+            }}>Cancel</button>
           </div>
-        </div>
+        )}
 
+        {/* OAuth Providers section */}
+        {Object.keys(oauthProviders).length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🔗</span> Sign-In Services
+              <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>
+                ({Object.values(oauthProviders).filter((p: any) => p.connected).length}/{Object.keys(oauthProviders).length} connected)
+              </span>
+            </div>
+
+            {Object.entries(oauthProviders).map(([pid, p]: [string, any]) => (
+              <div key={pid} style={{
+                padding: '12px 16px',
+                background: p.connected ? 'rgba(34, 211, 238, 0.05)' : 'rgba(0,0,0,0.15)',
+                borderRadius: 'var(--r-sm)', marginBottom: 6,
+                border: p.connected ? '1px solid rgba(34, 211, 238, 0.2)' : '1px solid var(--line)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>{p.icon}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: p.connected ? 'var(--glow)' : 'var(--text)' }}>
+                        {p.name}
+                      </span>
+                      {p.connected && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                          background: 'rgba(100, 255, 100, 0.15)', color: '#64ff64',
+                          borderRadius: 10, border: '1px solid rgba(100, 255, 100, 0.3)',
+                        }}>Connected</span>
+                      )}
+                      {!p.connected && p.configured && (
+                        <span style={{ fontSize: 10, color: '#64c864' }}>Ready</span>
+                      )}
+                      {!p.connected && p.needs_setup && (
+                        <span style={{ fontSize: 10, color: '#ffcc66' }}>Setup needed</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{p.description}</div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6, marginLeft: 12, flexShrink: 0 }}>
+                    {p.connected && (
+                      <button onClick={() => handlePlatformDisconnect(pid)} style={{
+                        padding: '5px 12px', fontSize: 11, fontWeight: 500,
+                        background: 'transparent', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.4)',
+                        borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                      }}>Disconnect</button>
+                    )}
+
+                    {!p.connected && p.configured && (
+                      <button
+                        onClick={() => handlePlatformConnect(pid)}
+                        disabled={connectingPlatform === pid}
+                        style={{
+                          padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                          background: 'var(--glow)', color: '#000', border: 'none',
+                          borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                          opacity: connectingPlatform === pid ? 0.5 : 1,
+                        }}
+                      >{connectingPlatform === pid ? 'Connecting...' : 'Sign In & Connect'}</button>
+                    )}
+
+                    {!p.connected && p.needs_setup && !oauthSetup[pid] && (
+                      <button onClick={() => setOauthSetup(prev => ({ ...prev, [pid]: { clientId: '' } }))} style={{
+                        padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                        background: 'rgba(34,211,238,0.15)', color: 'var(--glow)',
+                        border: '1px solid rgba(34,211,238,0.3)', borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                      }}>Set Up</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Setup steps (shown when needs_setup) */}
+                {!p.connected && p.needs_setup && p.setup_steps?.length > 0 && oauthSetup[pid] !== undefined && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+                      {p.setup_steps.map((step: any, i: number) => (
+                        <div key={i} style={{ marginBottom: 3 }}>{step.text}</div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <input
+                        type="text" placeholder="Client ID"
+                        value={oauthSetup[pid]?.clientId || ''}
+                        onChange={(e) => setOauthSetup(prev => ({ ...prev, [pid]: { ...prev[pid], clientId: e.target.value } }))}
+                        style={{
+                          flex: 1, minWidth: 160, padding: '7px 12px', fontSize: 13,
+                          background: 'var(--tile)', border: '1px solid var(--line)',
+                          borderRadius: 'var(--r-sm)', color: 'var(--text)',
+                        }}
+                      />
+                      {p.auth_type === 'oauth_secret' && (
+                        <input
+                          type="password" placeholder="Client Secret"
+                          value={oauthSetup[pid]?.clientSecret || ''}
+                          onChange={(e) => setOauthSetup(prev => ({ ...prev, [pid]: { ...prev[pid], clientSecret: e.target.value } }))}
+                          style={{
+                            flex: 1, minWidth: 160, padding: '7px 12px', fontSize: 13,
+                            background: 'var(--tile)', border: '1px solid var(--line)',
+                            borderRadius: 'var(--r-sm)', color: 'var(--text)',
+                          }}
+                        />
+                      )}
+                      <button
+                        onClick={() => handleOAuthSetup(pid)}
+                        disabled={!oauthSetup[pid]?.clientId}
+                        style={{
+                          padding: '7px 14px', fontSize: 12, fontWeight: 600,
+                          background: oauthSetup[pid]?.clientId ? 'var(--glow)' : 'var(--tile)',
+                          color: oauthSetup[pid]?.clientId ? '#000' : 'var(--muted)',
+                          border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                        }}
+                      >Save & Connect</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Status message */}
+                {platformMessage[pid] && (
+                  <div style={{
+                    marginTop: 6, fontSize: 12, padding: '4px 8px', borderRadius: 'var(--r-sm)',
+                    color: platformMessage[pid].includes('✓') ? '#64ff64' : '#ffcc66',
+                    background: platformMessage[pid].includes('✓') ? 'rgba(100,255,100,0.1)' : 'rgba(255,200,100,0.1)',
+                  }}>
+                    {platformMessage[pid]}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Platform Registry — all other platforms grouped by category */}
         {platformData && Object.entries(platformData.platforms || {}).map(([categoryKey, platforms]: [string, any]) => {
           const catInfo = (platformData.categories || {})[categoryKey] || { label: categoryKey, icon: '📦' }
+          // Filter out platforms already shown in OAuth providers section
+          const filteredPlatforms = (platforms as any[]).filter((p: any) => !oauthProviders[p.id])
+          if (filteredPlatforms.length === 0) return null
           return (
             <div key={categoryKey} style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>{catInfo.icon}</span> {catInfo.label}
                 <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>
-                  ({(platforms as any[]).filter((p: any) => p.connected).length}/{(platforms as any[]).length} connected)
+                  ({filteredPlatforms.filter((p: any) => p.connected).length}/{filteredPlatforms.length} connected)
                 </span>
               </div>
 
-              {(platforms as any[]).map((p: any) => (
+              {filteredPlatforms.map((p: any) => (
                 <div key={p.id} style={{
                   padding: '12px 16px',
                   background: p.connected ? 'rgba(34, 211, 238, 0.05)' : 'rgba(0,0,0,0.15)',
-                  borderRadius: 'var(--r-sm)',
-                  marginBottom: 6,
+                  borderRadius: 'var(--r-sm)', marginBottom: 6,
                   border: p.connected ? '1px solid rgba(34, 211, 238, 0.2)' : '1px solid var(--line)',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1227,55 +1447,33 @@ export default function SettingsPanel() {
                     </div>
 
                     <div style={{ display: 'flex', gap: 6, marginLeft: 12, flexShrink: 0 }}>
-                      {/* Connected: show Disconnect */}
                       {p.connected && !p.is_local && (
-                        <button
-                          onClick={() => handlePlatformDisconnect(p.id)}
-                          style={{
-                            padding: '5px 12px', fontSize: 11, fontWeight: 500,
-                            background: 'transparent', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.4)',
-                            borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                          }}
-                        >Disconnect</button>
+                        <button onClick={() => handlePlatformDisconnect(p.id)} style={{
+                          padding: '5px 12px', fontSize: 11, fontWeight: 500,
+                          background: 'transparent', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.4)',
+                          borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                        }}>Disconnect</button>
                       )}
 
-                      {/* Local service: show "Available" */}
                       {p.is_local && p.connected && (
                         <span style={{ fontSize: 11, color: '#64c864', padding: '5px 12px' }}>Available locally</span>
                       )}
 
-                      {/* Not connected: show Connect button */}
-                      {!p.connected && p.auth_method === 'oauth' && (
-                        <button
-                          onClick={() => handlePlatformConnect(p.id, 'oauth', p.oauth_provider)}
-                          disabled={connectingPlatform === p.id}
-                          style={{
-                            padding: '5px 14px', fontSize: 12, fontWeight: 600,
-                            background: 'var(--glow)', color: '#000', border: 'none',
-                            borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                            opacity: connectingPlatform === p.id ? 0.5 : 1,
-                          }}
-                        >{connectingPlatform === p.id ? 'Connecting...' : 'Sign In & Connect'}</button>
-                      )}
-
                       {!p.connected && (p.auth_method === 'api_key' || p.auth_method === 'token') && (
-                        <button
-                          onClick={() => {
-                            if (tokenInput[p.id]) {
-                              handlePlatformConnect(p.id, p.auth_method)
-                            } else {
-                              setTokenInput(prev => ({ ...prev, [p.id]: ' ' }))
-                              setTimeout(() => setTokenInput(prev => ({ ...prev, [p.id]: '' })), 0)
-                            }
-                          }}
-                          style={{
-                            padding: '5px 14px', fontSize: 12, fontWeight: 600,
-                            background: tokenInput[p.id] ? 'var(--glow)' : 'rgba(34,211,238,0.15)',
-                            color: tokenInput[p.id] ? '#000' : 'var(--glow)',
-                            border: tokenInput[p.id] ? 'none' : '1px solid rgba(34,211,238,0.3)',
-                            borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                          }}
-                        >{tokenInput[p.id] ? 'Save' : 'Connect'}</button>
+                        <button onClick={() => {
+                          if (tokenInput[p.id]) {
+                            handlePlatformConnect(p.id, p.auth_method)
+                          } else {
+                            setTokenInput(prev => ({ ...prev, [p.id]: ' ' }))
+                            setTimeout(() => setTokenInput(prev => ({ ...prev, [p.id]: '' })), 0)
+                          }
+                        }} style={{
+                          padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                          background: tokenInput[p.id] ? 'var(--glow)' : 'rgba(34,211,238,0.15)',
+                          color: tokenInput[p.id] ? '#000' : 'var(--glow)',
+                          border: tokenInput[p.id] ? 'none' : '1px solid rgba(34,211,238,0.3)',
+                          borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                        }}>{tokenInput[p.id] ? 'Save' : 'Provide Key'}</button>
                       )}
 
                       {!p.connected && p.auth_method === 'none' && !p.is_local && (
@@ -1284,12 +1482,12 @@ export default function SettingsPanel() {
                     </div>
                   </div>
 
-                  {/* Token/key input (shown when user clicks Connect for api_key/token platforms) */}
+                  {/* Token/key input */}
                   {!p.connected && (p.auth_method === 'api_key' || p.auth_method === 'token') && tokenInput[p.id] !== undefined && (
                     <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input
                         type="password"
-                        placeholder={p.auth_method === 'api_key' ? `Paste ${p.name} API key...` : `Paste ${p.name} token...`}
+                        placeholder={`Paste ${p.name} ${p.auth_method === 'api_key' ? 'API key' : 'token'}...`}
                         value={tokenInput[p.id] || ''}
                         onChange={(e) => setTokenInput(prev => ({ ...prev, [p.id]: e.target.value }))}
                         style={{
@@ -1306,53 +1504,7 @@ export default function SettingsPanel() {
                     </div>
                   )}
 
-                  {/* OAuth setup (shown when oauth needs client_id) */}
-                  {!p.connected && p.auth_method === 'oauth' && platformMessage[p.id]?.includes('OAuth app') && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{platformMessage[p.id]}</div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input
-                          type="text"
-                          placeholder="Client ID"
-                          value={oauthSetup[p.id]?.clientId || ''}
-                          onChange={(e) => setOauthSetup(prev => ({ ...prev, [p.id]: { clientId: e.target.value } }))}
-                          style={{
-                            flex: 1, padding: '7px 12px', fontSize: 13,
-                            background: 'var(--tile)', border: '1px solid var(--line)',
-                            borderRadius: 'var(--r-sm)', color: 'var(--text)',
-                          }}
-                        />
-                        <button
-                          onClick={() => handleOAuthSetup(p.id, p.oauth_provider)}
-                          disabled={!oauthSetup[p.id]?.clientId}
-                          style={{
-                            padding: '7px 14px', fontSize: 12, fontWeight: 600,
-                            background: oauthSetup[p.id]?.clientId ? 'var(--glow)' : 'var(--tile)',
-                            color: oauthSetup[p.id]?.clientId ? '#000' : 'var(--muted)',
-                            border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                          }}
-                        >Save & Connect</button>
-                        {p.setup_url && (
-                          <a href={p.setup_url} target="_blank" rel="noopener noreferrer" style={{
-                            fontSize: 11, color: 'var(--glow)', textDecoration: 'none', alignSelf: 'center',
-                          }}>Create app →</a>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Status message */}
-                  {platformMessage[p.id] && !platformMessage[p.id]?.includes('OAuth app') && (
-                    <div style={{
-                      marginTop: 6, fontSize: 12, padding: '4px 8px', borderRadius: 'var(--r-sm)',
-                      color: platformMessage[p.id].includes('Connected') || platformMessage[p.id].includes('success') ? '#64ff64' : '#ffcc66',
-                      background: platformMessage[p.id].includes('Connected') || platformMessage[p.id].includes('success') ? 'rgba(100,255,100,0.1)' : 'rgba(255,200,100,0.1)',
-                    }}>
-                      {platformMessage[p.id]}
-                    </div>
-                  )}
-
-                  {/* Capabilities preview (when connected) */}
+                  {/* Capabilities preview */}
                   {p.connected && p.capabilities?.length > 0 && (
                     <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {p.capabilities.slice(0, 4).map((cap: any) => (
@@ -1367,13 +1519,24 @@ export default function SettingsPanel() {
                       )}
                     </div>
                   )}
+
+                  {/* Status message */}
+                  {platformMessage[p.id] && (
+                    <div style={{
+                      marginTop: 6, fontSize: 12, padding: '4px 8px', borderRadius: 'var(--r-sm)',
+                      color: platformMessage[p.id].includes('✓') ? '#64ff64' : '#ffcc66',
+                      background: platformMessage[p.id].includes('✓') ? 'rgba(100,255,100,0.1)' : 'rgba(255,200,100,0.1)',
+                    }}>
+                      {platformMessage[p.id]}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )
         })}
 
-        {!platformData && (
+        {!platformData && Object.keys(oauthProviders).length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>
             Connect to the Orion API server to see available platforms.
           </div>

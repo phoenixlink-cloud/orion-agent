@@ -984,6 +984,238 @@ async def oauth_revoke(request: OAuthRevokeRequest):
 
 
 # =============================================================================
+# ONE-CLICK OAUTH (new — uses oauth_manager module)
+# =============================================================================
+
+@app.get("/api/oauth/providers")
+async def list_oauth_providers():
+    """List all OAuth providers with connection status and setup steps."""
+    try:
+        from orion.integrations.oauth_manager import get_provider_status
+        return get_provider_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/oauth/connect/{provider}")
+async def oauth_connect(provider: str):
+    """
+    Start OAuth connection flow for a provider.
+    - GitHub: returns device_code + user_code for Device Flow
+    - PKCE providers: returns auth_url for popup
+    - oauth_secret providers: returns auth_url (needs client_id/secret first)
+    """
+    try:
+        from orion.integrations.oauth_manager import (
+            PROVIDERS, get_client_id, get_client_secret,
+            github_device_flow_start, build_auth_url,
+        )
+
+        if provider not in PROVIDERS:
+            raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+
+        prov = PROVIDERS[provider]
+        client_id = get_client_id(provider)
+
+        if not client_id:
+            return {
+                "status": "needs_setup",
+                "provider": provider,
+                "auth_type": prov["auth_type"],
+                "message": f"Configure a Client ID for {prov['name']} first",
+                "setup_steps": _get_provider_setup_help(provider, prov),
+            }
+
+        # GitHub Device Flow — best UX for desktop apps
+        if prov["auth_type"] == "device_flow":
+            device_data = await github_device_flow_start(client_id)
+            return {
+                "status": "device_flow",
+                "provider": provider,
+                "user_code": device_data.get("user_code"),
+                "verification_uri": device_data.get("verification_uri"),
+                "device_code": device_data.get("device_code"),
+                "expires_in": device_data.get("expires_in", 900),
+                "interval": device_data.get("interval", 5),
+            }
+
+        # PKCE or oauth_secret — redirect to auth URL
+        if prov["auth_type"] == "oauth_secret":
+            client_secret = get_client_secret(provider)
+            if not client_secret:
+                return {
+                    "status": "needs_setup",
+                    "provider": provider,
+                    "auth_type": prov["auth_type"],
+                    "message": f"Configure Client Secret for {prov['name']}",
+                }
+
+        redirect_uri = "http://localhost:8000/api/oauth/callback"
+        auth_url, state_token = build_auth_url(provider, redirect_uri, client_id)
+        return {
+            "status": "redirect",
+            "provider": provider,
+            "auth_url": auth_url,
+            "state": state_token,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _get_provider_setup_help(provider: str, prov: dict) -> list:
+    """Get setup help for providers that need client_id/secret."""
+    setup_urls = {
+        "github": "https://github.com/settings/developers",
+        "google": "https://console.cloud.google.com/apis/credentials",
+        "microsoft": "https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps",
+        "gitlab": "https://gitlab.com/-/user_settings/applications",
+        "linear": "https://linear.app/settings/api",
+        "atlassian": "https://developer.atlassian.com/console/myapps/",
+        "slack": "https://api.slack.com/apps",
+        "discord": "https://discord.com/developers/applications",
+        "notion": "https://www.notion.so/my-integrations",
+    }
+    url = setup_urls.get(provider, "")
+    return [
+        f"1. Go to {url}",
+        f"2. Create a new OAuth App for Orion",
+        f"3. Set the callback URL to: http://localhost:8000/api/oauth/callback",
+        f"4. Copy the Client ID (and Secret if needed) and paste below",
+    ]
+
+
+@app.post("/api/oauth/device-poll/{provider}")
+async def oauth_device_poll(provider: str, device_code: str = ""):
+    """Poll for GitHub Device Flow completion."""
+    try:
+        from orion.integrations.oauth_manager import (
+            PROVIDERS, get_client_id, github_device_flow_poll,
+            _load_oauth_tokens, _save_oauth_tokens,
+        )
+
+        if provider not in PROVIDERS:
+            raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+
+        client_id = get_client_id(provider)
+        if not client_id or not device_code:
+            raise HTTPException(status_code=400, detail="Missing client_id or device_code")
+
+        result = await github_device_flow_poll(client_id, device_code)
+
+        if result is None:
+            return {"status": "pending", "message": "Waiting for user authorization..."}
+
+        # Got token — store it
+        access_token = result.get("access_token")
+        stored = _load_oauth_tokens()
+        stored[provider] = {
+            "access_token": access_token,
+            "refresh_token": result.get("refresh_token"),
+            "token_type": result.get("token_type", "bearer"),
+            "scope": result.get("scope", ""),
+            "connected_at": time.time(),
+            "expires_at": 0,
+        }
+        _save_oauth_tokens(stored)
+
+        # Also store in SecureStore
+        store = _get_secure_store()
+        if store and access_token:
+            store.set_key(f"oauth_{provider}_access_token", access_token)
+
+        return {"status": "success", "provider": provider, "name": PROVIDERS[provider]["name"]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "expired" in str(e).lower() or "denied" in str(e).lower():
+            return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/oauth/token/{provider}")
+async def store_oauth_token(provider: str, token: str = ""):
+    """Store a manually provided token (PAT, bot token, integration token)."""
+    try:
+        from orion.integrations.oauth_manager import PROVIDERS, store_manual_token
+
+        if provider not in PROVIDERS:
+            raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+        if not token:
+            raise HTTPException(status_code=400, detail="Token is required")
+
+        store_manual_token(provider, token)
+
+        # Also store in SecureStore
+        store = _get_secure_store()
+        if store:
+            store.set_key(f"oauth_{provider}_access_token", token)
+
+        return {"status": "success", "provider": provider, "name": PROVIDERS[provider]["name"]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/oauth/disconnect/{provider}")
+async def oauth_disconnect(provider: str):
+    """Disconnect a provider — remove all stored tokens."""
+    try:
+        from orion.integrations.oauth_manager import PROVIDERS, disconnect_provider
+
+        if provider not in PROVIDERS:
+            raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+
+        disconnect_provider(provider)
+        return {"status": "success", "provider": provider}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/oauth/setup/{provider}")
+async def oauth_setup_client(provider: str, client_id: str = "", client_secret: str = ""):
+    """Store OAuth client_id and client_secret for a provider."""
+    try:
+        from orion.integrations.oauth_manager import (
+            PROVIDERS, _load_client_configs, _save_client_configs,
+        )
+
+        if provider not in PROVIDERS:
+            raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+        if not client_id:
+            raise HTTPException(status_code=400, detail="client_id is required")
+
+        configs = _load_client_configs()
+        configs[provider] = {
+            "client_id": client_id,
+            "client_secret": client_secret or None,
+        }
+        _save_client_configs(configs)
+
+        # Also store in SecureStore for backward compat
+        store = _get_secure_store()
+        if store:
+            store.set_key(f"oauth_{provider}_client_id", client_id)
+            if client_secret:
+                store.set_key(f"oauth_{provider}_client_secret", client_secret)
+
+        return {"status": "success", "provider": provider, "configured": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # PROVIDER TOGGLE
 # =============================================================================
 
