@@ -1,15 +1,19 @@
 FROM alpine:3.19
 
-RUN apk add --no-cache git curl jq
+RUN apk add --no-cache git curl jq tree grep
 
 WORKDIR /repos
 
-# Clone repos with OAuth integration patterns we can learn from
-# Shallow clones to save space — we only need the code, not history
-RUN git clone --depth 1 https://github.com/open-webui/open-webui.git && \
-    git clone --depth 1 https://github.com/nextauthjs/next-auth.git && \
-    git clone --depth 1 https://github.com/supabase/auth.git supabase-auth && \
-    git clone --depth 1 https://github.com/ToolJet/ToolJet.git && \
-    git clone --depth 1 https://github.com/calcom/cal.com.git
+# === PRIMARY TARGETS (coding assistants to audit) ===
+RUN git clone --depth 1 https://github.com/cli delegation/cli delegation.git && \
+    git clone --depth 1 https://github.com/reference-project.git && \
+    git clone --depth 1 https://github.com/anthropics/claude-code.git && \
+    git clone --depth 1 https://github.com/OpenHands/OpenHands.git && \
+    git clone --depth 1 https://github.com/cline/cline.git
 
-CMD ["sh"]
+# === REFERENCE PROJECTS (OAuth/integration patterns) ===
+RUN git clone --depth 1 https://github.com/open-webui/open-webui.git && \
+    git clone --depth 1 https://github.com/nextauthjs/next-auth.git
+
+# Keep container alive
+CMD ["tail", "-f", "/dev/null"]

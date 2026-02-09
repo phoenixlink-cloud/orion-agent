@@ -38,6 +38,7 @@ class AuthMethod(Enum):
     API_KEY = "api_key"
     TOKEN = "token"
     OAUTH = "oauth"
+    CLI_TOOL = "cli_tool"  # Like CLI delegation: delegates to installed CLI (gh, docker, etc.)
 
 
 class PlatformCategory(Enum):
@@ -71,6 +72,7 @@ class PlatformDef:
     env_var_alt: str = ""              # Alternate env var name
     secure_store_key: str = ""         # Key in SecureStore (defaults to id)
     oauth_provider: str = ""           # Maps to OAUTH_PLATFORMS in server.py
+    cli_tool: str = ""                 # CLI binary name (e.g. "gh", "docker") — CLI delegation pattern
     # Setup
     setup_url: str = ""                # URL to get API key / create OAuth app
     setup_instructions: str = ""       # Short setup guide
@@ -83,7 +85,7 @@ class PlatformDef:
     is_local: bool = False             # Runs locally (no API key needed)
     # State (filled at runtime)
     connected: bool = False
-    connection_source: str = ""        # "environment", "secure_store", "oauth", "local"
+    connection_source: str = ""        # "environment", "secure_store", "oauth", "local", "cli_tool"
     status_message: str = ""
 
 
@@ -244,10 +246,10 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="github", name="GitHub", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Repositories, issues, pull requests, code search, Actions CI/CD",
-        icon="🐙", auth_method=AuthMethod.OAUTH,
-        env_var="GITHUB_TOKEN", oauth_provider="github",
-        setup_url="https://github.com/settings/tokens/new",
-        setup_instructions="Connect your GitHub account or create a personal access token at github.com/settings/tokens",
+        icon="🐙", auth_method=AuthMethod.CLI_TOOL,
+        env_var="GITHUB_TOKEN", cli_tool="gh",
+        setup_url="https://cli.github.com/",
+        setup_instructions="Install the GitHub CLI (gh), then run: gh auth login",
         free_tier="Public repos free, unlimited private repos",
         capabilities=[
             PlatformCapability("list_repos", "List your repositories", "show my GitHub repos"),
@@ -263,10 +265,10 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="gitlab", name="GitLab", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Repositories, merge requests, CI/CD pipelines, issue tracking",
-        icon="🦊", auth_method=AuthMethod.OAUTH,
-        env_var="GITLAB_TOKEN", oauth_provider="gitlab",
+        icon="🦊", auth_method=AuthMethod.CLI_TOOL,
+        env_var="GITLAB_TOKEN", cli_tool="glab",
         setup_url="https://gitlab.com/-/user_settings/personal_access_tokens",
-        setup_instructions="Connect your GitLab account or create a personal access token",
+        setup_instructions="Install glab CLI or create a personal access token at GitLab → Settings → Access Tokens",
         free_tier="Public repos free",
         capabilities=[
             PlatformCapability("list_repos", "List your GitLab projects", "show my GitLab projects"),
@@ -293,10 +295,10 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="notion", name="Notion", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Access Notion pages, databases, and project docs",
-        icon="📝", auth_method=AuthMethod.OAUTH,
-        env_var="NOTION_TOKEN", oauth_provider="notion",
+        icon="📝", auth_method=AuthMethod.TOKEN,
+        env_var="NOTION_TOKEN",
         setup_url="https://www.notion.so/my-integrations",
-        setup_instructions="Sign in with your Notion account to grant Orion access to your workspace",
+        setup_instructions="Create an integration at notion.so/my-integrations → copy the Internal Integration Token",
         free_tier="Free personal plan",
         capabilities=[
             PlatformCapability("read_pages", "Read Notion pages", "read my project spec from Notion"),
@@ -308,10 +310,10 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="linear", name="Linear", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Issue tracking and project management",
-        icon="📐", auth_method=AuthMethod.OAUTH,
-        env_var="LINEAR_API_KEY", oauth_provider="linear",
+        icon="📐", auth_method=AuthMethod.API_KEY,
+        env_var="LINEAR_API_KEY",
         setup_url="https://linear.app/settings/api",
-        setup_instructions="Sign in with your Linear account to manage issues and projects",
+        setup_instructions="Create an API key at linear.app → Settings → API → Personal API keys",
         free_tier="Free for small teams",
         capabilities=[
             PlatformCapability("list_issues", "List Linear issues", "show my open issues in Linear"),
@@ -322,10 +324,10 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="jira", name="Jira", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Issue tracking for enterprise teams",
-        icon="📋", auth_method=AuthMethod.OAUTH,
-        env_var="JIRA_API_TOKEN", oauth_provider="atlassian",
-        setup_url="https://developer.atlassian.com/console/myapps/",
-        setup_instructions="Sign in with your Atlassian account to access Jira issues and projects",
+        icon="📋", auth_method=AuthMethod.TOKEN,
+        env_var="JIRA_API_TOKEN",
+        setup_url="https://id.atlassian.com/manage-profile/security/api-tokens",
+        setup_instructions="Create an API token at id.atlassian.com → Security → API tokens",
         free_tier="Free for up to 10 users",
         capabilities=[
             PlatformCapability("list_issues", "List Jira tickets", "show my open Jira tickets"),
@@ -340,11 +342,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="slack", name="Slack", category=PlatformCategory.MESSAGING,
         description="Send messages, notifications, and code snippets to Slack channels",
-        icon="💬", auth_method=AuthMethod.OAUTH,
-        env_var="SLACK_BOT_TOKEN", oauth_provider="slack",
+        icon="💬", auth_method=AuthMethod.TOKEN,
+        env_var="SLACK_BOT_TOKEN",
         package_name="slack_sdk",
         setup_url="https://api.slack.com/apps",
-        setup_instructions="Sign in with your Slack workspace to send messages and read channels",
+        setup_instructions="Create a Slack app at api.slack.com/apps → OAuth & Permissions → copy Bot User OAuth Token",
         free_tier="Free for small teams",
         capabilities=[
             PlatformCapability("send_message", "Send messages to Slack", "post the build status to #dev"),
@@ -356,11 +358,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="discord", name="Discord", category=PlatformCategory.MESSAGING,
         description="Send messages and notifications to Discord servers",
-        icon="🎮", auth_method=AuthMethod.OAUTH,
-        env_var="DISCORD_BOT_TOKEN", oauth_provider="discord",
+        icon="🎮", auth_method=AuthMethod.TOKEN,
+        env_var="DISCORD_BOT_TOKEN",
         package_name="discord",
         setup_url="https://discord.com/developers/applications",
-        setup_instructions="Sign in with your Discord account to send messages and notifications",
+        setup_instructions="Create a Discord bot at discord.com/developers → Bot → copy Token",
         free_tier="Free",
         capabilities=[
             PlatformCapability("send_message", "Send messages to Discord", "post update to #general"),
@@ -569,7 +571,15 @@ class PlatformRegistry:
                     platform.status_message = "Connected via OAuth"
                     continue
 
-            # Check 4: Local service (is_local=True, no auth needed)
+            # Check 4: CLI tool detection (CLI delegation pattern)
+            if platform.cli_tool:
+                if self._check_cli_tool(platform.cli_tool):
+                    platform.connected = True
+                    platform.connection_source = "cli_tool"
+                    platform.status_message = f"Connected via {platform.cli_tool} CLI"
+                    continue
+
+            # Check 5: Local service (is_local=True, no auth needed)
             if platform.is_local:
                 platform.connected = True
                 platform.connection_source = "local"
@@ -582,6 +592,12 @@ class PlatformRegistry:
             return store if store.is_available else None
         except Exception:
             return None
+
+    @staticmethod
+    def _check_cli_tool(tool_name: str) -> bool:
+        """Check if a CLI tool is installed and available (CLI delegation pattern)."""
+        import shutil
+        return shutil.which(tool_name) is not None
 
     def refresh(self):
         """Refresh all platform statuses."""
