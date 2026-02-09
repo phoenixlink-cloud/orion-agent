@@ -102,16 +102,14 @@ class RequestRouter:
         self._council = None
 
     def _init_sandbox(self) -> Path:
-        """Create a sandbox session from the source repo."""
+        """Create a workspace sandbox session from the source repo."""
         try:
-            from orion.security.sandbox import SandboxManager
-            self._sandbox_mgr = SandboxManager(
-                sandbox_root=os.environ.get("ORION_SANDBOX_ROOT"),
-                use_git_clone=os.environ.get("ORION_SANDBOX_USE_GIT_CLONE", "true").lower() in ("true", "1"),
-            )
+            from orion.security.workspace_sandbox import get_workspace_sandbox
+            self._sandbox_mgr = get_workspace_sandbox()
             self._sandbox_session = self._sandbox_mgr.create_session(str(self.source_path))
             return Path(self._sandbox_session.sandbox_path)
-        except Exception:
+        except Exception as e:
+            logger.warning("Sandbox init failed (%s), using direct workspace", e)
             self._sandbox_enabled = False
             return self.source_path
 
@@ -122,12 +120,23 @@ class RequestRouter:
     def get_sandbox_diff(self) -> Optional[dict]:
         if not self.sandbox_active:
             return None
-        return self._sandbox_mgr.get_diff(self._sandbox_session)
+        diff = self._sandbox_mgr.get_diff(self._sandbox_session)
+        return {
+            "added": diff.added, "modified": diff.modified,
+            "deleted": diff.deleted, "total_changes": diff.total_changes,
+            "diff_text": diff.diff_text,
+        }
 
     def promote_changes(self, files: Optional[List[str]] = None, dry_run: bool = False) -> dict:
         if not self.sandbox_active:
             return {"error": "Sandbox not active"}
-        return self._sandbox_mgr.promote(files=files, session=self._sandbox_session, dry_run=dry_run)
+        result = self._sandbox_mgr.promote(self._sandbox_session, files=files, dry_run=dry_run)
+        return {
+            "success": result.success,
+            "files_promoted": result.files_promoted,
+            "errors": result.errors,
+            "dry_run": result.dry_run,
+        }
 
     def destroy_sandbox(self) -> bool:
         if not self.sandbox_active:
@@ -135,6 +144,16 @@ class RequestRouter:
         result = self._sandbox_mgr.destroy_session(self._sandbox_session.session_id)
         self._sandbox_session = None
         return result
+
+    def get_sandbox_status(self) -> Optional[dict]:
+        """Get sandbox status including capabilities."""
+        if not self._sandbox_enabled:
+            return {"enabled": False}
+        try:
+            from orion.security.workspace_sandbox import get_workspace_sandbox
+            return get_workspace_sandbox().get_status()
+        except Exception:
+            return {"enabled": False}
 
     @property
     def fast_path(self):

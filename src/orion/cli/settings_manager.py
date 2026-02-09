@@ -83,6 +83,29 @@ SETTING_CATEGORIES = {
             "description": "Maximum seconds a command can run",
         },
     },
+    "Sandbox": {
+        "sandbox_mode": {
+            "label": "Sandbox Mode",
+            "type": "choice",
+            "choices": ["auto", "docker", "local"],
+            "default": "auto",
+            "description": "Code execution isolation: auto (try Docker, fall back to local), docker (requires Docker), local (temp directory)",
+        },
+        "sandbox_timeout": {
+            "label": "Sandbox Timeout",
+            "type": "int",
+            "default": 60,
+            "min": 5,
+            "max": 600,
+            "description": "Maximum seconds for sandbox code execution",
+        },
+        "sandbox_network": {
+            "label": "Sandbox Network Access",
+            "type": "bool",
+            "default": False,
+            "description": "Allow sandbox containers to access the network (Docker mode only)",
+        },
+    },
     "Limits": {
         "max_evidence_files": {
             "label": "Max Evidence Files",
