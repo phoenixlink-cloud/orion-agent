@@ -68,8 +68,13 @@ class OrionConsole:
     /undo [all|stack|history]  Undo changes
     /diff               Show pending git changes
     /commit [msg]       Commit changes to git
+    /connect [platform] [token]  Connect a platform
+    /disconnect <platform>       Disconnect a platform
+    /key set|remove|status       Manage API keys
+    /memory [search <q>]         Memory stats or search
     /doctor             Run diagnostics
     /health             Check integration health
+    /settings           View/edit settings
     /status             Show current status
     /log                Show activity log
     /help               Show this help

@@ -105,6 +105,18 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
             console.print_error("Health module not available")
         return {}
 
+    elif command == "/connect":
+        return _handle_connect(parts, console)
+
+    elif command == "/disconnect":
+        return _handle_disconnect(parts, console)
+
+    elif command == "/key":
+        return _handle_key(parts, console)
+
+    elif command == "/memory":
+        return _handle_memory(parts, console)
+
     elif command == "/tasks":
         return _handle_tasks(console)
 
@@ -358,6 +370,181 @@ def _handle_mode(parts, console, mode):
     else:
         console.print_error(f"Invalid mode. Use: {', '.join(sorted(VALID_MODES))}")
         return {}
+
+
+def _handle_connect(parts, console):
+    """Handle /connect <platform> [token] — Connect a platform."""
+    if len(parts) < 2:
+        console.print_info("Usage: /connect <platform> [token]")
+        console.print_info("  /connect github          — auto-detect gh CLI")
+        console.print_info("  /connect slack xoxb-...  — store bot token")
+        console.print_info("  /connect                 — list all platforms")
+        try:
+            from orion.integrations.platforms import get_platform_registry
+            registry = get_platform_registry()
+            for p in registry.list_all():
+                status = "✓" if p.connected else "·"
+                console._print(f"  {status} {p.id:<15} {p.name} ({p.auth_method.value})")
+        except Exception:
+            pass
+        return {}
+
+    platform_id = parts[1].lower()
+    token = parts[2] if len(parts) > 2 else None
+
+    try:
+        from orion.integrations.platforms import get_platform_registry
+        registry = get_platform_registry()
+        platform = registry.get(platform_id)
+        if not platform:
+            console.print_error(f"Unknown platform: {platform_id}")
+            return {}
+
+        if not token and platform.cli_tool:
+            import shutil
+            if shutil.which(platform.cli_tool):
+                console.print_success(f"{platform.name} connected via {platform.cli_tool} CLI (auto-detected)")
+                return {}
+            else:
+                console.print_error(f"{platform.cli_tool} CLI not found. Install it or provide a token.")
+                if platform.setup_instructions:
+                    console.print_info(f"  Setup: {platform.setup_instructions}")
+                return {}
+
+        if not token:
+            console.print_info(f"Usage: /connect {platform_id} <token>")
+            if platform.setup_instructions:
+                console.print_info(f"  Setup: {platform.setup_instructions}")
+            if platform.setup_url:
+                console.print_info(f"  URL: {platform.setup_url}")
+            return {}
+
+        from orion.security.store import get_secure_store
+        store = get_secure_store()
+        backend = store.set_key(platform.secure_store_key or platform.id, token)
+        if platform.env_var:
+            os.environ[platform.env_var] = token
+        registry.refresh()
+        console.print_success(f"{platform.name} connected (stored in {backend})")
+    except Exception as e:
+        console.print_error(f"Connect failed: {e}")
+    return {}
+
+
+def _handle_disconnect(parts, console):
+    """Handle /disconnect <platform> — Disconnect a platform."""
+    if len(parts) < 2:
+        console.print_info("Usage: /disconnect <platform>")
+        return {}
+
+    platform_id = parts[1].lower()
+    try:
+        from orion.integrations.platforms import get_platform_registry
+        from orion.security.store import get_secure_store
+        registry = get_platform_registry()
+        platform = registry.get(platform_id)
+        if not platform:
+            console.print_error(f"Unknown platform: {platform_id}")
+            return {}
+
+        store = get_secure_store()
+        store.delete_key(platform.secure_store_key or platform.id)
+        if platform.env_var:
+            os.environ.pop(platform.env_var, None)
+        registry.refresh()
+        console.print_success(f"{platform.name} disconnected")
+    except Exception as e:
+        console.print_error(f"Disconnect failed: {e}")
+    return {}
+
+
+def _handle_key(parts, console):
+    """Handle /key set|remove|status — Manage API keys."""
+    if len(parts) < 2:
+        console.print_info("Usage:")
+        console.print_info("  /key status              — Show configured keys")
+        console.print_info("  /key set <provider> <key> — Store an API key")
+        console.print_info("  /key remove <provider>    — Remove an API key")
+        return {}
+
+    action = parts[1].lower()
+
+    if action == "status":
+        try:
+            from orion.security.store import get_secure_store
+            store = get_secure_store()
+            providers = store.list_providers()
+            if providers:
+                console.print_info("Configured API keys:")
+                for p in providers:
+                    console._print(f"  ✓ {p}")
+            else:
+                console.print_info("No API keys stored")
+        except Exception as e:
+            console.print_error(f"Could not check keys: {e}")
+        return {}
+
+    if action == "set":
+        if len(parts) < 4:
+            console.print_info("Usage: /key set <provider> <key>")
+            return {}
+        provider = parts[2]
+        key = parts[3]
+        try:
+            from orion.security.store import get_secure_store
+            store = get_secure_store()
+            backend = store.set_key(provider, key)
+            console.print_success(f"Key for '{provider}' stored in {backend}")
+        except Exception as e:
+            console.print_error(f"Failed to store key: {e}")
+        return {}
+
+    if action == "remove":
+        if len(parts) < 3:
+            console.print_info("Usage: /key remove <provider>")
+            return {}
+        provider = parts[2]
+        try:
+            from orion.security.store import get_secure_store
+            store = get_secure_store()
+            store.delete_key(provider)
+            console.print_success(f"Key for '{provider}' removed")
+        except Exception as e:
+            console.print_error(f"Failed to remove key: {e}")
+        return {}
+
+    console.print_error(f"Unknown key action: {action}. Use: set, remove, status")
+    return {}
+
+
+def _handle_memory(parts, console):
+    """Handle /memory [search <query>] — View memory stats or search."""
+    try:
+        from orion.core.memory.engine import MemoryEngine
+        engine = MemoryEngine()
+
+        if len(parts) >= 3 and parts[1].lower() == "search":
+            query = " ".join(parts[2:])
+            memories = engine.recall(query, max_results=5)
+            if memories:
+                console.print_info(f"Found {len(memories)} memories for '{query}':")
+                for m in memories:
+                    tier_label = {1: "Session", 2: "Project", 3: "Global"}[m.tier]
+                    console._print(f"  [{tier_label}] {m.content[:120]}")
+            else:
+                console.print_info(f"No memories found for '{query}'")
+            return {}
+
+        stats = engine.get_stats()
+        if isinstance(stats, dict):
+            console.print_info("Memory Engine Stats:")
+            for k, v in stats.items():
+                console._print(f"  {k}: {v}")
+        else:
+            console.print_info(f"Memory: {stats}")
+    except Exception as e:
+        console.print_info(f"Memory engine not available: {e}")
+    return {}
 
 
 def _handle_tasks(console):

@@ -1579,6 +1579,306 @@ async def oauth_connect_platform(platform_id: str):
 
 
 # =============================================================================
+# GIT OPERATIONS (Phase 1A — closing CLI-only gap)
+# =============================================================================
+
+class GitCommitRequest(BaseModel):
+    workspace: str
+    message: str = "orion: automated changes"
+
+
+class GitUndoRequest(BaseModel):
+    workspace: str
+    subcommand: str = ""  # "", "all", "stack", "history"
+
+
+@app.get("/api/git/diff")
+async def git_diff(workspace: str):
+    """Get pending git diff for a workspace."""
+    if not workspace or not Path(workspace).is_dir():
+        raise HTTPException(status_code=400, detail="Invalid workspace path")
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "diff", "--stat"],
+            cwd=workspace, capture_output=True, text=True, timeout=10
+        )
+        diff_full = subprocess.run(
+            ["git", "diff"],
+            cwd=workspace, capture_output=True, text=True, timeout=10
+        )
+        return {
+            "stat": result.stdout,
+            "diff": diff_full.stdout[:50000],  # Cap at 50KB
+            "has_changes": bool(result.stdout.strip()),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/git/commit")
+async def git_commit(request: GitCommitRequest):
+    """Commit all changes in a workspace."""
+    if not request.workspace or not Path(request.workspace).is_dir():
+        raise HTTPException(status_code=400, detail="Invalid workspace path")
+    try:
+        import subprocess
+        subprocess.run(["git", "add", "-A"], cwd=request.workspace, check=True, timeout=10)
+        result = subprocess.run(
+            ["git", "commit", "-m", request.message],
+            cwd=request.workspace, capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            # Get commit hash
+            hash_result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=request.workspace, capture_output=True, text=True, timeout=5
+            )
+            return {
+                "status": "success",
+                "message": request.message,
+                "hash": hash_result.stdout.strip(),
+            }
+        return {"status": "nothing_to_commit", "message": result.stdout.strip()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/git/undo")
+async def git_undo(request: GitUndoRequest):
+    """Undo changes using git safety net."""
+    if not request.workspace or not Path(request.workspace).is_dir():
+        raise HTTPException(status_code=400, detail="Invalid workspace path")
+    try:
+        from orion.core.editing.safety import get_git_safety
+        safety = get_git_safety(request.workspace)
+
+        if request.subcommand == "all":
+            result = safety.undo_all()
+            return {"status": "success" if result.success else "error", "message": result.message}
+        elif request.subcommand == "stack":
+            return {"stack": safety.get_undo_stack()}
+        elif request.subcommand == "history":
+            return {"history": safety.get_edit_history()[:20]}
+        else:
+            if safety.get_savepoint_count() > 0:
+                result = safety.undo()
+                return {
+                    "status": "success" if result.success else "error",
+                    "message": result.message,
+                    "files_restored": getattr(result, 'files_restored', 0),
+                }
+            return {"status": "nothing", "message": "No savepoints to undo"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# DOCTOR DIAGNOSTICS (Phase 1A — closing CLI-only gap)
+# =============================================================================
+
+@app.get("/api/doctor")
+async def run_doctor_endpoint(workspace: str = ""):
+    """Run system diagnostics (same as /doctor CLI command)."""
+    try:
+        from orion.cli.doctor import run_checks
+        results = await run_checks(workspace or None)
+        passed = sum(1 for r in results if r.status == "pass")
+        warned = sum(1 for r in results if r.status == "warn")
+        failed = sum(1 for r in results if r.status == "fail")
+        return {
+            "checks": [
+                {
+                    "name": r.name,
+                    "status": r.status,
+                    "icon": r.icon,
+                    "message": r.message,
+                    "remedy": r.remedy,
+                    "details": r.details,
+                }
+                for r in results
+            ],
+            "summary": {
+                "total": len(results),
+                "passed": passed,
+                "warned": warned,
+                "failed": failed,
+                "score": round(passed / max(len(results), 1) * 100),
+            },
+        }
+    except ImportError:
+        # Fallback if run_checks not available — run basic checks
+        checks = []
+        # Python version
+        import sys
+        py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+        checks.append({"name": "Python", "status": "pass", "message": py_ver})
+        # Workspace
+        if workspace and Path(workspace).is_dir():
+            checks.append({"name": "Workspace", "status": "pass", "message": workspace})
+        else:
+            checks.append({"name": "Workspace", "status": "warn", "message": "Not set"})
+        return {"checks": checks, "summary": {"total": len(checks), "passed": len(checks)}}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# MODE SWITCH (Phase 1A — closing CLI-only gap)
+# =============================================================================
+
+class ModeRequest(BaseModel):
+    mode: str  # "safe", "pro", "project"
+
+
+@app.post("/api/mode")
+async def set_mode(request: ModeRequest):
+    """Switch Orion's operating mode."""
+    valid_modes = {"safe", "pro", "project"}
+    if request.mode not in valid_modes:
+        raise HTTPException(status_code=400, detail=f"Invalid mode. Use: {', '.join(sorted(valid_modes))}")
+    # Persist to settings
+    user_settings = _load_user_settings()
+    user_settings["default_mode"] = request.mode
+    _save_user_settings(user_settings)
+    return {"status": "success", "mode": request.mode}
+
+
+@app.get("/api/mode")
+async def get_mode():
+    """Get current operating mode."""
+    settings = _load_user_settings()
+    return {"mode": settings.get("default_mode", "safe")}
+
+
+# =============================================================================
+# CONTEXT FILES (Phase 1A — closing CLI-only gap)
+# =============================================================================
+
+class ContextFilesRequest(BaseModel):
+    workspace: str
+    files: List[str]
+
+
+# In-memory context file store (per-session, like CLI)
+_context_files: Dict[str, List[str]] = {}
+
+
+@app.get("/api/context/files")
+async def get_context_files(workspace: str):
+    """Get current context files for a workspace."""
+    return {"files": _context_files.get(workspace, []), "workspace": workspace}
+
+
+@app.post("/api/context/files")
+async def add_context_files(request: ContextFilesRequest):
+    """Add files to the context for a workspace."""
+    if not request.workspace or not Path(request.workspace).is_dir():
+        raise HTTPException(status_code=400, detail="Invalid workspace path")
+    import glob
+    current = _context_files.setdefault(request.workspace, [])
+    added = []
+    for pattern in request.files:
+        full = os.path.join(request.workspace, pattern)
+        matches = glob.glob(full, recursive=True)
+        for m in matches:
+            rel = os.path.relpath(m, request.workspace)
+            if rel not in current:
+                current.append(rel)
+                added.append(rel)
+    return {"added": added, "total": len(current), "files": current}
+
+
+@app.delete("/api/context/files")
+async def remove_context_files(workspace: str, file: str = ""):
+    """Remove files from context. If file is empty, clear all."""
+    current = _context_files.get(workspace, [])
+    if not file:
+        _context_files[workspace] = []
+        return {"status": "cleared", "removed": len(current)}
+    if file in current:
+        current.remove(file)
+        return {"status": "removed", "file": file, "total": len(current)}
+    raise HTTPException(status_code=404, detail=f"File not in context: {file}")
+
+
+# =============================================================================
+# EVOLUTION / LEARNING (Phase 1A — closing CLI-only gap)
+# =============================================================================
+
+@app.get("/api/evolution/snapshot")
+async def get_evolution_snapshot():
+    """Get Orion's learning evolution snapshot."""
+    try:
+        from orion.core.learning.evolution import get_evolution_engine
+        from dataclasses import asdict
+        engine = get_evolution_engine()
+        summary = engine.get_evolution_summary()
+        return {
+            "summary": summary if isinstance(summary, dict) else str(summary),
+        }
+    except Exception as e:
+        return {"summary": f"Evolution engine not available: {e}"}
+
+
+@app.get("/api/evolution/recommendations")
+async def get_evolution_recommendations():
+    """Get self-improvement recommendations."""
+    try:
+        from orion.core.learning.evolution import get_evolution_engine
+        engine = get_evolution_engine()
+        return {"recommendations": engine.get_recommendations()}
+    except Exception as e:
+        return {"recommendations": [], "error": str(e)}
+
+
+# =============================================================================
+# MEMORY ENGINE (Phase 1C — closing BOTH-MISSING gap)
+# =============================================================================
+
+@app.get("/api/memory/stats")
+async def get_memory_stats():
+    """Get three-tier memory system statistics."""
+    try:
+        from orion.core.memory.engine import MemoryEngine
+        from dataclasses import asdict
+        settings = _load_user_settings()
+        engine = MemoryEngine(workspace_path=settings.get("workspace"))
+        stats = engine.get_stats()
+        if hasattr(stats, '__dataclass_fields__'):
+            return asdict(stats)
+        return stats if isinstance(stats, dict) else {"raw": str(stats)}
+    except Exception as e:
+        return {"error": str(e), "tier1": 0, "tier2": 0, "tier3": 0}
+
+
+@app.get("/api/memory/recall")
+async def recall_memories(q: str, max_results: int = 10):
+    """Recall relevant memories for a query."""
+    try:
+        from orion.core.memory.engine import MemoryEngine
+        settings = _load_user_settings()
+        engine = MemoryEngine(workspace_path=settings.get("workspace"))
+        memories = engine.recall(q, max_results=max_results)
+        return {
+            "query": q,
+            "count": len(memories),
+            "memories": [
+                {
+                    "content": m.content,
+                    "tier": m.tier,
+                    "category": m.category,
+                    "confidence": m.confidence,
+                    "source": m.source,
+                }
+                for m in memories
+            ],
+        }
+    except Exception as e:
+        return {"query": q, "count": 0, "memories": [], "error": str(e)}
+
+
+# =============================================================================
 # INTEGRATIONS
 # =============================================================================
 
