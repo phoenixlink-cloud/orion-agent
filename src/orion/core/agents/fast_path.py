@@ -153,6 +153,11 @@ IMPORTANT RULES:
 
         user_prompt = f"Request: {request}"
 
+        # Inject memory context (set by Router from MemoryEngine)
+        memory_ctx = getattr(self, '_memory_context', '')
+        if memory_ctx:
+            user_prompt += f"\n\n{memory_ctx}"
+
         # Inject connected platform capabilities
         platform_ctx = self._get_platform_context()
         if platform_ctx:

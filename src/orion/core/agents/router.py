@@ -61,11 +61,13 @@ class RequestRouter:
         stream_output: bool = True,
         model: str = "gpt-4o",
         sandbox_enabled: Optional[bool] = None,
+        memory_engine=None,
     ):
         self.source_path = Path(workspace_path).resolve()
         self.confirm_callback = confirm_callback or self._default_confirm
         self.stream_output = stream_output
         self.model = model
+        self.memory_engine = memory_engine
 
         # Sandbox: determine if enabled (env > param > default True)
         if sandbox_enabled is not None:
@@ -235,6 +237,10 @@ class RequestRouter:
     async def _handle_fast_path(self, request: str, report) -> dict:
         if self.fast_path is None:
             return {"content": "FastPath not available. Run /doctor to check configuration."}
+        # Inject memory context into FastPath's system prompt awareness
+        memory_ctx = self._get_memory_context(request)
+        if memory_ctx and self.fast_path:
+            self.fast_path._memory_context = memory_ctx
         try:
             if self.stream_output:
                 # Use true token-by-token streaming
@@ -257,11 +263,40 @@ class RequestRouter:
         except Exception as e:
             return {"error": f"FastPath error: {e}"}
 
+    def _get_memory_context(self, request: str) -> str:
+        """Retrieve relevant memories to inject into LLM evidence."""
+        if not self.memory_engine:
+            return ""
+        try:
+            return self.memory_engine.recall_for_prompt(request, max_tokens=1500)
+        except Exception:
+            return ""
+
+    def record_interaction(self, request: str, response: str, route: str):
+        """Record an interaction in session memory (Tier 1)."""
+        if not self.memory_engine:
+            return
+        try:
+            self.memory_engine.remember(
+                content=f"User asked ({route}): {request[:150]} -> Orion responded: {response[:200]}",
+                tier=1,
+                category="insight",
+                confidence=0.5,
+                source="router_interaction",
+                metadata={"route": route, "request": request[:300]},
+            )
+        except Exception:
+            pass
+
     async def _handle_council(self, request: str, report) -> dict:
         if self.council is None:
             # Fallback: route complex requests through FastPath
             return await self._handle_fast_path(request, report)
         context = self.repo_map.get_repo_map(report.relevant_files) if self.repo_map else ""
+        # Inject memory context
+        memory_context = self._get_memory_context(request)
+        if memory_context:
+            context = f"{memory_context}\n\n{context}"
         try:
             result = await self._run_council(request, context)
             if isinstance(result, dict):

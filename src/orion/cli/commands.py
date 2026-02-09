@@ -512,10 +512,10 @@ def _handle_key(parts, console):
 
 
 def _handle_memory(parts, console):
-    """Handle /memory [search <query>] — View memory stats or search."""
+    """Handle /memory [search <query> | stats | evolution] — View memory stats or search."""
     try:
-        from orion.core.memory.engine import MemoryEngine
-        engine = MemoryEngine()
+        from orion.core.memory.engine import get_memory_engine
+        engine = get_memory_engine()
 
         if len(parts) >= 3 and parts[1].lower() == "search":
             query = " ".join(parts[2:])
@@ -524,18 +524,41 @@ def _handle_memory(parts, console):
                 console.print_info(f"Found {len(memories)} memories for '{query}':")
                 for m in memories:
                     tier_label = {1: "Session", 2: "Project", 3: "Global"}[m.tier]
-                    console._print(f"  [{tier_label}] {m.content[:120]}")
+                    conf = f"{m.confidence:.0%}"
+                    console._print(f"  [{tier_label}/{conf}] {m.content[:120]}")
             else:
                 console.print_info(f"No memories found for '{query}'")
             return {}
 
+        if len(parts) >= 2 and parts[1].lower() == "evolution":
+            snapshot = engine.get_evolution_snapshot()
+            console.print_info("Evolution Snapshot:")
+            console._print(f"  Total interactions:  {snapshot.total_interactions}")
+            console._print(f"  Approval rate:       {snapshot.approval_rate:.1%}")
+            console._print(f"  Avg quality:         {snapshot.avg_quality_score:.2f}")
+            console._print(f"  Patterns learned:    {snapshot.patterns_learned}")
+            console._print(f"  Anti-patterns:       {snapshot.anti_patterns_learned}")
+            console._print(f"  Domains mastered:    {snapshot.domains_mastered}")
+            console._print(f"  Project memories:    {snapshot.tier2_entries}")
+            console._print(f"  Global memories:     {snapshot.tier3_entries}")
+            if snapshot.top_strengths:
+                console._print(f"  Strengths:           {', '.join(snapshot.top_strengths)}")
+            if snapshot.top_weaknesses:
+                console._print(f"  Weaknesses:          {', '.join(snapshot.top_weaknesses)}")
+            return {}
+
         stats = engine.get_stats()
-        if isinstance(stats, dict):
-            console.print_info("Memory Engine Stats:")
-            for k, v in stats.items():
-                console._print(f"  {k}: {v}")
-        else:
-            console.print_info(f"Memory: {stats}")
+        console.print_info("Memory Engine Stats:")
+        console._print(f"  Session (Tier 1):    {stats.tier1_entries} entries")
+        console._print(f"  Project (Tier 2):    {stats.tier2_entries} entries")
+        console._print(f"  Global  (Tier 3):    {stats.tier3_entries} entries")
+        console._print(f"  Approvals:           {stats.total_approvals}")
+        console._print(f"  Rejections:          {stats.total_rejections}")
+        console._print(f"  Approval rate:       {stats.approval_rate:.1%}" if (stats.total_approvals + stats.total_rejections) > 0 else "  Approval rate:       N/A")
+        console._print(f"  Patterns learned:    {stats.patterns_learned}")
+        console._print(f"  Anti-patterns:       {stats.anti_patterns_learned}")
+        console._print(f"  Preferences stored:  {stats.preferences_stored}")
+        console._print(f"  Promotions (T2->T3): {stats.promotions_count}")
     except Exception as e:
         console.print_info(f"Memory engine not available: {e}")
     return {}

@@ -178,6 +178,16 @@ def start_repl():
     mode: str = os.environ.get("ORION_DEFAULT_MODE", "safe")
     context_files: List[str] = []
     change_history: List[dict] = []
+    router_instance = None  # Persist across requests
+
+    # Initialize Memory Engine
+    memory_engine = None
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        memory_engine = get_memory_engine(workspace_path)
+        memory_engine.start_session()
+    except Exception:
+        pass
 
     # =========================================================================
     # AEGIS Invariant 6: Wire human approval callback for external writes.
@@ -224,6 +234,17 @@ def start_repl():
             # MAIN WORKFLOW
             # =============================================================
 
+            # Re-init memory engine if workspace changed
+            if memory_engine and memory_engine.workspace_path != (workspace_path or "."):
+                try:
+                    memory_engine.end_session()
+                    from orion.core.memory.engine import get_memory_engine
+                    memory_engine = get_memory_engine(workspace_path)
+                    memory_engine.start_session()
+                    router_instance = None  # Force Router rebuild
+                except Exception:
+                    pass
+
             # Step 1: Intent Classification
             try:
                 from orion.core.agents.router import classify_intent
@@ -258,24 +279,54 @@ def start_repl():
             except Exception:
                 pass  # Governance not available, proceed
 
-            # Step 3: Route through RequestRouter
+            # Step 3: Route through RequestRouter (persistent)
             try:
                 from orion.core.agents.router import RequestRouter
-                router = RequestRouter(
-                    workspace_path or ".",
-                    stream_output=True,
-                    sandbox_enabled=False,
-                )
-                result = asyncio.run(router.handle_request(user_input))
+                if router_instance is None:
+                    router_instance = RequestRouter(
+                        workspace_path or ".",
+                        stream_output=True,
+                        sandbox_enabled=False,
+                        memory_engine=memory_engine,
+                    )
+                result = asyncio.run(router_instance.handle_request(user_input))
+
+                response_text = result.get("response", "")
+                route_name = result.get("route", "UNKNOWN")
 
                 if result.get("success"):
                     # Router already printed response in stream mode
-                    if not router.stream_output:
-                        console.print_response(result.get("response", ""))
+                    if not router_instance.stream_output:
+                        console.print_response(response_text)
                     if result.get("files_modified"):
                         console.print_info(
                             f"Files modified: {', '.join(result['files_modified'])}"
                         )
+
+                    # Record interaction in memory
+                    if router_instance:
+                        router_instance.record_interaction(user_input, response_text, route_name)
+
+                    # Optional feedback (user can press Enter to skip)
+                    try:
+                        feedback = input("  Rate (1-5, Enter to skip): ").strip()
+                        if feedback and feedback.isdigit() and 1 <= int(feedback) <= 5:
+                            rating = int(feedback)
+                            if memory_engine:
+                                import uuid
+                                memory_engine.record_approval(
+                                    task_id=str(uuid.uuid4())[:8],
+                                    task_description=user_input[:300],
+                                    rating=rating,
+                                    feedback=f"User rated {rating}/5",
+                                    quality_score=rating / 5.0,
+                                )
+                                if rating >= 4:
+                                    console.print_info("Positive pattern recorded")
+                                elif rating <= 2:
+                                    console.print_info("Anti-pattern recorded — Orion will learn from this")
+                    except (EOFError, KeyboardInterrupt):
+                        pass
                 else:
                     error = result.get("response", result.get("error", "Unknown error"))
                     console.print_error(error)
@@ -291,5 +342,17 @@ def start_repl():
             console.print_interrupted()
         except Exception as e:
             console.print_error(str(e))
+
+    # End memory session: promote valuable memories, consolidate
+    if memory_engine:
+        try:
+            stats = memory_engine.get_stats()
+            memory_engine.end_session()
+            console.print_info(
+                f"Session ended — {stats.tier1_entries} session memories, "
+                f"{stats.tier2_entries} project, {stats.tier3_entries} global"
+            )
+        except Exception:
+            pass
 
     console.print_goodbye()
