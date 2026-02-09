@@ -653,6 +653,13 @@ export default function SettingsPanel() {
   const [oauthStatus, setOauthStatus] = useState<Record<string, any>>(DEFAULT_OAUTH)
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
 
+  // Connected Services (v6.4.0) — All platforms
+  const [platformData, setPlatformData] = useState<any>(null)
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null)
+  const [tokenInput, setTokenInput] = useState<Record<string, string>>({})
+  const [oauthSetup, setOauthSetup] = useState<Record<string, { clientId: string }>>({})
+  const [platformMessage, setPlatformMessage] = useState<Record<string, string>>({})
+
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
   const loadOAuthStatus = () => {
@@ -662,9 +669,31 @@ export default function SettingsPanel() {
       .catch(() => {})
   }
 
+  const loadPlatforms = () => {
+    fetch(`${API_BASE}/api/platforms`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPlatformData(data) })
+      .catch(() => {})
+  }
+
+  // Listen for OAuth popup success
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'oauth_success') {
+        loadOAuthStatus()
+        loadPlatforms()
+        setPlatformMessage(prev => ({ ...prev, [event.data.provider]: `${event.data.provider} connected successfully!` }))
+        setTimeout(() => setPlatformMessage(prev => { const n = { ...prev }; delete n[event.data.provider]; return n }), 5000)
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
   // Load all settings + model config + OAuth status on mount
   useEffect(() => {
     if (!isConnected) return
+    loadPlatforms()
     // Load general settings
     fetch(`${API_BASE}/api/settings`)
       .then(r => r.ok ? r.json() : null)
@@ -854,6 +883,92 @@ export default function SettingsPanel() {
       loadOAuthStatus()
     } catch (err) {
       console.error('OAuth revoke failed:', err)
+    }
+  }
+
+  // Platform connect handlers (v6.4.0)
+  const handlePlatformConnect = async (platformId: string, authMethod: string, oauthProvider?: string) => {
+    if (!isConnected) return
+    setConnectingPlatform(platformId)
+
+    try {
+      if (authMethod === 'oauth' && oauthProvider) {
+        // OAuth flow: try one-click connect first
+        const res = await fetch(`${API_BASE}/api/platforms/${platformId}/oauth-connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        const data = await res.json()
+
+        if (data.status === 'redirect' && data.auth_url) {
+          // Open popup for OAuth
+          const popup = window.open(data.auth_url, `orion_oauth_${oauthProvider}`, 'width=600,height=700,menubar=no,toolbar=no')
+          if (!popup) {
+            setPlatformMessage(prev => ({ ...prev, [platformId]: 'Popup blocked. Please allow popups for this site.' }))
+          }
+        } else if (data.status === 'setup_required') {
+          // Show setup dialog inline
+          setPlatformMessage(prev => ({ ...prev, [platformId]: data.hint || data.message }))
+        }
+      } else if ((authMethod === 'api_key' || authMethod === 'token') && tokenInput[platformId]) {
+        // Direct token/key storage
+        const res = await fetch(`${API_BASE}/api/platforms/connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform_id: platformId,
+            [authMethod === 'api_key' ? 'api_key' : 'token']: tokenInput[platformId],
+          }),
+        })
+        if (res.ok) {
+          setPlatformMessage(prev => ({ ...prev, [platformId]: 'Connected!' }))
+          setTokenInput(prev => ({ ...prev, [platformId]: '' }))
+          loadPlatforms()
+          setTimeout(() => setPlatformMessage(prev => { const n = { ...prev }; delete n[platformId]; return n }), 3000)
+        } else {
+          const err = await res.json()
+          setPlatformMessage(prev => ({ ...prev, [platformId]: err.detail || 'Failed to connect' }))
+        }
+      }
+    } catch (err) {
+      console.error('Platform connect failed:', err)
+      setPlatformMessage(prev => ({ ...prev, [platformId]: 'Connection failed. Check the API server.' }))
+    } finally {
+      setConnectingPlatform(null)
+    }
+  }
+
+  const handlePlatformDisconnect = async (platformId: string) => {
+    if (!isConnected) return
+    try {
+      await fetch(`${API_BASE}/api/platforms/disconnect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform_id: platformId }),
+      })
+      loadPlatforms()
+    } catch (err) {
+      console.error('Platform disconnect failed:', err)
+    }
+  }
+
+  const handleOAuthSetup = async (platformId: string, oauthProvider: string) => {
+    if (!isConnected) return
+    const setup = oauthSetup[platformId]
+    if (!setup?.clientId) return
+    try {
+      const res = await fetch(`${API_BASE}/api/oauth/configure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: oauthProvider, client_id: setup.clientId }),
+      })
+      if (res.ok) {
+        setPlatformMessage(prev => ({ ...prev, [platformId]: 'Configured! Click Connect to sign in.' }))
+        loadOAuthStatus()
+        loadPlatforms()
+      }
+    } catch (err) {
+      console.error('OAuth setup failed:', err)
     }
   }
 
@@ -1060,128 +1175,207 @@ export default function SettingsPanel() {
         ))}
       </CollapsibleSection>
 
-      {/* OAuth Authentication (v2.4.0) */}
-      <CollapsibleSection title="Connected Accounts" description="Link your Google, GitHub, GitLab, or Microsoft accounts to unlock extra features and free AI access.">
+      {/* Connected Services (v6.4.0) — ALL platforms */}
+      <CollapsibleSection title="Connected Services" description="Connect platforms so Orion can use them when you ask. Click Connect to sign in or paste a token." defaultOpen={true}>
         <div style={{ padding: '12px 16px', background: 'rgba(34, 211, 238, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.2)' }}>
           <div style={{ fontSize: 13, color: 'var(--glow)' }}>
-            OAuth lets you use existing accounts instead of raw API keys. Google Gemini free tier = 1500 req/day at no cost.
+            {platformData ? `${platformData.connected} of ${platformData.total} services connected.` : 'Loading platforms...'}{' '}
+            Connected services let Orion search repos, create issues, send messages, and more — just ask.
           </div>
         </div>
 
-        {Object.entries(oauthStatus).map(([name, status]: [string, any]) => (
-          <div key={name} style={{
-            padding: '16px',
-            background: 'rgba(0,0,0,0.2)',
-            borderRadius: 'var(--r-md)',
-            marginBottom: 12,
-            border: status.authenticated ? '1px solid rgba(34, 211, 238, 0.3)' : '1px solid var(--line)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div>
-                <span style={{ fontSize: 14, fontWeight: 600, color: status.authenticated ? 'var(--glow)' : 'var(--text)' }}>
-                  {status.name || name.charAt(0).toUpperCase() + name.slice(1)}
+        {platformData && Object.entries(platformData.platforms || {}).map(([categoryKey, platforms]: [string, any]) => {
+          const catInfo = (platformData.categories || {})[categoryKey] || { label: categoryKey, icon: '📦' }
+          return (
+            <div key={categoryKey} style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{catInfo.icon}</span> {catInfo.label}
+                <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>
+                  ({(platforms as any[]).filter((p: any) => p.connected).length}/{(platforms as any[]).length} connected)
                 </span>
-                <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>
-                  {status.authenticated ? 'Authenticated' : status.configured ? 'Configured' : 'Not configured'}
-                </span>
-                {status.free_tier && (
-                  <span style={{ fontSize: 11, color: '#64c864', marginLeft: 8 }}>
-                    {status.free_tier}
-                  </span>
-                )}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {status.configured && !status.authenticated && (
-                  <button
-                    onClick={() => handleOAuthLogin(name)}
-                    disabled={oauthLoading === name}
-                    style={{
-                      padding: '6px 14px', fontSize: 12, fontWeight: 600,
-                      background: 'var(--glow)', color: '#000', border: 'none',
-                      borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                      opacity: oauthLoading === name ? 0.5 : 1,
-                    }}
-                  >
-                    {oauthLoading === name ? 'Waiting...' : 'Login'}
-                  </button>
-                )}
-                {status.authenticated && (
-                  <button
-                    onClick={() => handleOAuthRevoke(name)}
-                    style={{
-                      padding: '6px 14px', fontSize: 12, fontWeight: 500,
-                      background: 'transparent', color: '#ff6b6b', border: '1px solid #ff6b6b',
-                      borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                    }}
-                  >
-                    Revoke
-                  </button>
-                )}
-              </div>
+
+              {(platforms as any[]).map((p: any) => (
+                <div key={p.id} style={{
+                  padding: '12px 16px',
+                  background: p.connected ? 'rgba(34, 211, 238, 0.05)' : 'rgba(0,0,0,0.15)',
+                  borderRadius: 'var(--r-sm)',
+                  marginBottom: 6,
+                  border: p.connected ? '1px solid rgba(34, 211, 238, 0.2)' : '1px solid var(--line)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 18 }}>{p.icon}</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: p.connected ? 'var(--glow)' : 'var(--text)' }}>
+                          {p.name}
+                        </span>
+                        {p.connected && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                            background: 'rgba(100, 255, 100, 0.15)', color: '#64ff64',
+                            borderRadius: 10, border: '1px solid rgba(100, 255, 100, 0.3)',
+                          }}>Connected</span>
+                        )}
+                        {p.free_tier && !p.connected && (
+                          <span style={{ fontSize: 10, color: '#64c864' }}>{p.free_tier}</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.description}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, marginLeft: 12, flexShrink: 0 }}>
+                      {/* Connected: show Disconnect */}
+                      {p.connected && !p.is_local && (
+                        <button
+                          onClick={() => handlePlatformDisconnect(p.id)}
+                          style={{
+                            padding: '5px 12px', fontSize: 11, fontWeight: 500,
+                            background: 'transparent', color: '#ff6b6b', border: '1px solid rgba(255,107,107,0.4)',
+                            borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                          }}
+                        >Disconnect</button>
+                      )}
+
+                      {/* Local service: show "Available" */}
+                      {p.is_local && p.connected && (
+                        <span style={{ fontSize: 11, color: '#64c864', padding: '5px 12px' }}>Available locally</span>
+                      )}
+
+                      {/* Not connected: show Connect button */}
+                      {!p.connected && p.auth_method === 'oauth' && (
+                        <button
+                          onClick={() => handlePlatformConnect(p.id, 'oauth', p.oauth_provider)}
+                          disabled={connectingPlatform === p.id}
+                          style={{
+                            padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                            background: 'var(--glow)', color: '#000', border: 'none',
+                            borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                            opacity: connectingPlatform === p.id ? 0.5 : 1,
+                          }}
+                        >{connectingPlatform === p.id ? 'Connecting...' : 'Sign In & Connect'}</button>
+                      )}
+
+                      {!p.connected && (p.auth_method === 'api_key' || p.auth_method === 'token') && (
+                        <button
+                          onClick={() => {
+                            if (tokenInput[p.id]) {
+                              handlePlatformConnect(p.id, p.auth_method)
+                            } else {
+                              setTokenInput(prev => ({ ...prev, [p.id]: ' ' }))
+                              setTimeout(() => setTokenInput(prev => ({ ...prev, [p.id]: '' })), 0)
+                            }
+                          }}
+                          style={{
+                            padding: '5px 14px', fontSize: 12, fontWeight: 600,
+                            background: tokenInput[p.id] ? 'var(--glow)' : 'rgba(34,211,238,0.15)',
+                            color: tokenInput[p.id] ? '#000' : 'var(--glow)',
+                            border: tokenInput[p.id] ? 'none' : '1px solid rgba(34,211,238,0.3)',
+                            borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                          }}
+                        >{tokenInput[p.id] ? 'Save' : 'Connect'}</button>
+                      )}
+
+                      {!p.connected && p.auth_method === 'none' && !p.is_local && (
+                        <span style={{ fontSize: 11, color: 'var(--muted)', padding: '5px 12px' }}>No setup needed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Token/key input (shown when user clicks Connect for api_key/token platforms) */}
+                  {!p.connected && (p.auth_method === 'api_key' || p.auth_method === 'token') && tokenInput[p.id] !== undefined && (
+                    <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        type="password"
+                        placeholder={p.auth_method === 'api_key' ? `Paste ${p.name} API key...` : `Paste ${p.name} token...`}
+                        value={tokenInput[p.id] || ''}
+                        onChange={(e) => setTokenInput(prev => ({ ...prev, [p.id]: e.target.value }))}
+                        style={{
+                          flex: 1, padding: '7px 12px', fontSize: 13,
+                          background: 'var(--tile)', border: '1px solid var(--line)',
+                          borderRadius: 'var(--r-sm)', color: 'var(--text)',
+                        }}
+                      />
+                      {p.setup_url && (
+                        <a href={p.setup_url} target="_blank" rel="noopener noreferrer" style={{
+                          fontSize: 11, color: 'var(--glow)', textDecoration: 'none', whiteSpace: 'nowrap',
+                        }}>Get key →</a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* OAuth setup (shown when oauth needs client_id) */}
+                  {!p.connected && p.auth_method === 'oauth' && platformMessage[p.id]?.includes('OAuth app') && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{platformMessage[p.id]}</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="Client ID"
+                          value={oauthSetup[p.id]?.clientId || ''}
+                          onChange={(e) => setOauthSetup(prev => ({ ...prev, [p.id]: { clientId: e.target.value } }))}
+                          style={{
+                            flex: 1, padding: '7px 12px', fontSize: 13,
+                            background: 'var(--tile)', border: '1px solid var(--line)',
+                            borderRadius: 'var(--r-sm)', color: 'var(--text)',
+                          }}
+                        />
+                        <button
+                          onClick={() => handleOAuthSetup(p.id, p.oauth_provider)}
+                          disabled={!oauthSetup[p.id]?.clientId}
+                          style={{
+                            padding: '7px 14px', fontSize: 12, fontWeight: 600,
+                            background: oauthSetup[p.id]?.clientId ? 'var(--glow)' : 'var(--tile)',
+                            color: oauthSetup[p.id]?.clientId ? '#000' : 'var(--muted)',
+                            border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                          }}
+                        >Save & Connect</button>
+                        {p.setup_url && (
+                          <a href={p.setup_url} target="_blank" rel="noopener noreferrer" style={{
+                            fontSize: 11, color: 'var(--glow)', textDecoration: 'none', alignSelf: 'center',
+                          }}>Create app →</a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Status message */}
+                  {platformMessage[p.id] && !platformMessage[p.id]?.includes('OAuth app') && (
+                    <div style={{
+                      marginTop: 6, fontSize: 12, padding: '4px 8px', borderRadius: 'var(--r-sm)',
+                      color: platformMessage[p.id].includes('Connected') || platformMessage[p.id].includes('success') ? '#64ff64' : '#ffcc66',
+                      background: platformMessage[p.id].includes('Connected') || platformMessage[p.id].includes('success') ? 'rgba(100,255,100,0.1)' : 'rgba(255,200,100,0.1)',
+                    }}>
+                      {platformMessage[p.id]}
+                    </div>
+                  )}
+
+                  {/* Capabilities preview (when connected) */}
+                  {p.connected && p.capabilities?.length > 0 && (
+                    <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {p.capabilities.slice(0, 4).map((cap: any) => (
+                        <span key={cap.name} style={{
+                          fontSize: 10, padding: '2px 8px', borderRadius: 10,
+                          background: 'rgba(34,211,238,0.1)', color: 'var(--glow)',
+                          border: '1px solid rgba(34,211,238,0.15)',
+                        }}>{cap.description}</span>
+                      ))}
+                      {p.capabilities.length > 4 && (
+                        <span style={{ fontSize: 10, color: 'var(--muted)', alignSelf: 'center' }}>+{p.capabilities.length - 4} more</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
+          )
+        })}
 
-            {status.description && (
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
-                {status.description}
-              </div>
-            )}
-
-            {status.authenticated && status.expires_at && (
-              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                Expires: {new Date(status.expires_at).toLocaleString()}
-                {status.scopes && <span> | Scopes: {status.scopes}</span>}
-              </div>
-            )}
-
-            {!status.configured && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-                  Enter your OAuth app credentials to enable login:
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    placeholder="Client ID"
-                    value={getOauthCred(name).clientId}
-                    onChange={(e) => setOauthCred(name, 'clientId', e.target.value)}
-                    style={{
-                      flex: 1, minWidth: 180, padding: '8px 12px', fontSize: 13,
-                      background: 'var(--tile)', border: '1px solid var(--line)',
-                      borderRadius: 'var(--r-sm)', color: 'var(--text)',
-                    }}
-                  />
-                  <input
-                    type="password"
-                    placeholder="Client Secret (optional)"
-                    value={getOauthCred(name).clientSecret}
-                    onChange={(e) => setOauthCred(name, 'clientSecret', e.target.value)}
-                    style={{
-                      flex: 1, minWidth: 180, padding: '8px 12px', fontSize: 13,
-                      background: 'var(--tile)', border: '1px solid var(--line)',
-                      borderRadius: 'var(--r-sm)', color: 'var(--text)',
-                    }}
-                  />
-                  <button
-                    onClick={() => handleOAuthConfigure(name)}
-                    disabled={!getOauthCred(name).clientId}
-                    style={{
-                      padding: '8px 16px', fontSize: 12, fontWeight: 600,
-                      background: getOauthCred(name).clientId ? 'var(--glow)' : 'var(--tile)',
-                      color: getOauthCred(name).clientId ? '#000' : 'var(--muted)',
-                      border: 'none', borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                    }}
-                  >
-                    Configure
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-
-        {Object.keys(oauthStatus).length === 0 && (
+        {!platformData && (
           <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>
-            No OAuth platforms available. Check your Orion installation.
+            Connect to the Orion API server to see available platforms.
           </div>
         )}
       </CollapsibleSection>
