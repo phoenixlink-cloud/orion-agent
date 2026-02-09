@@ -58,27 +58,58 @@ class OrionConsole:
 
     def print_help(self):
         print("""
-  Commands:
-    /workspace <path>   Set workspace directory
-    /add <file>         Add file to context
-    /drop <file>        Remove file from context
-    /clear              Clear all context files
-    /mode <mode>        Switch mode (safe/pro/project)
-    /map                Show repository map
-    /undo [all|stack|history]  Undo changes
-    /diff               Show pending git changes
-    /commit [msg]       Commit changes to git
-    /connect [platform] [token]  Connect a platform
-    /disconnect <platform>       Disconnect a platform
-    /key set|remove|status       Manage API keys
-    /memory [search <q>]         Memory stats or search
-    /doctor             Run diagnostics
-    /health             Check integration health
-    /settings           View/edit settings
-    /status             Show current status
-    /log                Show activity log
-    /help               Show this help
-    /quit               Exit Orion
+  ╭─────────────────────────────────────────────╮
+  │          Orion — Command Reference           │
+  ╰─────────────────────────────────────────────╯
+
+  GETTING STARTED
+    Just type a question or request in plain English.
+    Example: "Create a hello world Flask app"
+    Example: "Explain what main.py does"
+
+  WORKSPACE (set your project folder first)
+    /workspace <path>        Set your project folder
+    /add <file>              Add a file for Orion to read
+    /drop <file>             Remove a file from context
+    /clear                   Clear all added files
+    /map                     Show project structure
+    /status                  Show current workspace and mode
+
+  GIT & CHANGES
+    /diff                    See what changed since last commit
+    /undo                    Undo Orion's last change
+    /undo all                Undo all changes in this session
+    /commit [message]        Commit changes with a message
+
+  SAFETY MODES
+    /mode safe               Orion asks before every change (default)
+    /mode pro                Auto-approve safe edits, ask for risky ones
+    /mode project            Full autonomy within your project
+
+  CONNECTIONS & API KEYS
+    /connect                 List all available platforms
+    /connect <platform> <token>  Connect a service (GitHub, Slack, etc.)
+    /disconnect <platform>   Remove a connected service
+    /key status              Check which API keys are configured
+    /key set <provider> <key>    Add an API key (openai, anthropic, etc.)
+    /key remove <provider>   Remove an API key
+
+  MEMORY & LEARNING
+    /memory                  Show what Orion has learned
+    /memory search <query>   Search Orion's memory
+    /log                     View activity and learning history
+
+  DIAGNOSTICS
+    /doctor                  Run a full system health check
+    /health                  Check integration status
+    /settings                View or change settings
+
+  OTHER
+    /help                    Show this help
+    /quit or /exit           Exit Orion
+
+  TIP: You don't need to memorize these. Just ask Orion
+  anything and it will guide you through what it needs.
 """)
 
     def print_proposed_actions(self, actions: list, explanation: str = ""):

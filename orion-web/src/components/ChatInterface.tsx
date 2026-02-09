@@ -198,6 +198,26 @@ export default function ChatInterface() {
       return
     }
 
+    // Handle /help command locally
+    if (currentInput.trim() === '/help') {
+      addOrionMessage(
+        `Available commands:\n\n` +
+        `WORKSPACE\n` +
+        `  /workspace <path>  — Set your project folder\n` +
+        `  /mode safe|pro|project  — Change safety mode\n\n` +
+        `SAFETY MODES\n` +
+        `  safe  — Orion asks before every change (default)\n` +
+        `  pro  — Auto-approve safe edits, ask for risky ones\n` +
+        `  project  — Full autonomy within your project\n\n` +
+        `Or just type your question in plain English!\n` +
+        `Example: "Create a hello world Flask app"\n` +
+        `Example: "Explain what main.py does"\n\n` +
+        `For full settings, click Settings in the top right.`,
+        'status'
+      )
+      return
+    }
+
     // Handle /mode command
     if (currentInput.startsWith('/mode ')) {
       const newMode = currentInput.replace('/mode ', '').trim()
@@ -445,10 +465,10 @@ export default function ChatInterface() {
           Quick commands:
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {['/workspace', '/mode safe', '/mode pro', '/mode project', '/help'].map((cmd) => (
+          {['/help', '/mode safe', '/mode pro', '/mode project'].map((cmd) => (
             <button
               key={cmd}
-              onClick={() => setInput(cmd + ' ')}
+              onClick={() => { setInput(cmd); }}
               style={{
                 padding: '6px 12px',
                 fontSize: 13,

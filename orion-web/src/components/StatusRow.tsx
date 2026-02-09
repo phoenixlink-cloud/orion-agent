@@ -39,9 +39,9 @@ export default function StatusRow() {
         flexWrap: 'wrap',
       }}
     >
-      <StatusItem label="Orion online" />
-      <StatusItem label="Aegis enforcing safeguards" />
-      <StatusItem label="No intervention required" />
+      <StatusItem label="Multi-model AI reasoning" />
+      <StatusItem label="Aegis safety governance" />
+      <StatusItem label="Human-in-the-loop approval" />
     </div>
   )
 }

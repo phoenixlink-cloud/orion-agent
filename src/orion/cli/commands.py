@@ -117,12 +117,6 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
     elif command == "/memory":
         return _handle_memory(parts, console)
 
-    elif command == "/tasks":
-        return _handle_tasks(console)
-
-    elif command == "/task":
-        return _handle_task(parts, console)
-
     elif command == "/log":
         try:
             from orion.core.learning.evolution import get_evolution_engine
@@ -547,16 +541,3 @@ def _handle_memory(parts, console):
     return {}
 
 
-def _handle_tasks(console):
-    """Handle /tasks — List background tasks."""
-    console.print_info("No background tasks")
-    return {}
-
-
-def _handle_task(parts, console):
-    """Handle /task <id> or /task cancel <id>."""
-    if len(parts) < 2:
-        console.print_info("Usage: /task <id> or /task cancel <id>")
-        return {}
-    console.print_info(f"Task #{parts[1]} not found")
-    return {}
