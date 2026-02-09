@@ -104,11 +104,7 @@ class RequestRouter:
     def _init_sandbox(self) -> Path:
         """Create a sandbox session from the source repo."""
         try:
-            # Try the correct module path for sandbox
-            try:
-                from orion.security.sandbox import SandboxManager
-            except ImportError:
-                from orion.core.editing.sandbox import SandboxManager
+            from orion.security.sandbox import SandboxManager
             self._sandbox_mgr = SandboxManager(
                 sandbox_root=os.environ.get("ORION_SANDBOX_ROOT"),
                 use_git_clone=os.environ.get("ORION_SANDBOX_USE_GIT_CLONE", "true").lower() in ("true", "1"),

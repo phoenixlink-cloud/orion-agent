@@ -1681,8 +1681,9 @@ async def git_undo(request: GitUndoRequest):
 async def run_doctor_endpoint(workspace: str = ""):
     """Run system diagnostics (same as /doctor CLI command)."""
     try:
-        from orion.cli.doctor import run_checks
-        results = await run_checks(workspace or None)
+        from orion.cli.doctor import run_doctor
+        report = await run_doctor(console=None, workspace=workspace or ".")
+        results = report.checks
         passed = sum(1 for r in results if r.status == "pass")
         warned = sum(1 for r in results if r.status == "warn")
         failed = sum(1 for r in results if r.status == "fail")

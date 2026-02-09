@@ -327,7 +327,7 @@ async def exchange_code_for_token(
 
     # Also store in SecureStore if available
     try:
-        from orion.security.secure_store import get_secure_store
+        from orion.security.store import get_secure_store
         store = get_secure_store()
         if store and access_token:
             store.set_key(f"oauth_{provider}_access_token", access_token)
@@ -372,7 +372,7 @@ def disconnect_provider(provider: str) -> bool:
 
     # Also clear from SecureStore
     try:
-        from orion.security.secure_store import get_secure_store
+        from orion.security.store import get_secure_store
         store = get_secure_store()
         if store:
             store.delete_key(f"oauth_{provider}_access_token")
