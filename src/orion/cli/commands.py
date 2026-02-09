@@ -117,6 +117,9 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
     elif command == "/memory":
         return _handle_memory(parts, console)
 
+    elif command == "/bridge":
+        return _handle_bridge(parts, console)
+
     elif command == "/log":
         try:
             from orion.core.learning.evolution import get_evolution_engine
@@ -561,6 +564,88 @@ def _handle_memory(parts, console):
         console._print(f"  Promotions (T2->T3): {stats.promotions_count}")
     except Exception as e:
         console.print_info(f"Memory engine not available: {e}")
+    return {}
+
+
+def _handle_bridge(parts, console):
+    """Handle /bridge [enable|disable|status|revoke] — Messaging bridge management."""
+    try:
+        from orion.bridges.base import get_bridge_manager
+
+        if len(parts) < 2:
+            # Show status
+            manager = get_bridge_manager()
+            status = manager.get_status()
+            if not status:
+                console.print_info("No bridges configured. Use: /bridge enable <platform> <token>")
+                console.print_info("Supported platforms: telegram, slack, discord")
+            else:
+                console.print_info("Messaging Bridges:")
+                for name, info in status.items():
+                    state = "🟢 running" if info["running"] else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
+                    console._print(f"  {name}: {state} | {info['authorized_users']} users | {info['total_requests']} requests")
+            return {}
+
+        subcmd = parts[1].lower()
+
+        if subcmd == "enable":
+            if len(parts) < 4:
+                console.print_info("Usage: /bridge enable <telegram|slack|discord> <bot_token>")
+                return {}
+            platform = parts[2].lower()
+            token = parts[3]
+            if platform not in ("telegram", "slack", "discord"):
+                console.print_error(f"Unknown platform: {platform}. Use: telegram, slack, discord")
+                return {}
+            manager = get_bridge_manager()
+            passphrase = manager.enable(platform, token)
+            console.print_info(f"✅ {platform.title()} bridge enabled!")
+            console.print_info(f"🔑 Auth passphrase: {passphrase}")
+            console.print_info(f"Send this passphrase to your {platform.title()} bot to authenticate.")
+            console.print_info("⚠️  Keep this passphrase secret — it controls access to Orion.")
+
+        elif subcmd == "disable":
+            if len(parts) < 3:
+                console.print_info("Usage: /bridge disable <telegram|slack|discord>")
+                return {}
+            platform = parts[2].lower()
+            manager = get_bridge_manager()
+            if manager.disable(platform):
+                console.print_info(f"⚫ {platform.title()} bridge disabled.")
+            else:
+                console.print_error(f"No {platform} bridge found.")
+
+        elif subcmd == "status":
+            manager = get_bridge_manager()
+            status = manager.get_status()
+            if not status:
+                console.print_info("No bridges configured.")
+            else:
+                for name, info in status.items():
+                    state = "🟢 running" if info["running"] else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
+                    console._print(f"\n  [{name.upper()}] {state}")
+                    console._print(f"    Authorized users: {info['authorized_users']}")
+                    console._print(f"    Total requests:   {info['total_requests']}")
+                    console._print(f"    Rate limit:       {info['rate_limit']}/min")
+                    console._print(f"    Workspace:        {info['workspace'] or '(not set)'}")
+
+        elif subcmd == "revoke":
+            if len(parts) < 4:
+                console.print_info("Usage: /bridge revoke <platform> <user_id>")
+                return {}
+            platform = parts[2].lower()
+            user_id = parts[3]
+            manager = get_bridge_manager()
+            if manager.revoke(platform, user_id):
+                console.print_info(f"🔒 Revoked access for user {user_id} on {platform}.")
+            else:
+                console.print_error(f"User {user_id} not found on {platform}.")
+
+        else:
+            console.print_info("Bridge commands: enable, disable, status, revoke")
+
+    except Exception as e:
+        console.print_error(f"Bridge error: {e}")
     return {}
 
 
