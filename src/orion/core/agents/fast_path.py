@@ -57,7 +57,18 @@ IMPORTANT RULES:
 - For write operations, show a brief diff of changes
 - Be concise and direct
 - If you can't do something, explain why briefly
+- When the user asks about connected services (GitHub, Slack, etc.), check platform capabilities
 """
+
+    @staticmethod
+    def _get_platform_context() -> str:
+        """Get a summary of connected platforms for the system prompt."""
+        try:
+            from orion.integrations.platform_service import get_platform_service
+            service = get_platform_service()
+            return service.describe_capabilities()
+        except Exception:
+            return ""
 
     # Timeout config: connect 5s, read 120s (LLM generation can be slow)
     _TIMEOUT = httpx.Timeout(5.0, read=120.0)
@@ -141,6 +152,12 @@ IMPORTANT RULES:
             pass
 
         user_prompt = f"Request: {request}"
+
+        # Inject connected platform capabilities
+        platform_ctx = self._get_platform_context()
+        if platform_ctx:
+            user_prompt += f"\n\n{platform_ctx}"
+
         if repo_context:
             user_prompt += f"\n\nRepository Map:\n{repo_context}"
         if file_contents:
