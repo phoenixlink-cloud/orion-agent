@@ -96,6 +96,68 @@ Files must contain REAL implementation code, not stubs or TODOs.
 """
 
 
+def _get_evolution_guidance() -> str:
+    """Query the evolution engine for weaknesses and inject targeted guidance."""
+    guidance_lines = []
+    try:
+        from orion.core.learning.evolution import get_evolution_engine
+        evo = get_evolution_engine()
+        sw = evo.analyze_strengths_weaknesses(days=60)
+        weaknesses = [s for s in sw if not s.is_strength]
+        if weaknesses:
+            guidance_lines.append("SELF-IMPROVEMENT GUIDANCE (from learned patterns):")
+            for w in weaknesses[:3]:
+                if w.area == "refactor":
+                    guidance_lines.append(
+                        "- REFACTOR tasks: Break changes into small, testable steps. "
+                        "Preserve existing tests. Show before/after for each change. "
+                        "Never rewrite from scratch — prefer surgical edits."
+                    )
+                elif w.area == "bug_fix":
+                    guidance_lines.append(
+                        "- BUG FIX tasks: Identify root cause before proposing a fix. "
+                        "Include the specific error message. Add a regression test. "
+                        "Prefer minimal upstream fixes over downstream workarounds."
+                    )
+                elif w.area == "testing":
+                    guidance_lines.append(
+                        "- TESTING tasks: Write focused unit tests with clear assertions. "
+                        "Cover edge cases. Use descriptive test names. "
+                        "Mock external dependencies."
+                    )
+                elif w.area == "documentation":
+                    guidance_lines.append(
+                        "- DOCUMENTATION tasks: Be concise. Use examples over prose. "
+                        "Include code snippets. Match the project's existing doc style."
+                    )
+                else:
+                    guidance_lines.append(
+                        f"- {w.area.upper()} tasks: {w.recommendation}"
+                    )
+    except Exception:
+        pass
+
+    # Also pull anti-patterns from memory
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        mem = get_memory_engine()
+        anti_patterns = mem.recall(
+            "anti-pattern avoid mistake", max_results=3,
+            categories=["anti_pattern"], min_confidence=0.6,
+        )
+        if anti_patterns:
+            if not guidance_lines:
+                guidance_lines.append("LEARNED ANTI-PATTERNS (avoid these mistakes):")
+            else:
+                guidance_lines.append("\nLEARNED ANTI-PATTERNS (avoid these mistakes):")
+            for ap in anti_patterns:
+                guidance_lines.append(f"- {ap.content[:150]}")
+    except Exception:
+        pass
+
+    return "\n".join(guidance_lines)
+
+
 def _build_system_prompt(mode: str, constraints: dict, execution_mode: bool, is_local: bool) -> str:
     """Build the system prompt for the Builder."""
     constraint_rules = []
@@ -106,6 +168,9 @@ def _build_system_prompt(mode: str, constraints: dict, execution_mode: bool, is_
     if constraints.get("required_filename"):
         constraint_rules.append(f"USER CONSTRAINT: If creating a file, it must be named '{constraints['required_filename']}'.")
     constraint_section = "\n".join(constraint_rules) if constraint_rules else ""
+
+    # Auto-inject evolution guidance into prompt
+    evolution_section = _get_evolution_guidance()
 
     exec_section = _EXECUTION_MODE if execution_mode else ""
 
@@ -127,6 +192,8 @@ RULES:
 4. Output the ENTIRE file content - never truncate or use "..."
 5. Create ONE file at a time when asked
 
+{evolution_section}
+
 {constraint_section}"""
     else:
         return f"""You are the Builder in a governed AI system.
@@ -140,6 +207,8 @@ Current mode: {mode.upper()}
 {"You MAY propose file operations." if mode in ("pro", "project") else "You may NOT propose file operations in SAFE mode."}
 {exec_section}
 {_GROUNDING_RULES}
+
+{evolution_section}
 
 {constraint_section}
 

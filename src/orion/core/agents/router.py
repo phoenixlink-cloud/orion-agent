@@ -69,6 +69,14 @@ class RequestRouter:
         self.model = model
         self.memory_engine = memory_engine
 
+        # Logger
+        self._log = None
+        try:
+            from orion.core.logging import get_logger
+            self._log = get_logger()
+        except Exception:
+            pass
+
         # Sandbox: determine if enabled (env > param > default True)
         if sandbox_enabled is not None:
             self._sandbox_enabled = sandbox_enabled
@@ -285,6 +293,8 @@ class RequestRouter:
                 source="router_interaction",
                 metadata={"route": route, "request": request[:300]},
             )
+            if self._log:
+                self._log.memory(action="remember", tier=1, category="insight")
         except Exception:
             pass
 

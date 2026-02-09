@@ -180,6 +180,14 @@ def start_repl():
     change_history: List[dict] = []
     router_instance = None  # Persist across requests
 
+    # Initialize Logger
+    log = None
+    try:
+        from orion.core.logging import get_logger
+        log = get_logger()
+    except Exception:
+        pass
+
     # Initialize Memory Engine
     memory_engine = None
     try:
@@ -188,6 +196,9 @@ def start_repl():
         memory_engine.start_session()
     except Exception:
         pass
+
+    if log:
+        log.session_start(workspace=workspace_path or "(not set)", mode=mode)
 
     # =========================================================================
     # AEGIS Invariant 6: Wire human approval callback for external writes.
@@ -307,15 +318,25 @@ def start_repl():
                     if router_instance:
                         router_instance.record_interaction(user_input, response_text, route_name)
 
+                    # Log the route
+                    if log:
+                        exec_ms = result.get("execution_time_ms", 0)
+                        scout = result.get("scout_report", {})
+                        log.route(route_name, user_input, 
+                                  complexity=scout.get("complexity", 0),
+                                  risk=scout.get("risk", ""),
+                                  latency_ms=exec_ms)
+
                     # Optional feedback (user can press Enter to skip)
                     try:
                         feedback = input("  Rate (1-5, Enter to skip): ").strip()
                         if feedback and feedback.isdigit() and 1 <= int(feedback) <= 5:
                             rating = int(feedback)
+                            import uuid
+                            task_id = str(uuid.uuid4())[:8]
                             if memory_engine:
-                                import uuid
                                 memory_engine.record_approval(
-                                    task_id=str(uuid.uuid4())[:8],
+                                    task_id=task_id,
                                     task_description=user_input[:300],
                                     rating=rating,
                                     feedback=f"User rated {rating}/5",
@@ -324,7 +345,11 @@ def start_repl():
                                 if rating >= 4:
                                     console.print_info("Positive pattern recorded")
                                 elif rating <= 2:
-                                    console.print_info("Anti-pattern recorded — Orion will learn from this")
+                                    console.print_info("Anti-pattern recorded \u2014 Orion will learn from this")
+                            if log:
+                                log.approval(task_id=task_id, rating=rating,
+                                             task_type=route_name,
+                                             promoted=(rating >= 4 or rating <= 2))
                     except (EOFError, KeyboardInterrupt):
                         pass
                 else:
@@ -332,6 +357,8 @@ def start_repl():
                     console.print_error(error)
 
             except Exception as e:
+                if log:
+                    log.error("Router", f"Request failed: {e}", request=user_input[:100])
                 # Fallback: simple echo if router unavailable
                 console.print_info(
                     f"Router not available ({e}). "
@@ -352,7 +379,13 @@ def start_repl():
                 f"Session ended — {stats.tier1_entries} session memories, "
                 f"{stats.tier2_entries} project, {stats.tier3_entries} global"
             )
+            if log:
+                log.session_end(tier1=stats.tier1_entries,
+                                tier2=stats.tier2_entries,
+                                tier3=stats.tier3_entries)
         except Exception:
             pass
 
+    if log:
+        console.print_info(f"Logs: {log.log_file}")
     console.print_goodbye()

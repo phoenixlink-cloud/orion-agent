@@ -89,7 +89,7 @@ class TestPlatformRegistry:
         assert data["id"] == "github"
         assert data["name"] == "GitHub"
         assert data["category"] == "developer_tools"
-        assert data["auth_method"] == "oauth"
+        assert data["auth_method"] in ("oauth", "cli_tool")
         assert isinstance(data["capabilities"], list)
         assert len(data["capabilities"]) > 0
         assert "name" in data["capabilities"][0]
@@ -140,10 +140,11 @@ class TestPlatformService:
     def test_can_checks_connected(self):
         from orion.integrations.platform_service import get_platform_service
         service = get_platform_service()
-        # create_issue requires GitHub which isn't connected by default
-        # (unless GITHUB_TOKEN is set in env)
-        import os
-        if not os.environ.get("GITHUB_TOKEN"):
+        # create_issue requires GitHub — connected if GITHUB_TOKEN is set
+        # or if 'gh' CLI is installed (CLI_TOOL auth)
+        import os, shutil
+        github_available = bool(os.environ.get("GITHUB_TOKEN")) or shutil.which("gh") is not None
+        if not github_available:
             assert service.can("create_issue") is False
 
     def test_describe_capabilities(self):
