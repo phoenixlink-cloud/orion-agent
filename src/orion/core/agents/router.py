@@ -154,8 +154,8 @@ class RequestRouter:
     def council(self):
         if self._council is None:
             try:
-                from orion.core.agents.table import TableOfThree
-                self._council = TableOfThree(str(self.workspace_path))
+                from orion.core.agents.table import run_table_of_three
+                self._council = run_table_of_three
             except ImportError:
                 self._council = None
         return self._council
@@ -249,6 +249,8 @@ class RequestRouter:
         context = self.repo_map.get_repo_map(report.relevant_files) if self.repo_map else ""
         try:
             result = await self._run_council(request, context)
+            if isinstance(result, dict):
+                return {"content": result.get("response", str(result)), "council_result": result}
             return {"content": result}
         except Exception as e:
             return {"error": f"Council error: {e}"}
@@ -263,21 +265,28 @@ class RequestRouter:
             return {"content": "Request cancelled by user."}
         return await self._handle_council(request, report)
 
-    async def _run_council(self, request: str, context: str) -> str:
-        if hasattr(self.council, 'process_request'):
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, self.council.process_request, request)
-            return result.get("response", str(result))
-        elif hasattr(self.council, 'deliberate_async'):
-            return await self.council.deliberate_async(request, context)
-        elif hasattr(self.council, 'deliberate'):
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self.council.deliberate, request, context)
-        elif hasattr(self.council, 'run'):
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self.council.run, request)
-        else:
-            return "Council deliberation not available."
+    async def _run_council(self, request: str, context: str) -> Any:
+        """Run Table of Three deliberation."""
+        # Load current mode from settings
+        mode = "safe"
+        try:
+            settings_file = Path.home() / ".orion" / "settings.json"
+            if settings_file.exists():
+                import json
+                settings = json.loads(settings_file.read_text())
+                mode = settings.get("default_mode", "safe")
+        except Exception:
+            pass
+
+        if callable(self.council):
+            # council is run_table_of_three function
+            return await self.council(
+                user_input=request,
+                evidence_context=context,
+                mode=mode,
+                workspace_path=str(self.workspace_path),
+            )
+        return "Council deliberation not available."
 
 
 def get_router(workspace_path: str, **kwargs) -> RequestRouter:
