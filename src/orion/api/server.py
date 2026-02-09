@@ -582,6 +582,58 @@ OAUTH_PLATFORMS = {
         "revoke_url": None,
         "supports_pkce": True,
     },
+    "slack": {
+        "name": "Slack",
+        "description": "Send messages, read channels, team notifications",
+        "scopes": ["channels:read", "chat:write", "users:read", "team:read"],
+        "free_tier": "Free for small teams",
+        "auth_url": "https://slack.com/oauth/v2/authorize",
+        "token_url": "https://slack.com/api/oauth.v2.access",
+        "revoke_url": "https://slack.com/api/auth.revoke",
+        "supports_pkce": False,
+    },
+    "discord": {
+        "name": "Discord",
+        "description": "Send messages, read servers, notifications",
+        "scopes": ["identify", "guilds", "bot", "messages.read"],
+        "free_tier": "Free",
+        "auth_url": "https://discord.com/api/oauth2/authorize",
+        "token_url": "https://discord.com/api/oauth2/token",
+        "revoke_url": "https://discord.com/api/oauth2/token/revoke",
+        "supports_pkce": False,
+    },
+    "notion": {
+        "name": "Notion",
+        "description": "Access pages, databases, and project docs",
+        "scopes": [],
+        "free_tier": "Free personal plan",
+        "auth_url": "https://api.notion.com/v1/oauth/authorize",
+        "token_url": "https://api.notion.com/v1/oauth/token",
+        "revoke_url": None,
+        "supports_pkce": False,
+        "owner": "user",
+    },
+    "linear": {
+        "name": "Linear",
+        "description": "Issue tracking and project management",
+        "scopes": ["read", "write", "issues:create"],
+        "free_tier": "Free for small teams",
+        "auth_url": "https://linear.app/oauth/authorize",
+        "token_url": "https://api.linear.app/oauth/token",
+        "revoke_url": "https://api.linear.app/oauth/revoke",
+        "supports_pkce": True,
+    },
+    "atlassian": {
+        "name": "Jira / Atlassian",
+        "description": "Issue tracking, Confluence docs, Bitbucket",
+        "scopes": ["read:jira-work", "write:jira-work", "read:jira-user", "offline_access"],
+        "free_tier": "Free for up to 10 users",
+        "auth_url": "https://auth.atlassian.com/authorize",
+        "token_url": "https://auth.atlassian.com/oauth/token",
+        "revoke_url": None,
+        "supports_pkce": True,
+        "audience": "api.atlassian.com",
+    },
 }
 
 # In-memory PKCE state storage (short-lived, per-session)
@@ -722,12 +774,26 @@ async def oauth_login(request: OAuthLoginRequest):
         "client_id": client_id,
         "response_type": "code",
         "redirect_uri": redirect_uri,
-        "scope": " ".join(platform["scopes"]),
         "state": state_token,
     }
-    if platform["supports_pkce"]:
+
+    # Add scopes (some providers like Notion have no explicit scopes)
+    scopes = platform.get("scopes", [])
+    if scopes:
+        params["scope"] = " ".join(scopes)
+
+    if platform.get("supports_pkce"):
         params["code_challenge"] = code_challenge
         params["code_challenge_method"] = "S256"
+
+    # Atlassian requires audience parameter
+    if platform.get("audience"):
+        params["audience"] = platform["audience"]
+        params["prompt"] = "consent"
+
+    # Notion uses owner=user
+    if platform.get("owner"):
+        params["owner"] = platform["owner"]
 
     auth_url = f"{platform['auth_url']}?{urlencode(params)}"
     return {
@@ -796,10 +862,18 @@ async def oauth_callback(
     }
     if client_secret:
         token_data["client_secret"] = client_secret
-    if platform["supports_pkce"]:
+    if platform.get("supports_pkce"):
         token_data["code_verifier"] = code_verifier
 
     headers = {"Accept": "application/json"}
+
+    # Notion uses Basic auth (base64 of client_id:client_secret) instead of POST body
+    if provider == "notion" and client_secret:
+        import base64 as b64
+        basic_creds = b64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+        headers["Authorization"] = f"Basic {basic_creds}"
+        token_data.pop("client_id", None)
+        token_data.pop("client_secret", None)
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -821,22 +895,39 @@ async def oauth_callback(
             status_code=500,
         )
 
+    # Extract access_token — different providers return it in different places
+    access_token = tokens.get("access_token")
+    refresh_token = tokens.get("refresh_token")
+    expires_in = tokens.get("expires_in", 3600)
+
+    # Slack returns tokens nested under authed_user or bot
+    if provider == "slack":
+        access_token = (
+            tokens.get("access_token")
+            or (tokens.get("authed_user") or {}).get("access_token")
+        )
+
+    # Notion returns access_token at top level but also workspace info
+    if provider == "notion":
+        access_token = tokens.get("access_token")
+        expires_in = 0  # Notion tokens don't expire
+
     # Store tokens
     oauth_state = _load_oauth_state()
     oauth_state[provider] = {
-        "access_token": tokens.get("access_token"),
-        "refresh_token": tokens.get("refresh_token"),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": tokens.get("token_type", "Bearer"),
-        "expires_at": time.time() + tokens.get("expires_in", 3600),
+        "expires_at": time.time() + expires_in if expires_in else 0,
         "scope": tokens.get("scope", ""),
     }
     _save_oauth_state(oauth_state)
 
     # Also store access token in secure store for other modules
-    if store and tokens.get("access_token"):
-        store.set_key(f"oauth_{provider}_access_token", tokens["access_token"])
-        if tokens.get("refresh_token"):
-            store.set_key(f"oauth_{provider}_refresh_token", tokens["refresh_token"])
+    if store and access_token:
+        store.set_key(f"oauth_{provider}_access_token", access_token)
+        if refresh_token:
+            store.set_key(f"oauth_{provider}_refresh_token", refresh_token)
 
     # Return HTML that closes the popup and signals the parent
     return HTMLResponse(
@@ -1108,18 +1199,34 @@ async def oauth_connect_platform(platform_id: str):
         "client_id": client_id,
         "response_type": "code",
         "redirect_uri": redirect_uri,
-        "scope": " ".join(oauth_platform["scopes"]),
         "state": state_token,
     }
-    if oauth_platform["supports_pkce"]:
+
+    # Add scopes (some providers like Notion have no explicit scopes)
+    scopes = oauth_platform.get("scopes", [])
+    if scopes:
+        params["scope"] = " ".join(scopes)
+
+    # PKCE support
+    if oauth_platform.get("supports_pkce"):
         params["code_challenge"] = code_challenge
         params["code_challenge_method"] = "S256"
+
+    # Atlassian requires audience parameter
+    if oauth_platform.get("audience"):
+        params["audience"] = oauth_platform["audience"]
+        params["prompt"] = "consent"
+
+    # Notion uses owner=user
+    if oauth_platform.get("owner"):
+        params["owner"] = oauth_platform["owner"]
 
     auth_url = f"{oauth_platform['auth_url']}?{urlencode(params)}"
     return {
         "status": "redirect",
         "auth_url": auth_url,
         "provider": provider,
+        "platform": platform_id,
         "state": state_token,
     }
 

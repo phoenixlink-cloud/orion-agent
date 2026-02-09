@@ -293,23 +293,26 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="notion", name="Notion", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Access Notion pages, databases, and project docs",
-        icon="📝", auth_method=AuthMethod.TOKEN,
-        env_var="NOTION_TOKEN",
+        icon="📝", auth_method=AuthMethod.OAUTH,
+        env_var="NOTION_TOKEN", oauth_provider="notion",
         setup_url="https://www.notion.so/my-integrations",
-        setup_instructions="Create an integration at notion.so/my-integrations and copy the token",
+        setup_instructions="Sign in with your Notion account to grant Orion access to your workspace",
+        free_tier="Free personal plan",
         capabilities=[
             PlatformCapability("read_pages", "Read Notion pages", "read my project spec from Notion"),
             PlatformCapability("search_docs", "Search Notion workspace", "find the design doc in Notion"),
+            PlatformCapability("create_page", "Create Notion pages", "create a meeting notes page"),
         ],
     ))
 
     _add(PlatformDef(
         id="linear", name="Linear", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Issue tracking and project management",
-        icon="📐", auth_method=AuthMethod.API_KEY,
-        env_var="LINEAR_API_KEY",
+        icon="📐", auth_method=AuthMethod.OAUTH,
+        env_var="LINEAR_API_KEY", oauth_provider="linear",
         setup_url="https://linear.app/settings/api",
-        setup_instructions="Create an API key at linear.app/settings/api",
+        setup_instructions="Sign in with your Linear account to manage issues and projects",
+        free_tier="Free for small teams",
         capabilities=[
             PlatformCapability("list_issues", "List Linear issues", "show my open issues in Linear"),
             PlatformCapability("create_issue", "Create Linear issues", "create a bug report in Linear"),
@@ -319,10 +322,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="jira", name="Jira", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Issue tracking for enterprise teams",
-        icon="📋", auth_method=AuthMethod.TOKEN,
-        env_var="JIRA_API_TOKEN", env_var_alt="JIRA_URL",
-        setup_url="https://id.atlassian.com/manage-profile/security/api-tokens",
-        setup_instructions="Create an API token at id.atlassian.com. Also set JIRA_URL and JIRA_EMAIL.",
+        icon="📋", auth_method=AuthMethod.OAUTH,
+        env_var="JIRA_API_TOKEN", oauth_provider="atlassian",
+        setup_url="https://developer.atlassian.com/console/myapps/",
+        setup_instructions="Sign in with your Atlassian account to access Jira issues and projects",
+        free_tier="Free for up to 10 users",
         capabilities=[
             PlatformCapability("list_issues", "List Jira tickets", "show my open Jira tickets"),
             PlatformCapability("create_issue", "Create Jira tickets", "create a story for this feature"),
@@ -336,10 +340,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="slack", name="Slack", category=PlatformCategory.MESSAGING,
         description="Send messages, notifications, and code snippets to Slack channels",
-        icon="💬", auth_method=AuthMethod.TOKEN,
-        env_var="SLACK_BOT_TOKEN", package_name="slack_sdk",
+        icon="💬", auth_method=AuthMethod.OAUTH,
+        env_var="SLACK_BOT_TOKEN", oauth_provider="slack",
+        package_name="slack_sdk",
         setup_url="https://api.slack.com/apps",
-        setup_instructions="Create a Slack app at api.slack.com/apps, install to workspace, copy Bot Token",
+        setup_instructions="Sign in with your Slack workspace to send messages and read channels",
         free_tier="Free for small teams",
         capabilities=[
             PlatformCapability("send_message", "Send messages to Slack", "post the build status to #dev"),
@@ -351,10 +356,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="discord", name="Discord", category=PlatformCategory.MESSAGING,
         description="Send messages and notifications to Discord servers",
-        icon="🎮", auth_method=AuthMethod.TOKEN,
-        env_var="DISCORD_BOT_TOKEN", package_name="discord",
+        icon="🎮", auth_method=AuthMethod.OAUTH,
+        env_var="DISCORD_BOT_TOKEN", oauth_provider="discord",
+        package_name="discord",
         setup_url="https://discord.com/developers/applications",
-        setup_instructions="Create a Discord bot at discord.com/developers, copy the Bot Token",
+        setup_instructions="Sign in with your Discord account to send messages and notifications",
         free_tier="Free",
         capabilities=[
             PlatformCapability("send_message", "Send messages to Discord", "post update to #general"),
