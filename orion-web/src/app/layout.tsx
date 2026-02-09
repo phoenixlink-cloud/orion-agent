@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import '@/design/tokens.css'
+import AegisApprovalProvider from '@/components/AegisApprovalProvider'
 
 export const metadata: Metadata = {
   title: 'Orion - Governed AI Assistant',
@@ -21,6 +22,7 @@ export default function RootLayout({
       </head>
       <body>
         {children}
+        <AegisApprovalProvider />
       </body>
     </html>
   )

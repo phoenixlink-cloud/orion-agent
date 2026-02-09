@@ -109,6 +109,26 @@ class OrionConsole:
     def print_mode_required(self, required_mode: str, action: str):
         print(f"  {action} requires {required_mode.upper()} mode. Use /mode {required_mode}")
 
+    def aegis_approval_prompt(self, prompt: str) -> bool:
+        """
+        AEGIS Invariant 6: Human approval gate for external write operations.
+
+        Shows the approval prompt in the terminal and waits for y/n.
+        This is the ONLY code path that can approve write actions in CLI mode.
+        """
+        print("\n" + "=" * 60)
+        print("  ⚠  AEGIS APPROVAL REQUIRED")
+        print("=" * 60)
+        print(f"\n{prompt}")
+        print("=" * 60)
+        resp = input("\n  Approve this action? [y/N]: ").strip().lower()
+        approved = resp in ("y", "yes")
+        if approved:
+            print("  [AEGIS] ✓ Action APPROVED by human")
+        else:
+            print("  [AEGIS] ✗ Action DENIED")
+        return approved
+
     def _print(self, text: str, **kwargs):
         print(text)
 
@@ -122,6 +142,18 @@ def start_repl():
     mode: str = os.environ.get("ORION_DEFAULT_MODE", "safe")
     context_files: List[str] = []
     change_history: List[dict] = []
+
+    # =========================================================================
+    # AEGIS Invariant 6: Wire human approval callback for external writes.
+    # Without this, ALL write operations to external APIs are BLOCKED.
+    # =========================================================================
+    try:
+        from orion.integrations.platform_service import get_platform_service
+        _platform_svc = get_platform_service()
+        _platform_svc.set_approval_callback(console.aegis_approval_prompt)
+        console.print_info("AEGIS Invariant 6 active — external writes require your approval")
+    except Exception:
+        pass  # Platform service not available
 
     console.print_banner()
 

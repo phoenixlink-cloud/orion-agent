@@ -20,8 +20,10 @@ Usage by agents:
 """
 
 import os
+import asyncio
+import inspect
 import logging
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Union
 
 logger = logging.getLogger("orion.integrations.platform_service")
 
@@ -225,8 +227,11 @@ class PlatformService:
                     "aegis_blocked": True,
                 }
 
-            # Ask human for approval
-            approved = self._approval_callback(aegis_result.approval_prompt)
+            # Ask human for approval (supports both sync and async callbacks)
+            if inspect.iscoroutinefunction(self._approval_callback):
+                approved = await self._approval_callback(aegis_result.approval_prompt)
+            else:
+                approved = self._approval_callback(aegis_result.approval_prompt)
             if not approved:
                 logger.info(
                     f"AEGIS-6 DENIED by human: {method.upper()} {url}"

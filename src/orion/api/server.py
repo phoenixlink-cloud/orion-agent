@@ -44,6 +44,121 @@ app.add_middleware(
 
 
 # =============================================================================
+# AEGIS INVARIANT 6: Web Approval Queue (HARDCODED — NOT CONFIGURABLE)
+# =============================================================================
+# This queue bridges PlatformService's approval gate to the web frontend.
+# When Orion tries a write operation, it's held here until the human
+# approves or denies via the UI modal.
+# =============================================================================
+
+import asyncio as _aio
+import uuid as _uuid
+from dataclasses import dataclass as _dataclass, field as _field
+from typing import Dict as _Dict
+
+@_dataclass
+class _PendingApproval:
+    """A write operation waiting for human approval."""
+    id: str
+    prompt: str
+    event: _aio.Event
+    approved: bool = False
+    responded: bool = False
+    created_at: float = 0.0
+
+# Global approval queue — shared between PlatformService callback and REST endpoints
+_pending_approvals: _Dict[str, _PendingApproval] = {}
+
+async def _web_approval_callback(prompt: str) -> bool:
+    """
+    AEGIS Invariant 6: Async approval callback for web mode.
+
+    Creates a pending approval, waits for the frontend to respond,
+    then returns the human's decision. Times out after 120 seconds.
+    """
+    approval_id = str(_uuid.uuid4())[:8]
+    event = _aio.Event()
+    pending = _PendingApproval(
+        id=approval_id,
+        prompt=prompt,
+        event=event,
+        created_at=time.time(),
+    )
+    _pending_approvals[approval_id] = pending
+
+    logger.info(f"AEGIS-6: Approval request {approval_id} queued — waiting for human")
+
+    try:
+        # Wait up to 120 seconds for human response
+        await _aio.wait_for(event.wait(), timeout=120.0)
+    except _aio.TimeoutError:
+        logger.warning(f"AEGIS-6: Approval {approval_id} timed out — denied by default")
+        pending.approved = False
+    finally:
+        _pending_approvals.pop(approval_id, None)
+
+    return pending.approved
+
+# Wire PlatformService with the web approval callback at startup
+@app.on_event("startup")
+async def _wire_aegis_approval():
+    """Wire AEGIS Invariant 6 approval callback into PlatformService."""
+    try:
+        from orion.integrations.platform_service import get_platform_service
+        svc = get_platform_service()
+        svc.set_approval_callback(_web_approval_callback)
+        logger.info("AEGIS Invariant 6 active — external writes require human approval via web UI")
+    except Exception as e:
+        logger.warning(f"Could not wire AEGIS approval callback: {e}")
+
+
+@app.get("/api/aegis/pending")
+async def get_pending_approvals():
+    """
+    AEGIS Invariant 6: List pending approval requests.
+
+    The frontend polls this endpoint to detect when Orion needs
+    human approval for a write operation.
+    """
+    now = time.time()
+    pending = []
+    for p in _pending_approvals.values():
+        if not p.responded:
+            pending.append({
+                "id": p.id,
+                "prompt": p.prompt,
+                "age_seconds": round(now - p.created_at, 1),
+            })
+    return {"pending": pending, "count": len(pending)}
+
+
+class AegisApprovalResponse(BaseModel):
+    approved: bool
+
+
+@app.post("/api/aegis/respond/{approval_id}")
+async def respond_to_approval(approval_id: str, response: AegisApprovalResponse):
+    """
+    AEGIS Invariant 6: Human responds to an approval request.
+
+    The frontend calls this with approved=true or approved=false
+    to unblock the waiting PlatformService.api_call().
+    """
+    pending = _pending_approvals.get(approval_id)
+    if not pending:
+        raise HTTPException(status_code=404, detail=f"No pending approval with id '{approval_id}'")
+
+    pending.approved = response.approved
+    pending.responded = True
+    pending.event.set()  # Unblock the waiting api_call()
+
+    action = "APPROVED" if response.approved else "DENIED"
+    logger.info(f"AEGIS-6: Approval {approval_id} {action} by human via web UI")
+
+    return {"id": approval_id, "action": action}
+
+
+# =============================================================================
 # PYDANTIC MODELS
 # =============================================================================
 
