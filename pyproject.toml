@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "orion-agent"
-version = "6.8.0"
+version = "6.9.0"
 description = "Self-improving, multi-agent AI coding assistant with persistent memory and continuous learning"
 readme = "README.md"
 license = { text = "MIT" }
