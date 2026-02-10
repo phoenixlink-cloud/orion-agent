@@ -20,17 +20,21 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from urllib.parse import urlencode, quote_plus
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 logger = logging.getLogger("orion.api.server")
 
+# Resolve project root (two levels up from src/orion/api/server.py)
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
+
 app = FastAPI(
     title="Orion Agent API",
     description="REST + WebSocket API for Orion Agent",
-    version="6.4.0"
+    version="7.0.0"
 )
 
 # CORS for frontend
@@ -41,6 +45,68 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# =============================================================================
+# ORION LOGGER — comprehensive logging from startup to shutdown
+# =============================================================================
+
+_orion_log = None
+
+def _get_orion_log():
+    """Lazy-init the OrionLogger with project-local log mirror."""
+    global _orion_log
+    if _orion_log is None:
+        try:
+            from orion.core.logging import get_logger
+            _orion_log = get_logger(project_dir=_PROJECT_ROOT)
+        except Exception:
+            pass
+    return _orion_log
+
+
+# =============================================================================
+# HTTP REQUEST LOGGING MIDDLEWARE
+# =============================================================================
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log every HTTP request with method, path, status, and latency."""
+    async def dispatch(self, request: Request, call_next):
+        start = time.time()
+        response = await call_next(request)
+        latency_ms = int((time.time() - start) * 1000)
+        log = _get_orion_log()
+        if log:
+            # Skip noisy health checks from log
+            path = request.url.path
+            if path not in ("/api/health",):
+                log.http_request(
+                    method=request.method,
+                    path=path,
+                    status=response.status_code,
+                    latency_ms=latency_ms,
+                )
+        return response
+
+app.add_middleware(RequestLoggingMiddleware)
+
+
+# =============================================================================
+# LIFECYCLE — startup and shutdown logging
+# =============================================================================
+
+@app.on_event("startup")
+async def _on_startup():
+    log = _get_orion_log()
+    if log:
+        log.server_start(host="0.0.0.0", port=8001, version="7.0.0",
+                         project_root=_PROJECT_ROOT)
+
+@app.on_event("shutdown")
+async def _on_shutdown():
+    log = _get_orion_log()
+    if log:
+        log.server_stop()
 
 
 # =============================================================================
@@ -261,6 +327,8 @@ class SettingsUpdate(BaseModel):
     # Paths
     data_dir: Optional[str] = None
     ledger_file: Optional[str] = None
+    # Workspace
+    workspace: Optional[str] = None
 
 
 # =============================================================================
@@ -354,13 +422,12 @@ async def websocket_chat(websocket: WebSocket):
     router = None
     memory_engine = None
     current_workspace = None
-    log = None
+    log = _get_orion_log()
+    ws_request_count = 0
 
-    try:
-        from orion.core.logging import get_logger
-        log = get_logger()
-    except Exception:
-        pass
+    if log:
+        client_host = websocket.client.host if websocket.client else "unknown"
+        log.ws_connect(client=client_host)
 
     try:
         while True:
@@ -391,6 +458,7 @@ async def websocket_chat(websocket: WebSocket):
                 continue
 
             # Chat message
+            ws_request_count += 1
             user_input = data.get("message", "")
             workspace = data.get("workspace", "")
             mode = data.get("mode", "safe")
@@ -535,8 +603,12 @@ async def websocket_chat(websocket: WebSocket):
             except Exception:
                 pass
         if log:
+            client_host = websocket.client.host if websocket.client else "unknown"
+            log.ws_disconnect(client=client_host, requests=ws_request_count)
             log.session_end()
     except Exception as e:
+        if log:
+            log.error("WebSocket", f"Unhandled error: {e}")
         try:
             await websocket.send_json({"type": "error", "message": f"WebSocket error: {e}"})
         except Exception:
@@ -2148,6 +2220,9 @@ async def update_settings(settings: SettingsUpdate):
         user_settings[key] = value
 
     _save_user_settings(user_settings)
+    log = _get_orion_log()
+    if log:
+        log.settings_change(changed_keys=list(update_dict.keys()))
     return {"status": "success", "updated": list(update_dict.keys())}
 
 

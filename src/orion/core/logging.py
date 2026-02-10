@@ -130,10 +130,9 @@ class OrionLogger:
     - Component-tagged entries for filtering
     """
 
-    def __init__(self):
+    def __init__(self, project_dir: Optional[str] = None):
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         
-        # Clean the log directory of non-log files on first init
         self._logger = logging.getLogger("orion.live")
         self._logger.setLevel(logging.DEBUG)
         self._logger.propagate = False
@@ -141,7 +140,7 @@ class OrionLogger:
         # Remove existing handlers to avoid duplicates
         self._logger.handlers.clear()
         
-        # File handler with rotation
+        # Primary file handler: ~/.orion/logs/orion.log
         file_handler = logging.handlers.RotatingFileHandler(
             str(LOG_FILE),
             maxBytes=MAX_LOG_FILE_BYTES,
@@ -158,15 +157,38 @@ class OrionLogger:
         stderr_handler.setFormatter(OrionLogFormatter())
         self._logger.addHandler(stderr_handler)
         
-        # Purge old logs on startup
-        _purge_old_logs(LOG_DIR)
-        
-        # Session tracking
+        # Session tracking (must be before any self.info() calls)
         self._session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         self._request_count = 0
         
+        # Project-local log mirror: <project>/logs/orion.log
+        self._project_log_dir = None
+        if project_dir:
+            self.add_project_log(project_dir)
+        
+        # Purge old logs on startup
+        _purge_old_logs(LOG_DIR)
+        
         self.info("System", "Logger initialized", 
                   log_file=str(LOG_FILE), session=self._session_id)
+
+    def add_project_log(self, project_dir: str):
+        """Add a project-local log mirror at <project>/logs/orion.log."""
+        proj_log_dir = Path(project_dir) / "logs"
+        proj_log_dir.mkdir(parents=True, exist_ok=True)
+        self._project_log_dir = proj_log_dir
+        proj_log_file = proj_log_dir / "orion.log"
+        proj_handler = logging.handlers.RotatingFileHandler(
+            str(proj_log_file),
+            maxBytes=MAX_LOG_FILE_BYTES,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        proj_handler.setLevel(logging.DEBUG)
+        proj_handler.setFormatter(OrionLogFormatter())
+        self._logger.addHandler(proj_handler)
+        self.info("System", "Project log mirror enabled",
+                  project_log=str(proj_log_file))
 
     def _log(self, level: int, orion_level: str, component: str, 
              message: str, **fields):
@@ -264,6 +286,46 @@ class OrionLogger:
         self._log(logging.INFO, "START", "Session", 
                   "Session started", **fields)
 
+    def server_start(self, host: str = "", port: int = 0, **fields):
+        """Log API server startup."""
+        fields.update(host=host, port=port)
+        self._log(logging.INFO, "BOOT", "Server",
+                  "API server started", **fields)
+
+    def server_stop(self, **fields):
+        """Log API server shutdown."""
+        fields.update(requests_served=self._request_count)
+        self._log(logging.INFO, "HALT", "Server",
+                  "API server stopped", **fields)
+
+    def http_request(self, method: str, path: str, status: int = 200,
+                     latency_ms: int = 0, **fields):
+        """Log an HTTP request."""
+        fields.update(method=method, path=path, status=status,
+                      latency_ms=latency_ms)
+        level = logging.INFO if status < 400 else logging.WARNING
+        self._log(level, "HTTP", "Server",
+                  f"{method} {path} → {status}", **fields)
+        self._request_count += 1
+
+    def ws_connect(self, client: str = "", **fields):
+        """Log WebSocket connection."""
+        fields.update(client=client)
+        self._log(logging.INFO, "WS", "WebSocket",
+                  "Client connected", **fields)
+
+    def ws_disconnect(self, client: str = "", requests: int = 0, **fields):
+        """Log WebSocket disconnection."""
+        fields.update(client=client, requests=requests)
+        self._log(logging.INFO, "WS", "WebSocket",
+                  "Client disconnected", **fields)
+
+    def settings_change(self, changed_keys: list = None, **fields):
+        """Log settings update."""
+        fields.update(changed=str(changed_keys or []))
+        self._log(logging.INFO, "CFG", "Settings",
+                  "Settings updated", **fields)
+
     def session_end(self, requests: int = 0, tier1: int = 0, 
                     tier2: int = 0, tier3: int = 0, **fields):
         """Log session end with memory stats."""
@@ -325,9 +387,16 @@ class OrionLogger:
 _logger_instance: Optional[OrionLogger] = None
 
 
-def get_logger() -> OrionLogger:
-    """Get or create the global OrionLogger singleton."""
+def get_logger(project_dir: Optional[str] = None) -> OrionLogger:
+    """Get or create the global OrionLogger singleton.
+    
+    Args:
+        project_dir: If provided on first call, enables a project-local
+                     log mirror at <project_dir>/logs/orion.log.
+    """
     global _logger_instance
     if _logger_instance is None:
-        _logger_instance = OrionLogger()
+        _logger_instance = OrionLogger(project_dir=project_dir)
+    elif project_dir and _logger_instance._project_log_dir is None:
+        _logger_instance.add_project_log(project_dir)
     return _logger_instance

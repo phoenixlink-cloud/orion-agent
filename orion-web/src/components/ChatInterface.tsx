@@ -66,14 +66,19 @@ export default function ChatInterface() {
       }
 
       ws.onclose = () => {
-        setIsConnected(false)
-        wsRef.current = null
-        // Auto-reconnect after 3s
-        reconnectTimer.current = setTimeout(connectWs, 3000)
+        // Only update state if this is still the active WebSocket
+        // (prevents React Strict Mode race where stale WS1.onclose overwrites active WS2)
+        if (wsRef.current === ws) {
+          setIsConnected(false)
+          wsRef.current = null
+          reconnectTimer.current = setTimeout(connectWs, 3000)
+        }
       }
 
       ws.onerror = () => {
-        setIsConnected(false)
+        if (wsRef.current === ws) {
+          setIsConnected(false)
+        }
       }
 
       ws.onmessage = (event) => {
@@ -116,15 +121,8 @@ export default function ChatInterface() {
 
     switch (msgType) {
       case 'routing': {
-        const route = data.route as string
-        const files = (data.files as string[]) || []
-        const reasoning = data.reasoning as string
-        const fileList = files.length > 0 ? `\nRelevant files: ${files.slice(0, 5).join(', ')}` : ''
-        addOrionMessage(
-          `Route: ${route.toUpperCase()}${fileList}${reasoning ? `\nReasoning: ${reasoning}` : ''}`,
-          'routing',
-          data
-        )
+        // Internal routing info — don't show to user, just log for debugging
+        console.debug('[Orion Scout]', data.route, data.reasoning)
         break
       }
       case 'status':
@@ -214,37 +212,7 @@ export default function ChatInterface() {
     const currentInput = input
     setInput('')
 
-    if (!isConnected || !wsRef.current) {
-      addOrionMessage(
-        'Not connected to Orion API. Start the server with: uvicorn api.server:app --port 8000',
-        'error'
-      )
-      return
-    }
-
-    if (!workspace) {
-      addOrionMessage(
-        'No workspace set. Use /workspace <path> or set it in Settings.',
-        'error'
-      )
-      return
-    }
-
-    // Handle local /workspace command
-    if (currentInput.startsWith('/workspace ')) {
-      const newWs = currentInput.replace('/workspace ', '').trim()
-      setWorkspace(newWs)
-      addOrionMessage(`Workspace set to: ${newWs}`, 'status')
-      // Persist to backend
-      fetch(`${API_BASE}/api/settings/workspace`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newWs),
-      }).catch(() => {})
-      return
-    }
-
-    // Handle /help command locally
+    // Handle local commands FIRST — these don't need connection or workspace
     if (currentInput.trim() === '/help') {
       addOrionMessage(
         `Available commands:\n\n` +
@@ -264,13 +232,23 @@ export default function ChatInterface() {
       return
     }
 
-    // Handle /mode command
+    if (currentInput.startsWith('/workspace ')) {
+      const newWs = currentInput.replace('/workspace ', '').trim()
+      setWorkspace(newWs)
+      addOrionMessage(`Workspace set to: ${newWs}`, 'status')
+      fetch(`${API_BASE}/api/settings/workspace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newWs),
+      }).catch(() => {})
+      return
+    }
+
     if (currentInput.startsWith('/mode ')) {
       const newMode = currentInput.replace('/mode ', '').trim()
       if (['safe', 'pro', 'project'].includes(newMode)) {
         setMode(newMode)
         addOrionMessage(`Mode set to: ${newMode}`, 'status')
-        // Persist to backend
         fetch(`${API_BASE}/api/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -279,6 +257,23 @@ export default function ChatInterface() {
       } else {
         addOrionMessage('Invalid mode. Use: safe, pro, or project', 'error')
       }
+      return
+    }
+
+    // Server-bound messages require connection + workspace
+    if (!isConnected || !wsRef.current) {
+      addOrionMessage(
+        `Not connected to Orion API. Start the server with: uvicorn orion.api.server:app --port 8001`,
+        'error'
+      )
+      return
+    }
+
+    if (!workspace) {
+      addOrionMessage(
+        'No workspace set. Use /workspace <path> or set it in Settings.',
+        'error'
+      )
       return
     }
 
