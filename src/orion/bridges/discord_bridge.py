@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Discord Bridge (v6.8.0)
+Orion Agent -- Discord Bridge (v6.8.0)
 
 Bidirectional Discord bot bridge. Users interact with Orion by
 messaging the bot in a DM or mentioning it in a server channel.
@@ -9,8 +25,8 @@ Requirements:
 
 Setup:
     1. Create a Discord app at discord.com/developers/applications
-    2. Bot → create bot → copy Token
-    3. OAuth2 → URL Generator → scopes: bot → permissions: Send Messages, Read Message History
+    2. Bot -> create bot -> copy Token
+    3. OAuth2 -> URL Generator -> scopes: bot -> permissions: Send Messages, Read Message History
     4. Use the generated URL to invite the bot to your server
     5. In Orion CLI: /bridge enable discord <token>
     6. DM the bot on Discord with the passphrase
@@ -198,4 +214,4 @@ class DiscordBridge(MessagingBridge):
                 view=view,
             )
         except Exception:
-            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied — button support unavailable)")
+            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")

@@ -1,11 +1,27 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Benchmark Engine (v7.1.0)
+Orion Agent -- Benchmark Engine (v7.1.0)
 
 Compares Orion's output against a gold-standard teacher response.
 Produces structured quality assessment using:
-1. Concept coverage — did the student hit all expected concepts?
-2. Semantic similarity — how close is the overall meaning?
-3. LLM-as-judge — ask a model to evaluate the quality gap
+1. Concept coverage -- did the student hit all expected concepts?
+2. Semantic similarity -- how close is the overall meaning?
+3. LLM-as-judge -- ask a model to evaluate the quality gap
 
 USAGE:
     from orion.core.learning.benchmark import BenchmarkEngine
@@ -39,15 +55,15 @@ class BenchmarkEngine:
     """
     Evaluates student (Orion) responses against teacher (gold standard) responses.
     Uses a combination of:
-    1. Concept coverage — did the student hit all expected concepts?
-    2. Semantic similarity — how close is the overall meaning?
-    3. LLM-as-judge — ask a model to evaluate the quality gap
+    1. Concept coverage -- did the student hit all expected concepts?
+    2. Semantic similarity -- how close is the overall meaning?
+    3. LLM-as-judge -- ask a model to evaluate the quality gap
     """
 
     def __init__(
         self,
         judge_provider: str = "anthropic",
-        judge_model: str = "claude-opus-4-6",
+        judge_model: str = "claude-opus-4-20250514",
     ):
         self.judge_provider = judge_provider
         self.judge_model = judge_model
@@ -226,7 +242,7 @@ class BenchmarkEngine:
             return result
 
         except Exception as e:
-            logger.warning("LLM judge failed: %s — using fallback scoring", e)
+            logger.warning("LLM judge failed: %s -- using fallback scoring", e)
             return self._fallback_judge(student, teacher, expected_concepts)
 
     def _parse_judge_response(self, response: str) -> dict:

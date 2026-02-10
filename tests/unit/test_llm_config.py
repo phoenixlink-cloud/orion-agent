@@ -1,4 +1,4 @@
-"""Tests for orion.core.llm.config — Flexible model configuration."""
+"""Tests for orion.core.llm.config -- Flexible model configuration."""
 
 import json
 import pytest

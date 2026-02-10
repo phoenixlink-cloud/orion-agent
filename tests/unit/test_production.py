@@ -1,4 +1,4 @@
-"""Tests for orion.core.production — logging, health, shutdown, metrics."""
+"""Tests for orion.core.production -- logging, health, shutdown, metrics."""
 
 import json
 import time

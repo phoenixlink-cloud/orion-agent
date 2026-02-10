@@ -1,4 +1,4 @@
-"""Tests for orion.cli — commands and REPL."""
+"""Tests for orion.cli -- commands and REPL."""
 
 import os
 import pytest

@@ -1,4 +1,4 @@
-"""Unit tests for LLM provider routing — no real API calls, tests structure and error paths."""
+"""Unit tests for LLM provider routing -- no real API calls, tests structure and error paths."""
 
 import pytest
 import asyncio
@@ -26,15 +26,15 @@ class TestCallProviderRouting:
         assert "Unknown provider" in result
 
     def test_missing_openai_key_returns_error(self):
-        """With placeholder key, OpenAI returns 401 — but the routing is correct."""
+        """With placeholder key, OpenAI returns 401 -- but the routing is correct."""
         rc = RoleConfig(provider="openai", model="gpt-4o-mini")
         result = asyncio.run(call_provider(rc, "sys", "user", max_tokens=10))
-        # Either returns error about key or 401 — both prove routing works
+        # Either returns error about key or 401 -- both prove routing works
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_missing_google_key_returns_error(self):
-        """Google has no key stored — should return friendly error."""
+        """Google has no key stored -- should return friendly error."""
         rc = RoleConfig(provider="google", model="gemini-2.5-pro")
         result = asyncio.run(call_provider(rc, "sys", "user", max_tokens=10))
         assert "not configured" in result or "API error" in result

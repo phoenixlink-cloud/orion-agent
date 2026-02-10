@@ -34,7 +34,7 @@ cp .env.example .env
 ```
 
 At minimum, you need one LLM provider. For free/local:
-- Install [Ollama](https://ollama.ai) — no API key needed
+- Install [Ollama](https://ollama.ai) -- no API key needed
 
 For cloud:
 - `OPENAI_API_KEY` for GPT-4o

@@ -1,1 +1,1 @@
-"""End-to-end tests — full pipeline tests."""
+"""End-to-end tests -- full pipeline tests."""

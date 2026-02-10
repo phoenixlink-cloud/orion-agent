@@ -1,4 +1,4 @@
-"""Tests for orion.core.context — repo_map, python_ast, quality."""
+"""Tests for orion.core.context -- repo_map, python_ast, quality."""
 
 import os
 import ast

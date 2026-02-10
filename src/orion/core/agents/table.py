@@ -1,8 +1,24 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Table of Three (v6.4.0)
+Orion Agent -- Table of Three (v6.4.0)
 
 The deliberation micro-flow:
-    Builder → Reviewer → Governor
+    Builder -> Reviewer -> Governor
 
 Produces exactly ONE outcome:
     - ANSWER: Direct response to user
@@ -86,13 +102,13 @@ async def _run_single_round(
     execution_mode: bool = False,
 ) -> TableResult:
     """
-    Run one Builder → Reviewer → Governor round.
+    Run one Builder -> Reviewer -> Governor round.
 
     Returns:
         TableResult with final outcome
     """
     # STEP 1: Builder proposes
-    logger.info("Table: Step 1 — Builder proposing")
+    logger.info("Table: Step 1 -- Builder proposing")
     builder_result = await run_builder(
         user_input=user_input,
         evidence_context=evidence_context,
@@ -103,7 +119,7 @@ async def _run_single_round(
     logger.info(f"Table: Builder returned outcome={builder_result.outcome} ({builder_result.provider}/{builder_result.model})")
 
     # STEP 2: Reviewer evaluates
-    logger.info("Table: Step 2 — Reviewer evaluating")
+    logger.info("Table: Step 2 -- Reviewer evaluating")
     reviewer_result = await run_reviewer(
         user_input=user_input,
         builder_output=builder_result.raw or builder_result.response,
@@ -114,7 +130,7 @@ async def _run_single_round(
     logger.info(f"Table: Reviewer decided={reviewer_result.decision} ({reviewer_result.provider}/{reviewer_result.model})")
 
     # STEP 3: Governor decides (deterministic)
-    logger.info("Table: Step 3 — Governor deciding")
+    logger.info("Table: Step 3 -- Governor deciding")
     gov_result = governor_decide(
         builder_result=builder_result,
         reviewer_result=reviewer_result,

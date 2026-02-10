@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Reviewer (v6.4.0)
+Orion Agent -- Reviewer (v6.4.0)
 
 Reviews Builder proposals for correctness, safety, and quality.
 Migrated from Orion_MVP/core/llm_calls.py (call_claude_reviewer).
@@ -172,7 +188,7 @@ Review the Builder's proposal. Decide: APPROVE, REVISE_AND_APPROVE, or BLOCK."""
             model=reviewer.model,
         )
 
-    # Couldn't parse — default to approve
+    # Couldn't parse -- default to approve
     return ReviewerResult(
         decision="APPROVE",
         assessment="Could not parse reviewer response, defaulting to approve.",

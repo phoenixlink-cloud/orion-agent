@@ -1,4 +1,4 @@
-"""Unit tests for GitSafetyNet — savepoints, undo, edit history."""
+"""Unit tests for GitSafetyNet -- savepoints, undo, edit history."""
 
 import os
 import pytest

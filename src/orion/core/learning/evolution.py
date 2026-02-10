@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Continuous Learning & Evolution Engine (v6.4.0)
+Orion Agent -- Continuous Learning & Evolution Engine (v6.4.0)
 
 Orion's self-improvement system. Tracks performance over time,
 identifies strengths and weaknesses, and generates actionable
@@ -20,7 +36,7 @@ import statistics
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 # =============================================================================
@@ -119,7 +135,7 @@ class EvolutionEngine:
         workspace: str = "",
     ) -> Dict[str, Any]:
         """Record a task outcome for evolution tracking."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         approved = rating >= 4 if rating > 0 else None
 
         conn = sqlite3.connect(self._db_path)
@@ -155,7 +171,7 @@ class EvolutionEngine:
 
     def get_metrics(self, days: int = 30) -> PerformanceMetrics:
         """Get rolling performance metrics for the last N days."""
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
 
@@ -168,7 +184,7 @@ class EvolutionEngine:
             conn.close()
             return PerformanceMetrics(
                 window_start=cutoff,
-                window_end=datetime.utcnow().isoformat(),
+                window_end=datetime.now(timezone.utc).isoformat(),
                 total_tasks=0, approved_count=0, rejected_count=0,
                 neutral_count=0, approval_rate=0.0,
                 avg_quality_score=0.0, avg_rating=0.0,
@@ -207,7 +223,7 @@ class EvolutionEngine:
 
         return PerformanceMetrics(
             window_start=cutoff,
-            window_end=datetime.utcnow().isoformat(),
+            window_end=datetime.now(timezone.utc).isoformat(),
             total_tasks=total,
             approved_count=approved,
             rejected_count=rejected,
@@ -221,7 +237,7 @@ class EvolutionEngine:
 
     def get_metrics_by_task_type(self, days: int = 30) -> Dict[str, PerformanceMetrics]:
         """Get performance metrics broken down by task type."""
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
 
@@ -242,7 +258,7 @@ class EvolutionEngine:
 
     def analyze_strengths_weaknesses(self, days: int = 60) -> List[StrengthWeakness]:
         """Analyze recent performance to identify strengths and weaknesses."""
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
 
@@ -276,7 +292,7 @@ class EvolutionEngine:
                 rec = f"Continue current approach for {task_type} tasks"
             else:
                 desc = f"Weak at {task_type} tasks: {approval_rate:.0%} approval rate, avg quality {avg_q:.2f}"
-                rec = f"Focus on improving {task_type} tasks — review anti-patterns and user feedback"
+                rec = f"Focus on improving {task_type} tasks -- review anti-patterns and user feedback"
 
             results.append(StrengthWeakness(
                 area=task_type, score=round(score, 3), evidence_count=cnt,
@@ -315,7 +331,7 @@ class EvolutionEngine:
         metrics = self.get_metrics(days)
         sw = self.analyze_strengths_weaknesses(days)
         recs: List[ImprovementRecommendation] = []
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         if metrics.total_tasks >= 5 and metrics.approval_rate < 0.6:
             recs.append(ImprovementRecommendation(
@@ -651,7 +667,7 @@ class EvolutionEngine:
 
         rated = approved + rejected
         return PerformanceMetrics(
-            window_start=cutoff, window_end=datetime.utcnow().isoformat(),
+            window_start=cutoff, window_end=datetime.now(timezone.utc).isoformat(),
             total_tasks=total, approved_count=approved, rejected_count=rejected,
             neutral_count=total - approved - rejected,
             approval_rate=round(approved / rated if rated > 0 else 0.0, 3),
@@ -662,7 +678,7 @@ class EvolutionEngine:
     def _check_milestones(self, conn) -> List[EvolutionMilestone]:
         """Check if any new milestones have been reached."""
         cursor = conn.cursor()
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         milestones = []
 
         cursor.execute("SELECT COUNT(*) FROM outcomes")

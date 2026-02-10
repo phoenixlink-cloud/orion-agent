@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Live Production Logger (v6.6.0)
+Orion Agent -- Live Production Logger (v6.6.0)
 
 The holy grail of logs. Every significant event in Orion's lifecycle is
 captured in real-time to a rotating log file that users can tail to
@@ -33,7 +49,7 @@ import logging
 import logging.handlers
 from pathlib import Path
 from typing import Optional, Any, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # =============================================================================
@@ -48,7 +64,7 @@ LOG_FILE = LOG_DIR / "orion.log"
 
 
 # =============================================================================
-# CUSTOM FORMATTER — human-readable + structured
+# CUSTOM FORMATTER -- human-readable + structured
 # =============================================================================
 
 class OrionLogFormatter(logging.Formatter):
@@ -65,8 +81,8 @@ class OrionLogFormatter(logging.Formatter):
     COMPONENT_WIDTH = 12
 
     def format(self, record: logging.LogRecord) -> str:
-        ts = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.") + \
-             f"{datetime.utcnow().microsecond // 1000:03d}Z"
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + \
+             f"{datetime.now(timezone.utc).microsecond // 1000:03d}Z"
         
         level = getattr(record, 'orion_level', record.levelname)
         component = getattr(record, 'component', 'System')
@@ -93,7 +109,7 @@ class OrionLogFormatter(logging.Formatter):
 
 
 # =============================================================================
-# FOLDER PURGE — keep total folder size under 10 GB
+# FOLDER PURGE -- keep total folder size under 10 GB
 # =============================================================================
 
 def _purge_old_logs(log_dir: Path, max_bytes: int = MAX_LOG_FOLDER_BYTES):
@@ -158,7 +174,7 @@ class OrionLogger:
         self._logger.addHandler(stderr_handler)
         
         # Session tracking (must be before any self.info() calls)
-        self._session_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        self._session_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         self._request_count = 0
         
         # Project-local log mirror: <project>/logs/orion.log
@@ -206,7 +222,7 @@ class OrionLogger:
         self._logger.handle(record)
 
     # =========================================================================
-    # PUBLIC API — Standard levels
+    # PUBLIC API -- Standard levels
     # =========================================================================
 
     def info(self, component: str, message: str, **fields):
@@ -226,7 +242,7 @@ class OrionLogger:
         self._log(logging.DEBUG, "DEBUG", component, message, **fields)
 
     # =========================================================================
-    # PUBLIC API — Domain-specific log methods
+    # PUBLIC API -- Domain-specific log methods
     # =========================================================================
 
     def llm(self, component: str, model: str = "", tokens: int = 0,
@@ -305,7 +321,7 @@ class OrionLogger:
                       latency_ms=latency_ms)
         level = logging.INFO if status < 400 else logging.WARNING
         self._log(level, "HTTP", "Server",
-                  f"{method} {path} → {status}", **fields)
+                  f"{method} {path} -> {status}", **fields)
         self._request_count += 1
 
     def ws_connect(self, client: str = "", **fields):

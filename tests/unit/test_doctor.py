@@ -1,5 +1,5 @@
 """
-Tests for orion.cli.doctor — /doctor diagnostic module.
+Tests for orion.cli.doctor -- /doctor diagnostic module.
 
 Tests individual health checks and the full doctor report.
 """

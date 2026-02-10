@@ -1,4 +1,4 @@
-"""Unit tests for EditValidator — path safety, syntax checks, confidence scoring."""
+"""Unit tests for EditValidator -- path safety, syntax checks, confidence scoring."""
 
 import pytest
 from orion.core.editing.validator import EditValidator, ValidationResult, EditConfidence

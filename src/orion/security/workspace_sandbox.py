@@ -1,11 +1,27 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Workspace Sandbox (v6.5.0)
+Orion Agent -- Workspace Sandbox (v6.5.0)
 
 Isolates file edits in a separate directory so changes can be
 reviewed (diff) before promotion to the real workspace.
 
 Two execution backends:
-  - DOCKER:  Full container isolation — files mounted read-only,
+  - DOCKER:  Full container isolation -- files mounted read-only,
              edits in a writable overlay.  Strongest security.
   - LOCAL:   Temp-directory copy with OS-level restrictions.
              Works everywhere, no Docker required.
@@ -13,7 +29,7 @@ Two execution backends:
 
 The code-execution sandbox (security/sandbox.py) handles running
 untrusted code.  This module handles workspace-level file isolation
-for the edit→review→promote cycle.
+for the edit->review->promote cycle.
 
 Usage:
     sandbox = WorkspaceSandbox(mode="auto")
@@ -119,7 +135,7 @@ class SandboxCapabilities:
 
 class WorkspaceSandbox:
     """
-    Workspace-level sandbox for the edit→review→promote cycle.
+    Workspace-level sandbox for the edit->review->promote cycle.
 
     Supports Docker and local (temp-dir) backends.
     """
@@ -555,7 +571,7 @@ class WorkspaceSandbox:
         except Exception:
             pass
 
-    # Language → (Docker image, exec command prefix)
+    # Language -> (Docker image, exec command prefix)
     _LANG_DOCKER = {
         "python":     ("python:3.11-slim",  ["python3", "-c"]),
         "python3":    ("python:3.11-slim",  ["python3", "-c"]),

@@ -1,5 +1,5 @@
 """
-Tests for orion.cli.settings_manager — CLI /settings module.
+Tests for orion.cli.settings_manager -- CLI /settings module.
 """
 
 import json

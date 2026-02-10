@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Commitment & Execution Authority (v6.4.0)
+Orion Agent -- Commitment & Execution Authority (v6.4.0)
 
 Migrated from Orion_MVP/core/commitment.py.
 
@@ -51,7 +67,7 @@ class CommitmentState:
         self.authority = authority
         self.plan_path = plan_path
         self.batch_count = 0
-        logger.info(f"Commitment reached — authority={authority.value}, plan={plan_path}")
+        logger.info(f"Commitment reached -- authority={authority.value}, plan={plan_path}")
 
     def record_batch(self, action_count: int, action_hashes: list = None):
         """Record an executed batch."""

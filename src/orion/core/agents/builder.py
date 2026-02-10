@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Builder (v6.4.0)
+Orion Agent -- Builder (v6.4.0)
 
 Generates code solutions, file operations, plans, and answers.
 Migrated from Orion_MVP/core/llm_calls.py (call_gpt_builder).
@@ -111,7 +127,7 @@ def _get_evolution_guidance() -> str:
                     guidance_lines.append(
                         "- REFACTOR tasks: Break changes into small, testable steps. "
                         "Preserve existing tests. Show before/after for each change. "
-                        "Never rewrite from scratch — prefer surgical edits."
+                        "Never rewrite from scratch -- prefer surgical edits."
                     )
                 elif w.area == "bug_fix":
                     guidance_lines.append(
@@ -243,114 +259,24 @@ Always respond with valid JSON. The "response" field MUST be a string."""
 
 
 # =============================================================================
-# PROVIDER CALLING
+# PROVIDER CALLING (delegates to centralized providers.call_provider)
 # =============================================================================
 
 async def _call_provider(provider: str, model: str, system_prompt: str, user_prompt: str,
                          max_tokens: int = 8000, temperature: float = 0.3) -> str:
-    """Call any supported LLM provider. Returns raw response text."""
-    import httpx
+    """Call any supported LLM provider via the centralized call_provider."""
+    from orion.core.llm.providers import call_provider
+    from orion.core.llm.config import RoleConfig
 
-    if provider == "ollama":
-        return await _call_ollama(model, system_prompt, user_prompt, max_tokens, temperature)
-
-    elif provider == "openai":
-        import openai
-        from orion.security.store import get_secure_store
-        store = get_secure_store()
-        api_key = store.get_key("openai")
-        if not api_key:
-            return json.dumps({"outcome": "ANSWER", "response": "OpenAI API key not configured."})
-        client = openai.AsyncOpenAI(api_key=api_key)
-        resp = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            temperature=temperature, max_tokens=max_tokens,
-        )
-        return resp.choices[0].message.content
-
-    elif provider == "anthropic":
-        import anthropic
-        from orion.security.store import get_secure_store
-        store = get_secure_store()
-        api_key = store.get_key("anthropic")
-        if not api_key:
-            return json.dumps({"outcome": "ANSWER", "response": "Anthropic API key not configured."})
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        resp = await client.messages.create(
-            model=model, max_tokens=max_tokens,
-            messages=[{"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}],
-        )
-        return resp.content[0].text
-
-    elif provider == "google":
-        try:
-            import google.generativeai as genai
-        except ImportError:
-            return json.dumps({"outcome": "ANSWER", "response": "google-generativeai not installed."})
-        from orion.security.store import get_secure_store
-        store = get_secure_store()
-        api_key = store.get_key("google")
-        if not api_key:
-            return json.dumps({"outcome": "ANSWER", "response": "Google API key not configured."})
-        genai.configure(api_key=api_key)
-        gen_model = genai.GenerativeModel(model)
-        resp = gen_model.generate_content(
-            f"{system_prompt}\n\n{user_prompt}",
-            generation_config=genai.types.GenerationConfig(max_output_tokens=max_tokens, temperature=temperature),
-        )
-        return resp.text
-
-    else:
-        # OpenAI-compatible providers (groq, together, mistral, openrouter, etc.)
-        return await _call_openai_compatible(provider, model, system_prompt, user_prompt, max_tokens, temperature)
-
-
-async def _call_ollama(model: str, system_prompt: str, user_prompt: str,
-                       max_tokens: int = 4000, temperature: float = 0.7) -> str:
-    """Call local Ollama model via httpx (async)."""
-    import httpx
-    url = "http://localhost:11434/api/chat"
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "stream": False,
-        "options": {"num_predict": max_tokens, "temperature": temperature},
-    }
-    async with httpx.AsyncClient(timeout=300) as client:
-        resp = await client.post(url, json=payload)
-        resp.raise_for_status()
-        return resp.json().get("message", {}).get("content", "")
-
-
-_OPENAI_COMPATIBLE = {
-    "groq":       {"base_url": "https://api.groq.com/openai/v1",    "key": "groq"},
-    "openrouter": {"base_url": "https://openrouter.ai/api/v1",      "key": "openrouter"},
-    "mistral":    {"base_url": "https://api.mistral.ai/v1",         "key": "mistral"},
-    "together":   {"base_url": "https://api.together.xyz/v1",       "key": "together"},
-}
-
-
-async def _call_openai_compatible(provider: str, model: str, system_prompt: str,
-                                  user_prompt: str, max_tokens: int, temperature: float) -> str:
-    """Call OpenAI-compatible provider."""
-    import openai
-    from orion.security.store import get_secure_store
-    cfg = _OPENAI_COMPATIBLE.get(provider, {"base_url": "", "key": provider})
-    store = get_secure_store()
-    api_key = store.get_key(cfg["key"])
-    if not api_key:
-        return json.dumps({"outcome": "ANSWER", "response": f"{provider} API key not configured."})
-    client = openai.AsyncOpenAI(api_key=api_key, base_url=cfg["base_url"])
-    resp = await client.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-        temperature=temperature, max_tokens=max_tokens,
+    role_config = RoleConfig(provider=provider, model=model)
+    return await call_provider(
+        role_config=role_config,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        max_tokens=max_tokens,
+        component="builder",
+        temperature=temperature,
     )
-    return resp.choices[0].message.content
 
 
 # =============================================================================
@@ -469,7 +395,7 @@ Analyze the request and evidence, then respond with your proposal."""
             model=builder.model,
         )
 
-    # Couldn't parse JSON — return as plain answer
+    # Couldn't parse JSON -- return as plain answer
     return BuilderResult(
         outcome="ANSWER",
         response=raw,

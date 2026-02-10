@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — AEGIS Governance (v6.5.0)
+Orion Agent -- AEGIS Governance (v6.5.0)
 
 AEGIS is a HARD GATE, not a feature system.
 
@@ -25,6 +41,8 @@ AEGIS must NOT:
 from dataclasses import dataclass, field
 from typing import List, Optional
 from pathlib import Path
+import os
+import re
 import logging
 
 logger = logging.getLogger("orion.governance.aegis")
@@ -166,26 +184,26 @@ def check_aegis_gate(
 
 
 # =============================================================================
-# INVARIANT 6: External Access Control (HARDCODED — NOT CONFIGURABLE)
+# INVARIANT 6: External Access Control (HARDCODED -- NOT CONFIGURABLE)
 # =============================================================================
 #
 # This is the gate that prevents Orion from using stored credentials
 # to make external API calls without human approval.
 #
 # Rules (IMMUTABLE):
-#   - READ operations (GET) → auto-approved, logged
-#   - WRITE operations (POST, PUT, PATCH, DELETE) → BLOCKED until human approves
-#   - Credential reads → always logged in audit trail
+#   - READ operations (GET) -> auto-approved, logged
+#   - WRITE operations (POST, PUT, PATCH, DELETE) -> BLOCKED until human approves
+#   - Credential reads -> always logged in audit trail
 #   - No code path may bypass this gate
 #
-# This function is PURE — it classifies and returns a result.
+# This function is PURE -- it classifies and returns a result.
 # Enforcement happens in PlatformService.
 # =============================================================================
 
 # HTTP methods that NEVER modify external state
 _READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
-# HTTP methods that CAN modify external state — REQUIRE human approval
+# HTTP methods that CAN modify external state -- REQUIRE human approval
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 # Write endpoints that are safe to auto-approve (search via POST, etc.)
@@ -203,9 +221,9 @@ def check_external_access(request: ExternalAccessRequest) -> AegisResult:
     This is a PURE FUNCTION. It classifies an external API request
     and determines whether human approval is required.
 
-    HARDCODED RULES (not configurable — this is a security invariant):
-      - GET/HEAD/OPTIONS → auto-approved (read-only)
-      - POST/PUT/PATCH/DELETE → requires human approval (write/mutate)
+    HARDCODED RULES (not configurable -- this is a security invariant):
+      - GET/HEAD/OPTIONS -> auto-approved (read-only)
+      - POST/PUT/PATCH/DELETE -> requires human approval (write/mutate)
       - Exceptions: known safe POST endpoints (e.g. search)
 
     Returns:
@@ -239,12 +257,12 @@ def check_external_access(request: ExternalAccessRequest) -> AegisResult:
             approval_prompt="",
         )
 
-    # WRITE operation — REQUIRES human approval
+    # WRITE operation -- REQUIRES human approval
     platform_name = request.platform_id.title()
     action_desc = request.description or f"{method} {request.url}"
 
     return AegisResult(
-        passed=True,  # Not a violation — but requires approval
+        passed=True,  # Not a violation -- but requires approval
         violations=[],
         warnings=[f"AEGIS-6: Write operation on {platform_name} requires human approval"],
         action_type="external_access",
@@ -271,9 +289,9 @@ def classify_credential_access(provider: str, caller: str) -> AegisResult:
         caller: Who is requesting it (e.g. "fast_path", "platform_service")
 
     Returns:
-        AegisResult — always passes (reads are allowed) but logs the access.
+        AegisResult -- always passes (reads are allowed) but logs the access.
     """
-    logger.info(f"AEGIS-6: Credential access — provider={provider}, caller={caller}")
+    logger.info(f"AEGIS-6: Credential access -- provider={provider}, caller={caller}")
 
     return AegisResult(
         passed=True,
@@ -284,16 +302,62 @@ def classify_credential_access(provider: str, caller: str) -> AegisResult:
     )
 
 
+# Windows reserved device names -- opening these as files has special OS
+# behaviour regardless of directory, so they must always be blocked.
+_WIN_RESERVED_NAMES = frozenset({
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+})
+
+
 def _is_path_confined(path: str, workspace_path: str) -> bool:
-    """Check if a path is confined within the workspace."""
-    if not workspace_path:
+    """
+    Check if *path* is confined within *workspace_path*.
+
+    Hardened against:
+      1. Case-insensitive filesystems (Windows)
+      2. String-prefix false positives  (/workspace vs /workspace-evil)
+      3. Null-byte injection
+      4. Windows reserved device names  (CON, NUL, AUX …)
+      5. NTFS Alternate Data Streams    (file.txt:hidden)
+      6. Symlink / junction traversal   (resolved before comparison)
+    """
+    if not workspace_path or not path:
         return False
 
+    # ── 3. Null-byte injection ────────────────────────────────────────
+    if "\x00" in path or "\x00" in workspace_path:
+        return False
+
+    # ── 5. NTFS Alternate Data Streams ────────────────────────────────
+    if ":" in path.replace("\\", "/").split("/", 1)[-1]:
+        # Allow drive letter colon (C:\…) but reject ADS colons in
+        # any path *component* after an optional drive prefix.
+        return False
+
+    # ── 4. Windows reserved device names ──────────────────────────────
+    for part in Path(path).parts:
+        stem = part.split(".")[0].upper()
+        if stem in _WIN_RESERVED_NAMES:
+            return False
+
     try:
+        # resolve() canonicalises case on Windows AND follows
+        # symlinks/junctions, defeating traversal via link.
         workspace = Path(workspace_path).resolve()
         target = (workspace / path).resolve()
-        return str(target).startswith(str(workspace))
-    except Exception:
+
+        # ── 1 + 2. Use os.path.normcase (lowercases on Windows,
+        #     no-op elsewhere) then Path.relative_to() which is immune
+        #     to the /workspace vs /workspace-evil prefix bug.
+        norm_workspace = Path(os.path.normcase(str(workspace)))
+        norm_target = Path(os.path.normcase(str(target)))
+
+        norm_target.relative_to(norm_workspace)
+        return True
+
+    except (ValueError, OSError, TypeError):
         return False
 
 

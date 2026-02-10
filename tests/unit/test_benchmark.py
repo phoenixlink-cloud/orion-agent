@@ -16,7 +16,7 @@ class TestConceptCoverage:
     """Test concept coverage checking."""
 
     def test_concept_coverage_all_present(self):
-        """Student covers all concepts → 1.0 coverage."""
+        """Student covers all concepts -> 1.0 coverage."""
         engine = BenchmarkEngine()
         # Use keyword fallback (no embeddings)
         with patch.object(engine, "_get_embedding_store") as mock_store:
@@ -38,7 +38,7 @@ class TestConceptCoverage:
             assert len(missing) == 0
 
     def test_concept_coverage_partial(self):
-        """Student covers 3/5 concepts → 0.6 coverage."""
+        """Student covers 3/5 concepts -> 0.6 coverage."""
         engine = BenchmarkEngine()
         with patch.object(engine, "_get_embedding_store") as mock_store:
             mock_store.return_value = MagicMock(available=False)
@@ -59,7 +59,7 @@ class TestConceptCoverage:
             assert "single responsibility" in missing
 
     def test_concept_coverage_none(self):
-        """Student covers 0/5 concepts → 0.0 coverage."""
+        """Student covers 0/5 concepts -> 0.0 coverage."""
         engine = BenchmarkEngine()
         with patch.object(engine, "_get_embedding_store") as mock_store:
             mock_store.return_value = MagicMock(available=False)
@@ -85,12 +85,12 @@ class TestSimilarity:
         engine = BenchmarkEngine()
         with patch.object(engine, "_get_embedding_store") as mock_store:
             mock_store.return_value = MagicMock(available=False)
-            # Identical texts → 1.0
+            # Identical texts -> 1.0
             sim = engine._compute_similarity("hello world", "hello world")
             assert sim == 1.0
 
     def test_compute_similarity_different_texts(self):
-        """Different texts → lower similarity."""
+        """Different texts -> lower similarity."""
         engine = BenchmarkEngine()
         with patch.object(engine, "_get_embedding_store") as mock_store:
             mock_store.return_value = MagicMock(available=False)
@@ -101,7 +101,7 @@ class TestSimilarity:
             assert sim < 0.3
 
     def test_compute_similarity_empty(self):
-        """Empty texts → 0.0."""
+        """Empty texts -> 0.0."""
         engine = BenchmarkEngine()
         with patch.object(engine, "_get_embedding_store") as mock_store:
             mock_store.return_value = MagicMock(available=False)

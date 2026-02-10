@@ -1,4 +1,4 @@
-"""Tests for orion.core.editing — safety, formats, validator."""
+"""Tests for orion.core.editing -- safety, formats, validator."""
 
 import os
 import subprocess

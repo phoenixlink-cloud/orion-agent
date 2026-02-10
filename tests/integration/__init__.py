@@ -1,1 +1,1 @@
-"""Integration tests — tests requiring external services or APIs."""
+"""Integration tests -- tests requiring external services or APIs."""

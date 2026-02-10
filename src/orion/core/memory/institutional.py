@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Tier 3: Institutional Memory (v6.4.0)
+Orion Agent -- Tier 3: Institutional Memory (v6.4.0)
 
 Long-term wisdom that persists across ALL projects, ALL time.
 This is what makes Orion truly intelligent over years, not just days.
@@ -7,7 +23,7 @@ This is what makes Orion truly intelligent over years, not just days.
 Migrated from Orion_MVP/memory/institutional_memory.py.
 
 Location: ~/.orion/institutional_memory.db (GLOBAL, not project-specific)
-Duration: Years — lifetime
+Duration: Years -- lifetime
 """
 
 import hashlib
@@ -57,8 +73,8 @@ class InstitutionalMemory:
     Layer 3: Institutional Memory (Years – Lifetime)
 
     Long-term memory that persists across ALL projects.
-    Accumulated wisdom — patterns, anti-patterns, user preferences,
-    domain expertise — stored globally at ~/.orion/institutional_memory.db.
+    Accumulated wisdom -- patterns, anti-patterns, user preferences,
+    domain expertise -- stored globally at ~/.orion/institutional_memory.db.
     """
 
     def __init__(self):
@@ -158,7 +174,7 @@ class InstitutionalMemory:
         user_feedback: Optional[str] = None,
         domain: Optional[str] = None,
     ):
-        """Learn from an execution outcome. High quality → pattern, low → anti-pattern."""
+        """Learn from an execution outcome. High quality -> pattern, low -> anti-pattern."""
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         ts = datetime.now(timezone.utc).isoformat()

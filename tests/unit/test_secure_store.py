@@ -1,5 +1,5 @@
 """
-Tests for orion.security.store — Secure Credential Store.
+Tests for orion.security.store -- Secure Credential Store.
 
 Tests the SecureStore with encrypted file backend (Fernet),
 credential CRUD operations, audit logging, and key migration.

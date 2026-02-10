@@ -5,21 +5,28 @@ build-backend = "hatchling.build"
 [project]
 name = "orion-agent"
 version = "7.1.0"
-description = "Self-improving, multi-agent AI coding assistant with persistent memory and continuous learning"
+description = "Multi-agent AI coding assistant with persistent memory, knowledge distillation, and AEGIS governance"
 readme = "README.md"
-license = { text = "MIT" }
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.10"
-authors = [{ name = "Orion Team" }]
-keywords = ["ai", "coding-assistant", "multi-agent", "llm", "memory"]
+authors = [
+    {name = "Phoenix Link (Pty) Ltd", email = "dev@phoenixlink.co.za"}
+]
+maintainers = [
+    {name = "Phoenix Link (Pty) Ltd", email = "dev@phoenixlink.co.za"}
+]
+keywords = ["ai", "coding-assistant", "multi-agent", "llm", "automation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = [
@@ -80,10 +87,11 @@ all = ["orion-agent[security,cloud,voice,web,dev,training]"]
 orion = "orion.cli.app:main"
 
 [project.urls]
-Homepage = "https://github.com/orion-agent/orion"
-Documentation = "https://github.com/orion-agent/orion/docs"
-Repository = "https://github.com/orion-agent/orion"
-Issues = "https://github.com/orion-agent/orion/issues"
+Homepage = "https://phoenixlink.co.za/orion"
+Documentation = "https://docs.phoenixlink.co.za/orion"
+Repository = "https://github.com/phoenix-link/orion-agent"
+Issues = "https://github.com/phoenix-link/orion-agent/issues"
+"Commercial Licensing" = "https://phoenixlink.co.za/orion/licensing"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/orion"]

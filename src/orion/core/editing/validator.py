@@ -1,17 +1,33 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Edit Validator & Confidence Scorer (v6.4.0)
+Orion Agent -- Edit Validator & Confidence Scorer (v6.4.0)
 
 Validates proposed code edits before they reach the sandbox, scores confidence,
 and provides automatic error recovery.
 
 CHECKS:
-    1. SYNTAX VALIDATION — Parse proposed code to catch syntax errors before write
-    2. CONFIDENCE SCORING — Score each edit (0.0-1.0) based on multiple signals
-    3. DIFF INTEGRITY — Verify search/replace targets exist in source files
-    4. IMPORT VALIDATION — Check that all imports resolve
-    5. BRACKET/INDENT CHECK — Detect unclosed brackets, inconsistent indentation
-    6. ERROR RECOVERY — Attempt automatic fixes for common LLM edit mistakes
-    7. EDIT METRICS — Track edit quality statistics over time
+    1. SYNTAX VALIDATION -- Parse proposed code to catch syntax errors before write
+    2. CONFIDENCE SCORING -- Score each edit (0.0-1.0) based on multiple signals
+    3. DIFF INTEGRITY -- Verify search/replace targets exist in source files
+    4. IMPORT VALIDATION -- Check that all imports resolve
+    5. BRACKET/INDENT CHECK -- Detect unclosed brackets, inconsistent indentation
+    6. ERROR RECOVERY -- Attempt automatic fixes for common LLM edit mistakes
+    7. EDIT METRICS -- Track edit quality statistics over time
 """
 
 import ast

@@ -1,5 +1,5 @@
 """
-Orion Knowledge Distillation — End-to-End Training Demo
+Orion Knowledge Distillation -- End-to-End Training Demo
 
 Student: Ollama qwen2.5:14b (local, weaker)
 Teacher: OpenAI gpt-4o (cloud, stronger)
@@ -28,7 +28,7 @@ async def main():
     curriculum_file = str(Path(__file__).parent.parent / "examples" / "curriculum_demo.json")
 
     print("=" * 70)
-    print("  ORION KNOWLEDGE DISTILLATION — END-TO-END TRAINING")
+    print("  ORION KNOWLEDGE DISTILLATION -- END-TO-END TRAINING")
     print("=" * 70)
     print()
     print("  Student : ollama / qwen2.5:14b  (local)")
@@ -147,7 +147,7 @@ async def main():
     print("  Score evolution by prompt:")
     for prompt in prompts:
         scores = state.prompt_scores.get(prompt.id, [])
-        scores_str = " → ".join(f"{s:.0%}" for s in scores)
+        scores_str = " -> ".join(f"{s:.0%}" for s in scores)
         trend = ""
         if len(scores) >= 2:
             if scores[-1] > scores[0]:
@@ -155,7 +155,7 @@ async def main():
             elif scores[-1] < scores[0]:
                 trend = " ↓"
             else:
-                trend = " →"
+                trend = " ->"
         print(f"    {prompt.id}: {scores_str}{trend}")
 
     # Show full score history
@@ -170,11 +170,11 @@ async def main():
     if len(pass_summaries) >= 2:
         delta = pass_summaries[-1] - pass_summaries[0]
         if delta > 0:
-            print(f"  ✅ COMPOUNDING CONFIRMED: +{delta:.0%} improvement from pass 1 → pass {len(pass_summaries)}")
+            print(f"  ✅ COMPOUNDING CONFIRMED: +{delta:.0%} improvement from pass 1 -> pass {len(pass_summaries)}")
         elif delta == 0:
             print(f"  ➡️  PLATEAU: No change between pass 1 and pass {len(pass_summaries)}")
         else:
-            print(f"  ⚠️  REGRESSION: {delta:.0%} decline from pass 1 → pass {len(pass_summaries)}")
+            print(f"  ⚠️  REGRESSION: {delta:.0%} decline from pass 1 -> pass {len(pass_summaries)}")
 
     # Count patterns in Tier 3
     try:

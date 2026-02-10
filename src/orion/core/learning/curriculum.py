@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Curriculum Engine (v7.1.0)
+Orion Agent -- Curriculum Engine (v7.1.0)
 
 Orchestrates deliberate training sessions where Orion processes source
 materials, generates output, compares against a benchmark, and records
@@ -7,7 +23,7 @@ patterns from the gap analysis.
 
 TRAINING LOOP:
     1. Load curriculum (JSON file of training prompts)
-    2. For each prompt: student generates → teacher generates → compare
+    2. For each prompt: student generates -> teacher generates -> compare
     3. Record patterns (success/anti-pattern) in Tier 3
     4. Track domain progress toward graduation
     5. Export graduated domain as knowledge pack
@@ -104,7 +120,7 @@ class CurriculumEngine:
         benchmark_engine,
         workspace_path: str,
         teacher_provider: str = "anthropic",
-        teacher_model: str = "claude-opus-4-6",
+        teacher_model: str = "claude-opus-4-20250514",
         student_provider: str = None,
         student_model: str = None,
     ):
@@ -206,7 +222,7 @@ class CurriculumEngine:
         self._update_domains_index(domain, curriculum_data.get("description", ""))
 
         logger.info(
-            "Loaded curriculum: %s — %d prompts, threshold %.0f%%",
+            "Loaded curriculum: %s -- %d prompts, threshold %.0f%%",
             domain, len(prompts), state.graduation_threshold * 100,
         )
         return state
@@ -252,7 +268,7 @@ class CurriculumEngine:
         state.status = TrainingStatus.IN_PROGRESS.value
         state.updated_at = time.time()
 
-        # Step 1: Build student context — recall existing patterns
+        # Step 1: Build student context -- recall existing patterns
         memory_context = self.memory_engine.recall_for_prompt(
             prompt.prompt, domain=domain
         )
@@ -332,7 +348,7 @@ class CurriculumEngine:
         self._save_result(result)
 
         logger.info(
-            "Training cycle: %s/%s (cycle %d) — score %d/5, %.0f%% avg",
+            "Training cycle: %s/%s (cycle %d) -- score %d/5, %.0f%% avg",
             domain, prompt.id, cycle_number,
             comparison.quality_score, state.current_avg_score * 100,
         )
@@ -510,7 +526,7 @@ class CurriculumEngine:
         if missing_concepts:
             concepts_list = ", ".join(sorted(missing_concepts))
             parts.append(
-                f"\nCRITICAL — You previously MISSED these concepts and MUST cover them: "
+                f"\nCRITICAL -- You previously MISSED these concepts and MUST cover them: "
                 f"{concepts_list}"
             )
             parts.append(

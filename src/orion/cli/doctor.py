@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — /doctor Diagnostic Module (v6.4.0)
+Orion Agent -- /doctor Diagnostic Module (v6.4.0)
 
 Enterprise-grade system health check that validates:
   1. Python environment & dependencies
@@ -89,7 +105,7 @@ def check_python_environment() -> CheckResult:
         return CheckResult(
             name="Python Environment",
             status="fail",
-            message=f"Python {py_version.major}.{py_version.minor} — requires ≥3.10",
+            message=f"Python {py_version.major}.{py_version.minor} -- requires ≥3.10",
             remedy="Install Python 3.10+: https://python.org/downloads",
             details=details,
         )
@@ -123,7 +139,7 @@ def check_python_environment() -> CheckResult:
         return CheckResult(
             name="Python Environment",
             status="warn",
-            message=f"Python {py_version.major}.{py_version.minor} OK — optional packages missing",
+            message=f"Python {py_version.major}.{py_version.minor} OK -- optional packages missing",
             remedy=f"pip install {' '.join(p.split(' ')[0] for p in optional_missing)}",
             details=details,
         )
@@ -131,7 +147,7 @@ def check_python_environment() -> CheckResult:
     return CheckResult(
         name="Python Environment",
         status="pass",
-        message=f"Python {py_version.major}.{py_version.minor}.{py_version.micro} — all dependencies OK",
+        message=f"Python {py_version.major}.{py_version.minor}.{py_version.micro} -- all dependencies OK",
         details=details,
     )
 
@@ -163,7 +179,7 @@ def check_secure_store() -> CheckResult:
         return CheckResult(
             name="Secure Store",
             status="pass",
-            message=f"Active ({status['backend']}) — {len(providers)} credential(s) stored",
+            message=f"Active ({status['backend']}) -- {len(providers)} credential(s) stored",
             details=details,
         )
     except Exception as e:
@@ -194,7 +210,7 @@ def check_settings() -> CheckResult:
         return CheckResult(
             name="Settings",
             status="warn",
-            message="No settings file — using defaults",
+            message="No settings file -- using defaults",
             details=details,
         )
 
@@ -205,7 +221,7 @@ def check_settings() -> CheckResult:
         return CheckResult(
             name="Settings",
             status="pass",
-            message=f"Valid — {len(data)} settings configured",
+            message=f"Valid -- {len(data)} settings configured",
             details=details,
         )
     except json.JSONDecodeError as e:
@@ -243,7 +259,7 @@ async def check_ollama() -> CheckResult:
                 return CheckResult(
                     name="Ollama (Local LLM)",
                     status="pass",
-                    message=f"Running — {len(models)} model(s) available",
+                    message=f"Running -- {len(models)} model(s) available",
                     details=details,
                 )
             return CheckResult(
@@ -302,7 +318,7 @@ def check_api_keys() -> CheckResult:
             name="API Keys",
             status="warn",
             message="No cloud API keys configured (Ollama still works)",
-            remedy="Set keys in Settings → API Keys, or export OPENAI_API_KEY=...",
+            remedy="Set keys in Settings -> API Keys, or export OPENAI_API_KEY=...",
             details=details,
         )
 
@@ -381,7 +397,7 @@ def check_workspace(workspace: str = ".") -> CheckResult:
     return CheckResult(
         name="Workspace",
         status="pass",
-        message=f"Valid — {len(py_files)} py, {len(js_files)} js/ts files",
+        message=f"Valid -- {len(py_files)} py, {len(js_files)} js/ts files",
         details=details,
     )
 
@@ -452,7 +468,7 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
         else:
             print(text)
 
-    _print("\n  Orion Doctor — System Health Check\n", "bold cyan")
+    _print("\n  Orion Doctor -- System Health Check\n", "bold cyan")
     _print("  " + "─" * 50)
 
     # Sync checks
@@ -491,7 +507,7 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
                 _print(f"    · {detail}", "dim")
 
         if check.remedy:
-            _print(f"    → {check.remedy}", "yellow")
+            _print(f"    -> {check.remedy}", "yellow")
 
     # Summary
     _print("\n  " + "─" * 50)

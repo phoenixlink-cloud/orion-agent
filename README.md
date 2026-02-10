@@ -2,9 +2,9 @@
 
 **Self-improving, multi-agent AI coding assistant with persistent memory and continuous learning.**
 
-[![CI](https://github.com/orion-agent/orion/actions/workflows/ci.yml/badge.svg)](https://github.com/orion-agent/orion/actions)
+[![CI](https://github.com/phoenix-link/orion-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/phoenix-link/orion-agent/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 ---
 
@@ -23,9 +23,9 @@
 
 Every task runs through three agents:
 
-- **Builder** — Generates the code solution (configurable: GPT-4o, Claude, Ollama, etc.)
-- **Reviewer** — Critiques the Builder's output for correctness and quality
-- **Governor** — Orion's own decision layer that makes the final call using memory and quality gates
+- **Builder** -- Generates the code solution (configurable: GPT-4o, Claude, Ollama, etc.)
+- **Reviewer** -- Critiques the Builder's output for correctness and quality
+- **Governor** -- Orion's own decision layer that makes the final call using memory and quality gates
 
 ### Three-Tier Memory
 
@@ -40,9 +40,9 @@ Orion remembers across sessions, projects, and time:
 ### Continuous Learning
 
 Every time you rate Orion's output (1–5), it learns:
-- **Good outcomes** (4–5) → success patterns stored permanently
-- **Bad outcomes** (1–2) → anti-patterns stored to avoid repeating mistakes
-- **Evolution tracking** → performance trends, self-improvement recommendations
+- **Good outcomes** (4–5) -> success patterns stored permanently
+- **Bad outcomes** (1–2) -> anti-patterns stored to avoid repeating mistakes
+- **Evolution tracking** -> performance trends, self-improvement recommendations
 
 ---
 
@@ -95,16 +95,16 @@ cp .env.example .env
                    ▼
 ┌──────────────────────────────────────────────────────┐
 │          Orion Orchestrator                           │
-│  Memory Engine ← → Quality Gate ← → Learning Loop   │
+│  Memory Engine ← -> Quality Gate ← -> Learning Loop   │
 └──────────────────┬───────────────────────────────────┘
                    ▼
 ┌──────────────────────────────────────────────────────┐
 │              TABLE OF THREE                           │
-│  Builder (LLM 1) → Reviewer (LLM 2) → Governor      │
+│  Builder (LLM 1) -> Reviewer (LLM 2) -> Governor      │
 └──────────────────┬───────────────────────────────────┘
                    ▼
 ┌──────────────────────────────────────────────────────┐
-│  Edit Validator → Git Safety Net → File System       │
+│  Edit Validator -> Git Safety Net -> File System       │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -166,7 +166,7 @@ src/orion/
 ## Development
 
 ```bash
-git clone https://github.com/orion-agent/orion.git
+git clone https://github.com/phoenix-link/orion-agent.git
 cd orion-agent
 python -m venv .venv
 .venv\Scripts\activate
@@ -174,6 +174,39 @@ pip install -e ".[dev]"
 pytest
 ```
 
-## License
+## License & Copyright
+```
+Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+```
 
-MIT — see [LICENSE](LICENSE).
+Orion Agent is dual-licensed:
+
+| License | Use Case | Requirements |
+|---------|----------|--------------|
+| [**AGPL-3.0**](./LICENSE) | Open source, personal projects, AGPL-compatible software | Copyleft -- share modifications under AGPL-3.0 |
+| [**Commercial**](./LICENSE-ENTERPRISE.md) | Proprietary software, SaaS, enterprise | Contact Phoenix Link for licensing |
+
+### Quick Guide
+
+- **Using Orion for personal projects?** AGPL-3.0 is free
+- **Contributing to open source?** AGPL-3.0 is free
+- **Building a commercial product?** [Contact us](mailto:licensing@phoenixlink.co.za) for commercial licensing
+- **Offering Orion as SaaS?** [Contact us](mailto:licensing@phoenixlink.co.za) for commercial licensing
+
+### Contributing
+
+All contributions require a signed Contributor License Agreement (CLA).
+
+- [COPYRIGHT.md](./COPYRIGHT.md) -- Ownership and IP terms
+- [CONTRIBUTING.md](./CONTRIBUTING.md) -- How to contribute
+- [CLA.md](./CLA.md) -- Contributor License Agreement
+- **CLA signing:** cla@phoenixlink.co.za
+
+### Contact
+
+| Purpose | Contact |
+|---------|---------|
+| Commercial licensing | licensing@phoenixlink.co.za |
+| Legal questions | legal@phoenixlink.co.za |
+| CLA signing | cla@phoenixlink.co.za |
+| Website | [phoenixlink.co.za](https://phoenixlink.co.za) |

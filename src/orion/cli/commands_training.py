@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Training CLI Commands (v7.1.0)
+Orion Agent -- Training CLI Commands (v7.1.0)
 
 CLI commands for the knowledge distillation training workflow.
 Handles: /train load, /train run, /train auto, /train status,
@@ -70,13 +86,13 @@ def _print_train_help(console):
     """Print training command help."""
     console.print(
         "[bold]Training Commands:[/bold]\n"
-        "  /train load <domain> <file>        — Load a curriculum from JSON\n"
-        "  /train run <domain> [prompt_id]    — Run a single training cycle\n"
-        "  /train auto <domain> [--max-cycles N] — Auto-train to graduation\n"
-        "  /train status [domain]             — Show training status\n"
-        "  /train export <domain> <version>   — Export as knowledge pack\n"
+        "  /train load <domain> <file>        -- Load a curriculum from JSON\n"
+        "  /train run <domain> [prompt_id]    -- Run a single training cycle\n"
+        "  /train auto <domain> [--max-cycles N] -- Auto-train to graduation\n"
+        "  /train status [domain]             -- Show training status\n"
+        "  /train export <domain> <version>   -- Export as knowledge pack\n"
         "  /train import <file> [--strategy skip_existing|overwrite|merge]\n"
-        "  /train packs                       — List knowledge packs"
+        "  /train packs                       -- List knowledge packs"
     )
 
 
@@ -278,7 +294,7 @@ async def _handle_status(args, workspace, memory_engine, console):
             console.print("[bold]🎓 Training Status[/bold]")
             for s in states:
                 status = s.status.upper() if isinstance(s.status, str) else s.status
-                avg = f"{s.current_avg_score * 100:.0f}%" if s.current_avg_score else "—"
+                avg = f"{s.current_avg_score * 100:.0f}%" if s.current_avg_score else "--"
                 console.print(
                     f"   {s.domain:<20} {status:<14} {avg:<8} {s.completed_cycles} cycles"
                 )
@@ -356,7 +372,7 @@ async def _handle_import(args, memory_engine, console):
 
         # Verify first
         if not mgr.verify_pack(pack_file):
-            console.print("[red]❌ Pack checksum verification failed — file may be corrupted[/red]")
+            console.print("[red]❌ Pack checksum verification failed -- file may be corrupted[/red]")
             return
 
         result = mgr.import_pack(pack_file, merge_strategy=strategy)
@@ -366,7 +382,7 @@ async def _handle_import(args, memory_engine, console):
             f"   Patterns imported: {result.patterns_imported}\n"
             f"   Patterns skipped: {result.patterns_skipped}\n"
             f"   Patterns conflicted: {result.patterns_conflicted}\n"
-            f"   Domain: {result.domain} — ready to use"
+            f"   Domain: {result.domain} -- ready to use"
         )
 
     except Exception as e:
@@ -404,7 +420,7 @@ async def _handle_packs(memory_engine, console):
                 status = "installed" if is_installed else "not installed"
                 console.print(
                     f"   ├── {p['name']} v{p['version']} "
-                    f"({p['pattern_count']} patterns) — {status}"
+                    f"({p['pattern_count']} patterns) -- {status}"
                 )
         else:
             console.print("   [dim]No packs available locally[/dim]")

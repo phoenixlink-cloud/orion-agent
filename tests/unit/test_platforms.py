@@ -140,7 +140,7 @@ class TestPlatformService:
     def test_can_checks_connected(self):
         from orion.integrations.platform_service import get_platform_service
         service = get_platform_service()
-        # create_issue requires GitHub — connected if GITHUB_TOKEN is set
+        # create_issue requires GitHub -- connected if GITHUB_TOKEN is set
         # or if 'gh' CLI is installed (CLI_TOOL auth)
         import os, shutil
         github_available = bool(os.environ.get("GITHUB_TOKEN")) or shutil.which("gh") is not None

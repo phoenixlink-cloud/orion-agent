@@ -1,14 +1,30 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-OAuth Manager for Orion — handles one-click authentication for all providers.
+OAuth Manager for Orion -- handles one-click authentication for all providers.
 
 Architecture (based on research of Open WebUI, NextAuth.js, ToolJet):
 - Tier 1: PKCE OAuth (GitHub, Google, Microsoft, GitLab, Linear, Atlassian)
-  → User clicks "Connect" → browser opens → sign in → done
-  → GitHub also supports Device Flow (best for desktop/CLI apps)
+  -> User clicks "Connect" -> browser opens -> sign in -> done
+  -> GitHub also supports Device Flow (best for desktop/CLI apps)
 - Tier 2: Guided token setup (Slack, Discord, Notion, Telegram)
-  → Step-by-step wizard in UI → user creates token → pastes it
+  -> Step-by-step wizard in UI -> user creates token -> pastes it
 - Tier 3: API key (OpenAI, Anthropic, etc.)
-  → Standard key input
+  -> Standard key input
 """
 
 import asyncio
@@ -28,11 +44,11 @@ log = logging.getLogger(__name__)
 SETTINGS_DIR = Path.home() / ".orion"
 
 # ---------------------------------------------------------------------------
-# Provider definitions — the single source of truth for OAuth configs
+# Provider definitions -- the single source of truth for OAuth configs
 # ---------------------------------------------------------------------------
 
 PROVIDERS: Dict[str, Dict[str, Any]] = {
-    # Only Google and Microsoft need OAuth — all other platforms now use
+    # Only Google and Microsoft need OAuth -- all other platforms now use
     # CLI tools (gh, glab) or bot tokens (Slack, Discord, Notion, etc.)
     # per the CLI delegation pattern. See internal-audit-reference.
     "google": {
@@ -141,7 +157,7 @@ def get_client_secret(provider: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# GitHub Device Flow — best UX for desktop apps
+# GitHub Device Flow -- best UX for desktop apps
 # ---------------------------------------------------------------------------
 
 async def github_device_flow_start(client_id: str) -> Dict[str, Any]:
@@ -295,7 +311,7 @@ async def exchange_code_for_token(
             raise Exception(f"Token exchange failed: {resp.status_code} {resp.text[:500]}")
         tokens = resp.json()
 
-    # Extract access_token — handle provider-specific response formats
+    # Extract access_token -- handle provider-specific response formats
     access_token = tokens.get("access_token")
     refresh_token = tokens.get("refresh_token")
     expires_in = tokens.get("expires_in", 3600)
@@ -345,7 +361,7 @@ async def exchange_code_for_token(
 
 
 # ---------------------------------------------------------------------------
-# Token storage for guided setup (Tier 2 — user pastes a token)
+# Token storage for guided setup (Tier 2 -- user pastes a token)
 # ---------------------------------------------------------------------------
 
 def store_manual_token(provider: str, token: str) -> bool:

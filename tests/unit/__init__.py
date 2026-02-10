@@ -1,1 +1,1 @@
-"""Unit tests — isolated module tests, no external services."""
+"""Unit tests -- isolated module tests, no external services."""

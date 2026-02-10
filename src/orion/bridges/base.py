@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Messaging Bridge Base (v6.8.0)
+Orion Agent -- Messaging Bridge Base (v6.8.0)
 
 Abstract base class for all messaging bridges. Each platform adapter
 (Telegram, Slack, Discord) implements this interface.
@@ -118,10 +134,10 @@ class MessagingBridge(ABC):
     Abstract base class for messaging platform bridges.
 
     Each platform adapter must implement:
-      - start()      — connect to the platform and start listening
-      - stop()       — disconnect gracefully
-      - send()       — send a message to a chat
-      - send_approval_prompt() — send an AEGIS approval request with buttons
+      - start()      -- connect to the platform and start listening
+      - stop()       -- disconnect gracefully
+      - send()       -- send a message to a chat
+      - send_approval_prompt() -- send an AEGIS approval request with buttons
     """
 
     def __init__(self, config: BridgeConfig):
@@ -137,7 +153,7 @@ class MessagingBridge(ABC):
         self._on_message: Optional[Callable] = None
 
     # =========================================================================
-    # ABSTRACT METHODS — Platform adapters implement these
+    # ABSTRACT METHODS -- Platform adapters implement these
     # =========================================================================
 
     @abstractmethod
@@ -162,7 +178,7 @@ class MessagingBridge(ABC):
         ...
 
     # =========================================================================
-    # SECURITY — Authentication & Authorization
+    # SECURITY -- Authentication & Authorization
     # =========================================================================
 
     def set_passphrase(self, passphrase: str):
@@ -213,7 +229,7 @@ class MessagingBridge(ABC):
         return False
 
     # =========================================================================
-    # MESSAGE HANDLING — Common logic for all platforms
+    # MESSAGE HANDLING -- Common logic for all platforms
     # =========================================================================
 
     async def handle_inbound(self, message: BridgeMessage):
@@ -222,7 +238,7 @@ class MessagingBridge(ABC):
         by platform adapters when a message arrives.
 
         Security flow:
-          1. Check if user is authorized → if not, check for passphrase
+          1. Check if user is authorized -> if not, check for passphrase
           2. Rate limit check
           3. Route through Orion's RequestRouter
           4. Send response back via platform
@@ -239,7 +255,7 @@ class MessagingBridge(ABC):
         # ---- Step 1: Authorization ----
         if not self.is_authorized(user_id):
             if self.config.passphrase_hash and self.verify_passphrase(text):
-                # Passphrase correct — authorize this user
+                # Passphrase correct -- authorize this user
                 user = self.authorize_user(user_id, message.display_name)
                 if self._log:
                     self._log.security("bridge_auth", passed=True,
@@ -260,7 +276,7 @@ class MessagingBridge(ABC):
                 )
                 return
             else:
-                # No passphrase set — auto-authorize (owner setup)
+                # No passphrase set -- auto-authorize (owner setup)
                 user = self.authorize_user(user_id, message.display_name)
                 if self._log:
                     self._log.security("bridge_auto_auth", passed=True,
@@ -304,7 +320,7 @@ class MessagingBridge(ABC):
             # Truncate for platform limits
             if len(response) > self.config.max_response_length:
                 response = response[:self.config.max_response_length - 50] + \
-                    "\n\n... (truncated — full response in logs)"
+                    "\n\n... (truncated -- full response in logs)"
 
             await self.send(chat_id, response)
 
@@ -327,11 +343,11 @@ class MessagingBridge(ABC):
         if cmd == "/help":
             await self.send(chat_id,
                 "🌟 *Orion Commands*\n\n"
-                "/help — Show this help\n"
-                "/status — Bridge status & stats\n"
-                "/memory — Memory stats\n"
-                "/whoami — Your auth info\n"
-                "/workspace — Show current workspace\n\n"
+                "/help -- Show this help\n"
+                "/status -- Bridge status & stats\n"
+                "/memory -- Memory stats\n"
+                "/whoami -- Your auth info\n"
+                "/workspace -- Show current workspace\n\n"
                 "Or just type your request in plain English!"
             )
             return True
@@ -391,7 +407,7 @@ class MessagingBridge(ABC):
 
 
 # =============================================================================
-# BRIDGE MANAGER — Orchestrates all platform bridges
+# BRIDGE MANAGER -- Orchestrates all platform bridges
 # =============================================================================
 
 class BridgeManager:

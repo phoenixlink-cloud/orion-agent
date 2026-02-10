@@ -1,17 +1,33 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Secure Credential Store (v6.4.0)
+Orion Agent -- Secure Credential Store (v6.4.0)
 
 Enterprise-grade credential storage with layered backends:
 
-  1. OS Keyring (primary)  — Windows Credential Locker / macOS Keychain / Linux SecretService
-  2. Encrypted File (fallback) — Fernet (AES-128-CBC + HMAC-SHA256) with PBKDF2-derived key
+  1. OS Keyring (primary)  -- Windows Credential Locker / macOS Keychain / Linux SecretService
+  2. Encrypted File (fallback) -- Fernet (AES-128-CBC + HMAC-SHA256) with PBKDF2-derived key
 
 Design principles:
   - No plaintext secrets on disk (ever)
   - Machine-bound encryption key derived from hardware/user identity
   - Thread-safe singleton access via get_secure_store()
   - Audit log of credential access events
-  - Graceful degradation: keyring → encrypted file → clear error
+  - Graceful degradation: keyring -> encrypted file -> clear error
 """
 
 import os
@@ -53,7 +69,7 @@ class AuditEvent:
 
 
 # =============================================================================
-# Encryption Backend (Fernet — AES-128-CBC + HMAC-SHA256 via PBKDF2)
+# Encryption Backend (Fernet -- AES-128-CBC + HMAC-SHA256 via PBKDF2)
 # =============================================================================
 
 class _FernetBackend:
@@ -98,7 +114,7 @@ class _FernetBackend:
             self._fernet = Fernet(key)
             self._available = True
         except ImportError:
-            logger.debug("cryptography package not installed — encrypted file backend unavailable")
+            logger.debug("cryptography package not installed -- encrypted file backend unavailable")
         except Exception as e:
             logger.warning(f"Failed to initialize encrypted file backend: {e}")
 
@@ -230,7 +246,7 @@ class _KeyringBackend:
             self._available = True
             logger.debug(f"Keyring backend active: {backend_name}")
         except ImportError:
-            logger.debug("keyring package not installed — OS keyring backend unavailable")
+            logger.debug("keyring package not installed -- OS keyring backend unavailable")
         except Exception as e:
             logger.debug(f"Keyring init failed: {e}")
 
@@ -272,7 +288,7 @@ class SecureStore:
     Backend priority:
       1. OS Keyring (if available and functional)
       2. Encrypted File (Fernet + PBKDF2)
-      3. Error — refuses to store in plaintext
+      3. Error -- refuses to store in plaintext
 
     Usage:
         store = get_secure_store()
@@ -293,7 +309,7 @@ class SecureStore:
         self._keyring = _KeyringBackend()
         self._fernet = _FernetBackend(self._store_dir)
 
-        # Load metadata (provider → backend mapping, timestamps)
+        # Load metadata (provider -> backend mapping, timestamps)
         self._meta: Dict[str, CredentialEntry] = self._load_meta()
 
     @property
@@ -469,7 +485,7 @@ class SecureStore:
                     logger.warning(f"Failed to migrate key for {provider}: {e}")
 
         if migrated:
-            # Rename plaintext file (don't delete — user might want backup)
+            # Rename plaintext file (don't delete -- user might want backup)
             backup_path = plaintext_path.with_suffix(".json.migrated")
             try:
                 plaintext_path.rename(backup_path)

@@ -160,7 +160,7 @@ class TestImport:
 
         # First import
         result1 = pack_manager.import_pack(pack_file, merge_strategy="skip_existing")
-        # Second import — should skip all
+        # Second import -- should skip all
         result2 = pack_manager.import_pack(pack_file, merge_strategy="skip_existing")
         # Second import should skip more or equal patterns
         assert result2.patterns_skipped >= result1.patterns_skipped or result2.patterns_imported == 0
@@ -179,7 +179,7 @@ class TestImport:
         )
         pack_file = str(pack_manager.packs_dir / "legal_sa_1.0.0.orionpack")
 
-        # Overwrite import — should delete existing domain patterns first
+        # Overwrite import -- should delete existing domain patterns first
         result = pack_manager.import_pack(pack_file, merge_strategy="overwrite")
         assert result.domain == "legal_sa"
 

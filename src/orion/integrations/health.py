@@ -1,14 +1,30 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Integration Health Check & Self-Test System (v6.4.0)
+Orion Agent -- Integration Health Check & Self-Test System (v6.4.0)
 
 Validates that integrations are properly configured, reachable, and functional.
 
-    1. HEALTH CHECKS — Ping each integration to verify connectivity
-    2. SELF-TESTS — Run lightweight functional tests per integration
-    3. RETRY LOGIC — Automatic retry with exponential backoff
-    4. STATUS DASHBOARD — Aggregated health status across all integrations
-    5. DEPENDENCY VALIDATION — Check required packages and API keys
-    6. GRACEFUL DEGRADATION — Report which integrations are available vs degraded
+    1. HEALTH CHECKS -- Ping each integration to verify connectivity
+    2. SELF-TESTS -- Run lightweight functional tests per integration
+    3. RETRY LOGIC -- Automatic retry with exponential backoff
+    4. STATUS DASHBOARD -- Aggregated health status across all integrations
+    5. DEPENDENCY VALIDATION -- Check required packages and API keys
+    6. GRACEFUL DEGRADATION -- Report which integrations are available vs degraded
 """
 
 import os
@@ -17,7 +33,7 @@ import importlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional, Callable, Tuple
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 
@@ -105,7 +121,7 @@ class IntegrationHealthChecker:
     def run_health_checks(self, categories: List[str] = None) -> HealthReport:
         """Run health checks on all (or filtered) integrations."""
         checks = []
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         for name, check_fn in self._checks.items():
             cat = self._get_category(name)
@@ -164,13 +180,13 @@ class IntegrationHealthChecker:
             start = time.time()
             result = self._checks[name]()
             result.response_time_ms = round((time.time() - start) * 1000, 1)
-            result.last_checked = datetime.utcnow().isoformat()
+            result.last_checked = datetime.now(timezone.utc).isoformat()
             return result
         except Exception as e:
             return IntegrationCheck(
                 name=name, category=self._get_category(name),
                 status=HealthStatus.ERROR, message=str(e)[:200],
-                last_checked=datetime.utcnow().isoformat(),
+                last_checked=datetime.now(timezone.utc).isoformat(),
             )
 
     # =========================================================================

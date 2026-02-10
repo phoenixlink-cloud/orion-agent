@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Health Probes (v6.4.0)
+Orion Agent -- Health Probes (v6.4.0)
 
 Kubernetes/Docker compatible health probe system.
 Provides /health, /ready, /live endpoints.
@@ -44,12 +60,12 @@ class HealthProbe:
     Kubernetes/Docker compatible health probe system.
 
     Provides three endpoints:
-        /health  — Full health check with component status
-        /ready   — Readiness probe (can accept traffic?)
-        /live    — Liveness probe (is the process alive?)
+        /health  -- Full health check with component status
+        /ready   -- Readiness probe (can accept traffic?)
+        /live    -- Liveness probe (is the process alive?)
     """
 
-    def __init__(self, version: str = "6.4.0"):
+    def __init__(self, version: str = "7.1.0"):
         self.version = version
         self._start_time = time.time()
         self._ready = False

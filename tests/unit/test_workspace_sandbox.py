@@ -1,4 +1,4 @@
-"""Unit tests for WorkspaceSandbox — local mode (no Docker dependency)."""
+"""Unit tests for WorkspaceSandbox -- local mode (no Docker dependency)."""
 
 import os
 import pytest
@@ -49,7 +49,7 @@ class TestSandboxMode:
 
 
 class TestLocalSessionLifecycle:
-    """Test create → edit → diff → promote → destroy cycle."""
+    """Test create -> edit -> diff -> promote -> destroy cycle."""
 
     def test_create_session(self, local_sandbox, test_workspace):
         session = local_sandbox.create_session(test_workspace)

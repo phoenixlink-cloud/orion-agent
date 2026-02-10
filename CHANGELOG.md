@@ -2,7 +2,7 @@
 
 All notable changes to Orion Agent will be documented in this file.
 
-## [6.4.0] — 2026-02-08
+## [6.4.0] -- 2026-02-08
 
 ### Added
 - Clean project structure for GitHub publishing
@@ -10,7 +10,7 @@ All notable changes to Orion Agent will be documented in this file.
 - Comprehensive CI/CD pipeline
 
 ### Migrated from Orion MVP
-- Three-Tier Memory Engine (session → project → institutional)
+- Three-Tier Memory Engine (session -> project -> institutional)
 - Continuous Learning & Evolution Engine
 - Table of Three multi-agent architecture (Builder + Reviewer + Governor)
 - Edit Validator with confidence scoring and auto-recovery
@@ -24,7 +24,7 @@ All notable changes to Orion Agent will be documented in this file.
 - Code Quality Analyzer
 - Docker Sandbox for isolated code execution
 
-## [6.2.0] — 2026-02-08
+## [6.2.0] -- 2026-02-08
 
 ### Added
 - Three-Tier Memory System (`core/memory_engine.py`)

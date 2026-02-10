@@ -36,7 +36,7 @@ def curriculum_file(tmp_workspace):
     """Create a sample curriculum JSON file."""
     curriculum = {
         "domain": "demo_python",
-        "description": "Python Best Practices — Demo",
+        "description": "Python Best Practices -- Demo",
         "source_files": [],
         "graduation_threshold": 0.75,
         "prompts": [

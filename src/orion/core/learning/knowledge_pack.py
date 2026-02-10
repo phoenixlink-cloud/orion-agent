@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Knowledge Pack Manager (v7.1.0)
+Orion Agent -- Knowledge Pack Manager (v7.1.0)
 
 Export trained Tier 3 patterns for a domain into a portable, versioned package.
 Import knowledge packs to bootstrap new Orion installations.
@@ -157,7 +173,7 @@ class KnowledgePackManager:
         }
         pack_file.write_text(json.dumps(pack_data, indent=2), encoding="utf-8")
         logger.info(
-            "Exported knowledge pack: %s v%s (%d patterns) → %s",
+            "Exported knowledge pack: %s v%s (%d patterns) -> %s",
             name, version, len(patterns), pack_file,
         )
 
@@ -182,7 +198,7 @@ class KnowledgePackManager:
 
         # Verify checksum
         if not self._verify_checksum(pack_data):
-            raise ValueError("Knowledge pack checksum verification failed — file may be corrupted")
+            raise ValueError("Knowledge pack checksum verification failed -- file may be corrupted")
 
         domain = pack_data["domain"]
         version = pack_data["version"]
@@ -208,7 +224,7 @@ class KnowledgePackManager:
                 if merge_strategy == "skip_existing":
                     skipped += 1
                 elif merge_strategy == "merge":
-                    # Keep both — the existing one and the new one
+                    # Keep both -- the existing one and the new one
                     # Let confidence scoring sort them out
                     self._insert_pattern(pattern, pack_id, version, domain)
                     conflicted += 1
@@ -220,7 +236,7 @@ class KnowledgePackManager:
                 imported += 1
 
         logger.info(
-            "Imported knowledge pack: %s v%s — %d imported, %d skipped, %d conflicted",
+            "Imported knowledge pack: %s v%s -- %d imported, %d skipped, %d conflicted",
             domain, version, imported, skipped, conflicted,
         )
 

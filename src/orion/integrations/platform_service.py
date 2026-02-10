@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Platform Service (v6.4.0)
+Orion Agent -- Platform Service (v6.4.0)
 
 Service layer that Orion agents use to interact with connected platforms.
 Handles auth token retrieval, API calls, and capability routing.
@@ -56,7 +72,7 @@ class PlatformService:
         self._rate_limiters: Dict[str, Any] = {}
         # AEGIS Invariant 6: Human approval callback for write operations.
         # If not set, ALL write operations are BLOCKED by default.
-        # This is a security invariant — Orion cannot bypass this.
+        # This is a security invariant -- Orion cannot bypass this.
         self._approval_callback: Optional[Callable[[str], bool]] = None
 
     def _get_rate_limiter(self, platform_id: str):
@@ -181,7 +197,7 @@ class PlatformService:
         return True (approved) or False (denied).
 
         Without this callback, ALL write operations are BLOCKED.
-        This is AEGIS Invariant 6 — not configurable, not bypassable.
+        This is AEGIS Invariant 6 -- not configurable, not bypassable.
         """
         self._approval_callback = callback
 
@@ -232,7 +248,7 @@ class PlatformService:
         if aegis_result.requires_approval:
             if self._approval_callback is None:
                 logger.warning(
-                    f"AEGIS-6 BLOCKED: {method.upper()} {url} — "
+                    f"AEGIS-6 BLOCKED: {method.upper()} {url} -- "
                     f"no approval callback registered, write denied"
                 )
                 return {
@@ -267,7 +283,7 @@ class PlatformService:
             logger.info(f"AEGIS-6 APPROVED by human: {method.upper()} {url}")
 
         # =====================================================================
-        # END AEGIS GATE — proceed with authenticated request
+        # END AEGIS GATE -- proceed with authenticated request
         # =====================================================================
 
         # =====================================================================

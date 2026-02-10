@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Production Infrastructure — Health probes, metrics, graceful shutdown.
+Production Infrastructure -- Health probes, metrics, graceful shutdown.
 
 Provides K8s-compatible health endpoints, Prometheus metrics,
 structured logging, rate limiting, and CI/CD generation.
@@ -14,7 +30,7 @@ from orion.core.production.logging import StructuredLogger
 class ProductionStack:
     """Assembles all production infrastructure components."""
 
-    def __init__(self, version: str = "6.4.0"):
+    def __init__(self, version: str = "7.1.0"):
         self.health = HealthProbe(version)
         self.metrics = MetricsCollector()
         self.shutdown = GracefulShutdown()
@@ -35,7 +51,7 @@ class ProductionStack:
         self.logger.info("Production stack stopped")
 
 
-def get_production_stack(version: str = "6.4.0") -> ProductionStack:
+def get_production_stack(version: str = "7.1.0") -> ProductionStack:
     """Factory function to create a ProductionStack."""
     return ProductionStack(version)
 

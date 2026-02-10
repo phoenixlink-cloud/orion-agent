@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Request Router (v6.4.0)
+Orion Agent -- Request Router (v6.4.0)
 
 Routes user requests through Scout to the appropriate execution path:
 - FAST_PATH -> FastPath (direct LLM + tools)
@@ -14,18 +30,8 @@ import os
 import time
 from typing import Optional, Callable, Any, Dict, List
 from pathlib import Path
-from dataclasses import dataclass
 
-
-@dataclass
-class Intent:
-    """Classified user intent (legacy compatibility)."""
-    category: str
-    requires_evidence: bool
-    requires_action: bool
-    confidence: float
-    keywords: List[str]
-    raw_input: str
+from orion.core.governance.aegis import Intent  # noqa: F401 -- canonical source
 
 
 def classify_intent(user_input: str, workspace_path: str = ".") -> Intent:

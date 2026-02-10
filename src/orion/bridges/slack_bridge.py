@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Slack Bridge (v6.8.0)
+Orion Agent -- Slack Bridge (v6.8.0)
 
 Bidirectional Slack bot bridge. Users interact with Orion by messaging
 the bot in a DM or mentioning it in a channel.
@@ -11,7 +27,7 @@ Setup:
     1. Create a Slack app at api.slack.com/apps
     2. Enable Socket Mode (no public URL needed)
     3. Add Bot Token Scopes: chat:write, app_mentions:read, im:history, im:read
-    4. Install to workspace → copy Bot Token + App Token
+    4. Install to workspace -> copy Bot Token + App Token
     5. In Orion CLI: /bridge enable slack <bot_token> --app-token <app_token>
     6. Message the bot on Slack with the passphrase
 """
@@ -23,7 +39,7 @@ from orion.bridges.base import MessagingBridge, BridgeConfig, BridgeMessage
 
 
 class SlackBridge(MessagingBridge):
-    """Slack bot bridge using slack-bolt (Socket Mode — no public URL needed)."""
+    """Slack bot bridge using slack-bolt (Socket Mode -- no public URL needed)."""
 
     def __init__(self, config: BridgeConfig):
         super().__init__(config)
@@ -106,7 +122,7 @@ class SlackBridge(MessagingBridge):
             await self._handler.start_async()
         else:
             if self._log:
-                self._log.warn("Bridge", "No SLACK_APP_TOKEN — Socket Mode unavailable. "
+                self._log.warn("Bridge", "No SLACK_APP_TOKEN -- Socket Mode unavailable. "
                                "Set SLACK_APP_TOKEN env var for real-time messaging.")
 
     async def stop(self):

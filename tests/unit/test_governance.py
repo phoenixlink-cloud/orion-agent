@@ -1,4 +1,4 @@
-"""Tests for orion.core.governance.aegis — AEGIS governance gate."""
+"""Tests for orion.core.governance.aegis -- AEGIS governance gate."""
 
 import pytest
 from dataclasses import dataclass, field
@@ -43,6 +43,7 @@ class TestAegisResult:
 # =========================================================================
 
 class TestIsPathConfined:
+    # --- Original tests (still valid) ---
     def test_relative_inside(self, tmp_path):
         assert _is_path_confined("sub/file.py", str(tmp_path)) is True
 
@@ -56,9 +57,104 @@ class TestIsPathConfined:
         target = tmp_path / "sub" / "file.py"
         assert _is_path_confined(str(target), str(tmp_path)) is True
 
+    # --- Bypass vector 1: Case-insensitive filesystem (Windows) ---
+    def test_case_mismatch_workspace(self, tmp_path):
+        """Same directory, different casing -- must still be confined."""
+        ws = str(tmp_path)
+        target = tmp_path / "sub" / "file.py"
+        # Flip case on the workspace path
+        ws_upper = ws.upper()
+        assert _is_path_confined(str(target), ws_upper) is True
+
+    def test_case_mismatch_target(self, tmp_path):
+        """Target with uppercase, workspace lowercase -- still confined."""
+        target = str(tmp_path / "SUB" / "FILE.PY")
+        assert _is_path_confined(target, str(tmp_path)) is True
+
+    # --- Bypass vector 2: String-prefix false positive ---
+    def test_prefix_collision_blocked(self, tmp_path):
+        """/workspace-evil is NOT inside /workspace."""
+        evil_dir = str(tmp_path) + "-evil"
+        import os
+        os.makedirs(evil_dir, exist_ok=True)
+        evil_file = os.path.join(evil_dir, "steal.py")
+        assert _is_path_confined(evil_file, str(tmp_path)) is False
+
+    # --- Bypass vector 3: Null-byte injection ---
+    def test_null_byte_in_path(self, tmp_path):
+        assert _is_path_confined("file\x00../../etc/passwd", str(tmp_path)) is False
+
+    def test_null_byte_in_workspace(self, tmp_path):
+        assert _is_path_confined("file.py", str(tmp_path) + "\x00evil") is False
+
+    # --- Bypass vector 4: Windows reserved device names ---
+    def test_reserved_device_CON(self, tmp_path):
+        assert _is_path_confined("CON", str(tmp_path)) is False
+
+    def test_reserved_device_NUL(self, tmp_path):
+        assert _is_path_confined("NUL", str(tmp_path)) is False
+
+    def test_reserved_device_AUX(self, tmp_path):
+        assert _is_path_confined("AUX", str(tmp_path)) is False
+
+    def test_reserved_device_COM1(self, tmp_path):
+        assert _is_path_confined("COM1", str(tmp_path)) is False
+
+    def test_reserved_device_LPT1(self, tmp_path):
+        assert _is_path_confined("LPT1", str(tmp_path)) is False
+
+    def test_reserved_device_in_subpath(self, tmp_path):
+        assert _is_path_confined("sub/CON/file.txt", str(tmp_path)) is False
+
+    def test_reserved_device_with_extension(self, tmp_path):
+        """CON.txt is still a reserved device on Windows."""
+        assert _is_path_confined("CON.txt", str(tmp_path)) is False
+
+    # --- Bypass vector 5: NTFS Alternate Data Streams ---
+    def test_ads_colon_blocked(self, tmp_path):
+        assert _is_path_confined("file.txt:hidden_stream", str(tmp_path)) is False
+
+    def test_ads_in_subpath(self, tmp_path):
+        assert _is_path_confined("sub/file.txt:$DATA", str(tmp_path)) is False
+
+    # --- Bypass vector 6: Symlink traversal ---
+    def test_symlink_escape(self, tmp_path):
+        """Symlink inside workspace pointing outside must be blocked."""
+        import os
+        target_outside = tmp_path.parent / "outside_target"
+        target_outside.mkdir(exist_ok=True)
+        secret = target_outside / "secret.txt"
+        secret.write_text("secret")
+
+        link_path = tmp_path / "evil_link"
+        try:
+            os.symlink(str(target_outside), str(link_path))
+        except OSError:
+            pytest.skip("Symlink creation not supported (needs admin on Windows)")
+
+        # The symlink resolves outside the workspace
+        assert _is_path_confined("evil_link/secret.txt", str(tmp_path)) is False
+
+    # --- Edge cases ---
+    def test_empty_path(self, tmp_path):
+        assert _is_path_confined("", str(tmp_path)) is False
+
+    def test_empty_workspace(self):
+        assert _is_path_confined("file.py", "") is False
+
+    def test_dot_path(self, tmp_path):
+        """'.' resolves to workspace root itself -- should be allowed."""
+        assert _is_path_confined(".", str(tmp_path)) is True
+
+    def test_deeply_nested(self, tmp_path):
+        assert _is_path_confined("a/b/c/d/e/f/g.py", str(tmp_path)) is True
+
+    def test_backslash_traversal(self, tmp_path):
+        assert _is_path_confined("..\\..\\etc\\passwd", str(tmp_path)) is False
+
 
 # =========================================================================
-# check_aegis_gate — INVARIANT 1: Workspace Confinement
+# check_aegis_gate -- INVARIANT 1: Workspace Confinement
 # =========================================================================
 
 class TestAegisInvariant1:
@@ -82,7 +178,7 @@ class TestAegisInvariant1:
 
 
 # =========================================================================
-# check_aegis_gate — INVARIANT 2: Mode Enforcement
+# check_aegis_gate -- INVARIANT 2: Mode Enforcement
 # =========================================================================
 
 class TestAegisInvariant2:
@@ -104,7 +200,7 @@ class TestAegisInvariant2:
 
 
 # =========================================================================
-# check_aegis_gate — INVARIANT 3: Action Scope
+# check_aegis_gate -- INVARIANT 3: Action Scope
 # =========================================================================
 
 class TestAegisInvariant3:
@@ -130,7 +226,7 @@ class TestAegisInvariant3:
 
 
 # =========================================================================
-# check_aegis_gate — INVARIANT 5: Command Execution
+# check_aegis_gate -- INVARIANT 5: Command Execution
 # =========================================================================
 
 class TestAegisInvariant5:

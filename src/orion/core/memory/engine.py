@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Three-Tier Memory Engine (v6.4.0)
+Orion Agent -- Three-Tier Memory Engine (v6.4.0)
 
 Orion's competitive moat: a unified, persistent memory system that learns
 and evolves with every interaction. No other AI coding tool has this.
@@ -43,7 +59,7 @@ import sqlite3
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from orion.core.memory.embeddings import EmbeddingStore
 
@@ -121,7 +137,7 @@ class MemoryStats:
     domains_with_expertise: int
     oldest_memory: str
     newest_memory: str
-    promotions_count: int  # tier2 → tier3
+    promotions_count: int  # tier2 -> tier3
 
 
 # =============================================================================
@@ -134,7 +150,7 @@ class MemoryEngine:
 
     This is the single entry point for ALL memory operations in Orion.
     It manages the lifecycle of memories across three tiers and handles
-    promotion from session → project → institutional.
+    promotion from session -> project -> institutional.
 
     Usage:
         engine = MemoryEngine(workspace_path="/path/to/project")
@@ -157,7 +173,7 @@ class MemoryEngine:
 
         # Tier 1: Session memory (RAM)
         self._session: Dict[str, MemoryEntry] = {}
-        self._session_start = datetime.utcnow().isoformat()
+        self._session_start = datetime.now(timezone.utc).isoformat()
 
         # Tier 2: Project memory (JSON file per project)
         self._project_path = None
@@ -202,7 +218,7 @@ class MemoryEngine:
         Returns:
             The created MemoryEntry
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         entry_id = hashlib.md5(f"{content}:{tier}:{now}".encode()).hexdigest()[:12]
 
         entry = MemoryEntry(
@@ -284,7 +300,7 @@ class MemoryEngine:
         final = []
         for _, entry in results[:max_results]:
             entry.access_count += 1
-            entry.last_accessed = datetime.utcnow().isoformat()
+            entry.last_accessed = datetime.now(timezone.utc).isoformat()
             final.append(entry)
 
         return final
@@ -368,7 +384,7 @@ class MemoryEngine:
             2 = Poor (mild anti-pattern)
             1 = Bad (strong anti-pattern)
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         approved = rating >= 4
 
         result = ApprovalGateResult(
@@ -436,7 +452,7 @@ class MemoryEngine:
         return result
 
     # =========================================================================
-    # PUBLIC API: PROMOTE (Tier 2 → Tier 3)
+    # PUBLIC API: PROMOTE (Tier 2 -> Tier 3)
     # =========================================================================
 
     def promote_to_institutional(
@@ -525,7 +541,7 @@ class MemoryEngine:
         conn.close()
 
         return EvolutionSnapshot(
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             total_interactions=total,
             approval_rate=round(approval_rate, 3),
             avg_quality_score=round(avg_q, 3),
@@ -621,7 +637,7 @@ class MemoryEngine:
         merged = 0
 
         # Decay Tier 2 entries older than 30 days with low confidence
-        cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         to_remove = []
         for eid, entry in self._project_cache.items():
             if entry.created_at < cutoff and entry.confidence < 0.5 and entry.access_count < 2:
@@ -635,7 +651,7 @@ class MemoryEngine:
         # Decay Tier 3 low-confidence entries older than 90 days
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
-        cutoff_90 = (datetime.utcnow() - timedelta(days=90)).isoformat()
+        cutoff_90 = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
         cursor.execute(
             "DELETE FROM memories WHERE confidence < 0.4 AND created_at < ? AND access_count < 2",
             (cutoff_90,),
@@ -653,7 +669,7 @@ class MemoryEngine:
     def start_session(self):
         """Start a new session, clearing Tier 1."""
         self._session.clear()
-        self._session_start = datetime.utcnow().isoformat()
+        self._session_start = datetime.now(timezone.utc).isoformat()
 
     def end_session(self):
         """
@@ -860,8 +876,8 @@ class MemoryEngine:
         if not self._project_path:
             return
         data = {
-            "version": "6.4.0",
-            "updated_at": datetime.utcnow().isoformat(),
+            "version": "7.1.0",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
             "memories": [e.to_dict() for e in self._project_cache.values()],
         }
         self._project_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -951,7 +967,7 @@ class MemoryEngine:
             conn = sqlite3.connect(self._db_path)
             conn.execute(
                 "UPDATE memories SET access_count = access_count + 1, last_accessed = ? WHERE id = ?",
-                (datetime.utcnow().isoformat(), memory_id),
+                (datetime.now(timezone.utc).isoformat(), memory_id),
             )
             conn.commit()
             conn.close()
@@ -982,7 +998,7 @@ class MemoryEngine:
             if self._content_hash_exists(content_hash):
                 continue
 
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             entry = MemoryEntry(
                 id=f"kp_{pack_id[:8]}_{inserted:04d}",
                 content=pattern["content"],

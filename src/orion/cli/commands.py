@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — CLI Slash Command Handler (v6.4.0)
+Orion Agent -- CLI Slash Command Handler (v6.4.0)
 
 Handles all /slash commands: /workspace, /add, /drop, /clear, /undo,
 /diff, /commit, /map, /mode, /status, /help, /settings, /tasks, /task.
@@ -11,7 +27,7 @@ from typing import Optional
 
 def handle_command(cmd: str, console, workspace_path: str, mode: str,
                    context_files: list = None, change_history: list = None) -> dict:
-    """Handle slash commands — familiar CLI patterns users expect."""
+    """Handle slash commands -- familiar CLI patterns users expect."""
     parts = cmd.split()
     command = parts[0].lower()
 
@@ -68,12 +84,12 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
             from orion.cli.doctor import run_doctor
             try:
                 loop = asyncio.get_running_loop()
-                # Already in async context — schedule as task
+                # Already in async context -- schedule as task
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     loop.run_in_executor(pool, lambda: asyncio.run(run_doctor(console, workspace_path)))
             except RuntimeError:
-                # No running loop — safe to use asyncio.run
+                # No running loop -- safe to use asyncio.run
                 asyncio.run(run_doctor(console, workspace_path))
         except Exception as e:
             console.print_error(f"Doctor failed: {e}")
@@ -165,7 +181,7 @@ def _handle_workspace(parts, console, workspace_path):
 
 
 def _handle_add(parts, console, workspace_path, context_files):
-    """Handle /add <file> — Add file to context."""
+    """Handle /add <file> -- Add file to context."""
     if len(parts) < 2:
         if context_files:
             console.print_info(f"Files in context: {', '.join(context_files)}")
@@ -199,7 +215,7 @@ def _handle_add(parts, console, workspace_path, context_files):
 
 
 def _handle_drop(parts, console, context_files):
-    """Handle /drop <file> — Remove file from context."""
+    """Handle /drop <file> -- Remove file from context."""
     if len(parts) < 2:
         console.print_info("Usage: /drop <file> or /drop all")
         return {}
@@ -218,7 +234,7 @@ def _handle_drop(parts, console, context_files):
 
 
 def _handle_undo(parts, console, workspace_path, change_history):
-    """Handle /undo — Revert last change using git safety net."""
+    """Handle /undo -- Revert last change using git safety net."""
     if not workspace_path:
         console.print_error("Set workspace first with /workspace <path>")
         return {}
@@ -274,7 +290,7 @@ def _handle_undo(parts, console, workspace_path, change_history):
 
 
 def _handle_diff(console, workspace_path):
-    """Handle /diff — Show pending changes."""
+    """Handle /diff -- Show pending changes."""
     if workspace_path:
         try:
             import subprocess
@@ -297,7 +313,7 @@ def _handle_diff(console, workspace_path):
 
 
 def _handle_commit(parts, console, workspace_path):
-    """Handle /commit [msg] — Commit changes to git."""
+    """Handle /commit [msg] -- Commit changes to git."""
     if not workspace_path:
         console.print_error("Set workspace first")
         return {}
@@ -322,7 +338,7 @@ def _handle_commit(parts, console, workspace_path):
 
 
 def _handle_map(console, workspace_path):
-    """Handle /map — Show repository map."""
+    """Handle /map -- Show repository map."""
     if not workspace_path:
         console.print_error("Set workspace first")
         return {}
@@ -348,7 +364,7 @@ def _handle_map(console, workspace_path):
 
 
 def _handle_mode(parts, console, mode):
-    """Handle /mode [new_mode] — Show or change mode."""
+    """Handle /mode [new_mode] -- Show or change mode."""
     VALID_MODES = {"safe", "pro", "project"}
 
     if len(parts) < 2:
@@ -370,12 +386,12 @@ def _handle_mode(parts, console, mode):
 
 
 def _handle_connect(parts, console):
-    """Handle /connect <platform> [token] — Connect a platform."""
+    """Handle /connect <platform> [token] -- Connect a platform."""
     if len(parts) < 2:
         console.print_info("Usage: /connect <platform> [token]")
-        console.print_info("  /connect github          — auto-detect gh CLI")
-        console.print_info("  /connect slack xoxb-...  — store bot token")
-        console.print_info("  /connect                 — list all platforms")
+        console.print_info("  /connect github          -- auto-detect gh CLI")
+        console.print_info("  /connect slack xoxb-...  -- store bot token")
+        console.print_info("  /connect                 -- list all platforms")
         try:
             from orion.integrations.platforms import get_platform_registry
             registry = get_platform_registry()
@@ -429,7 +445,7 @@ def _handle_connect(parts, console):
 
 
 def _handle_disconnect(parts, console):
-    """Handle /disconnect <platform> — Disconnect a platform."""
+    """Handle /disconnect <platform> -- Disconnect a platform."""
     if len(parts) < 2:
         console.print_info("Usage: /disconnect <platform>")
         return {}
@@ -456,12 +472,12 @@ def _handle_disconnect(parts, console):
 
 
 def _handle_key(parts, console):
-    """Handle /key set|remove|status — Manage API keys."""
+    """Handle /key set|remove|status -- Manage API keys."""
     if len(parts) < 2:
         console.print_info("Usage:")
-        console.print_info("  /key status              — Show configured keys")
-        console.print_info("  /key set <provider> <key> — Store an API key")
-        console.print_info("  /key remove <provider>    — Remove an API key")
+        console.print_info("  /key status              -- Show configured keys")
+        console.print_info("  /key set <provider> <key> -- Store an API key")
+        console.print_info("  /key remove <provider>    -- Remove an API key")
         return {}
 
     action = parts[1].lower()
@@ -515,7 +531,7 @@ def _handle_key(parts, console):
 
 
 def _handle_memory(parts, console):
-    """Handle /memory [search <query> | stats | evolution] — View memory stats or search."""
+    """Handle /memory [search <query> | stats | evolution] -- View memory stats or search."""
     try:
         from orion.core.memory.engine import get_memory_engine
         engine = get_memory_engine()
@@ -568,7 +584,7 @@ def _handle_memory(parts, console):
 
 
 def _handle_bridge(parts, console):
-    """Handle /bridge [enable|disable|status|revoke] — Messaging bridge management."""
+    """Handle /bridge [enable|disable|status|revoke] -- Messaging bridge management."""
     try:
         from orion.bridges.base import get_bridge_manager
 
@@ -602,7 +618,7 @@ def _handle_bridge(parts, console):
             console.print_info(f"✅ {platform.title()} bridge enabled!")
             console.print_info(f"🔑 Auth passphrase: {passphrase}")
             console.print_info(f"Send this passphrase to your {platform.title()} bot to authenticate.")
-            console.print_info("⚠️  Keep this passphrase secret — it controls access to Orion.")
+            console.print_info("⚠️  Keep this passphrase secret -- it controls access to Orion.")
 
         elif subcmd == "disable":
             if len(parts) < 3:

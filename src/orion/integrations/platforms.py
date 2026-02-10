@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Platform Registry (v6.4.0)
+Orion Agent -- Platform Registry (v6.4.0)
 
 Comprehensive registry of ALL platforms Orion can connect to.
 Each platform defines:
@@ -72,7 +88,7 @@ class PlatformDef:
     env_var_alt: str = ""              # Alternate env var name
     secure_store_key: str = ""         # Key in SecureStore (defaults to id)
     oauth_provider: str = ""           # Maps to OAUTH_PLATFORMS in server.py
-    cli_tool: str = ""                 # CLI binary name (e.g. "gh", "docker") — CLI delegation pattern
+    cli_tool: str = ""                 # CLI binary name (e.g. "gh", "docker") -- CLI delegation pattern
     # Setup
     setup_url: str = ""                # URL to get API key / create OAuth app
     setup_instructions: str = ""       # Short setup guide
@@ -108,10 +124,10 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="ollama", name="Ollama (Local)", category=PlatformCategory.AI_MODELS,
-        description="Run AI models locally on your machine — completely free and private",
+        description="Run AI models locally on your machine -- completely free and private",
         icon="🦙", auth_method=AuthMethod.NONE,
         package_name="httpx", is_local=True,
-        free_tier="Unlimited — runs on your hardware",
+        free_tier="Unlimited -- runs on your hardware",
         setup_url="https://ollama.com/download",
         setup_instructions="Download and install Ollama, then run: ollama pull qwen2.5-coder:14b",
         capabilities=[
@@ -123,11 +139,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="openai", name="OpenAI", category=PlatformCategory.AI_MODELS,
-        description="GPT-4o, GPT-4, o1 — powerful reasoning and code generation",
+        description="GPT-4o, GPT-4, o1 -- powerful reasoning and code generation",
         icon="🟢", auth_method=AuthMethod.API_KEY,
         env_var="OPENAI_API_KEY", package_name="openai",
         setup_url="https://platform.openai.com/api-keys",
-        setup_instructions="Create an API key at platform.openai.com → API Keys",
+        setup_instructions="Create an API key at platform.openai.com -> API Keys",
         cost_info="Pay-per-use, ~$2.50/M input tokens for GPT-4o",
         capabilities=[
             PlatformCapability("chat", "Advanced reasoning with GPT-4o", "analyze this architecture"),
@@ -140,11 +156,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="anthropic", name="Anthropic", category=PlatformCategory.AI_MODELS,
-        description="Claude 4 Sonnet & Opus — excellent for code review and analysis",
+        description="Claude 4 Sonnet & Opus -- excellent for code review and analysis",
         icon="🟠", auth_method=AuthMethod.API_KEY,
         env_var="ANTHROPIC_API_KEY", package_name="anthropic",
         setup_url="https://console.anthropic.com/settings/keys",
-        setup_instructions="Create an API key at console.anthropic.com → Settings → API Keys",
+        setup_instructions="Create an API key at console.anthropic.com -> Settings -> API Keys",
         cost_info="Pay-per-use, ~$3/M input tokens for Claude Sonnet",
         capabilities=[
             PlatformCapability("chat", "Deep analysis with Claude", "review this PR for security issues"),
@@ -155,7 +171,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="google", name="Google Gemini", category=PlatformCategory.AI_MODELS,
-        description="Gemini 2.5 Pro & Flash — free tier with 1500 req/day",
+        description="Gemini 2.5 Pro & Flash -- free tier with 1500 req/day",
         icon="🔵", auth_method=AuthMethod.OAUTH,
         env_var="GOOGLE_API_KEY", oauth_provider="google",
         package_name="google.generativeai",
@@ -172,7 +188,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="groq", name="Groq", category=PlatformCategory.AI_MODELS,
-        description="Ultra-fast inference — Llama 3.3 70B at 500+ tokens/sec",
+        description="Ultra-fast inference -- Llama 3.3 70B at 500+ tokens/sec",
         icon="⚡", auth_method=AuthMethod.API_KEY,
         env_var="GROQ_API_KEY", package_name="groq",
         setup_url="https://console.groq.com/keys",
@@ -186,7 +202,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="mistral", name="Mistral AI", category=PlatformCategory.AI_MODELS,
-        description="Mistral Large & Codestral — strong coding models from Europe",
+        description="Mistral Large & Codestral -- strong coding models from Europe",
         icon="🌊", auth_method=AuthMethod.API_KEY,
         env_var="MISTRAL_API_KEY", package_name="mistralai",
         setup_url="https://console.mistral.ai/api-keys",
@@ -200,7 +216,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="cohere", name="Cohere", category=PlatformCategory.AI_MODELS,
-        description="Command R+ — strong for RAG and enterprise search",
+        description="Command R+ -- strong for RAG and enterprise search",
         icon="🟣", auth_method=AuthMethod.API_KEY,
         env_var="COHERE_API_KEY", package_name="cohere",
         setup_url="https://dashboard.cohere.com/api-keys",
@@ -228,7 +244,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="openrouter", name="OpenRouter", category=PlatformCategory.AI_MODELS,
-        description="Access 100+ models through one API — compare providers easily",
+        description="Access 100+ models through one API -- compare providers easily",
         icon="🔀", auth_method=AuthMethod.API_KEY,
         env_var="OPENROUTER_API_KEY", package_name="openai",
         setup_url="https://openrouter.ai/keys",
@@ -268,7 +284,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
         icon="🦊", auth_method=AuthMethod.CLI_TOOL,
         env_var="GITLAB_TOKEN", cli_tool="glab",
         setup_url="https://gitlab.com/-/user_settings/personal_access_tokens",
-        setup_instructions="Install glab CLI or create a personal access token at GitLab → Settings → Access Tokens",
+        setup_instructions="Install glab CLI or create a personal access token at GitLab -> Settings -> Access Tokens",
         free_tier="Public repos free",
         capabilities=[
             PlatformCapability("list_repos", "List your GitLab projects", "show my GitLab projects"),
@@ -280,11 +296,11 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="docker", name="Docker", category=PlatformCategory.DEVELOPER_TOOLS,
-        description="Run code in isolated containers — safe sandbox execution",
+        description="Run code in isolated containers -- safe sandbox execution",
         icon="🐳", auth_method=AuthMethod.NONE,
         package_name="docker", is_local=True,
         setup_url="https://docs.docker.com/get-docker/",
-        setup_instructions="Install Docker Desktop — no API key needed",
+        setup_instructions="Install Docker Desktop -- no API key needed",
         free_tier="Free for personal use",
         capabilities=[
             PlatformCapability("run_code", "Execute code safely in containers", "run this Python script in a sandbox"),
@@ -298,7 +314,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
         icon="📝", auth_method=AuthMethod.TOKEN,
         env_var="NOTION_TOKEN",
         setup_url="https://www.notion.so/my-integrations",
-        setup_instructions="Create an integration at notion.so/my-integrations → copy the Internal Integration Token",
+        setup_instructions="Create an integration at notion.so/my-integrations -> copy the Internal Integration Token",
         free_tier="Free personal plan",
         capabilities=[
             PlatformCapability("read_pages", "Read Notion pages", "read my project spec from Notion"),
@@ -313,7 +329,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
         icon="📐", auth_method=AuthMethod.API_KEY,
         env_var="LINEAR_API_KEY",
         setup_url="https://linear.app/settings/api",
-        setup_instructions="Create an API key at linear.app → Settings → API → Personal API keys",
+        setup_instructions="Create an API key at linear.app -> Settings -> API -> Personal API keys",
         free_tier="Free for small teams",
         capabilities=[
             PlatformCapability("list_issues", "List Linear issues", "show my open issues in Linear"),
@@ -327,7 +343,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
         icon="📋", auth_method=AuthMethod.TOKEN,
         env_var="JIRA_API_TOKEN",
         setup_url="https://id.atlassian.com/manage-profile/security/api-tokens",
-        setup_instructions="Create an API token at id.atlassian.com → Security → API tokens",
+        setup_instructions="Create an API token at id.atlassian.com -> Security -> API tokens",
         free_tier="Free for up to 10 users",
         capabilities=[
             PlatformCapability("list_issues", "List Jira tickets", "show my open Jira tickets"),
@@ -346,7 +362,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
         env_var="SLACK_BOT_TOKEN",
         package_name="slack_sdk",
         setup_url="https://api.slack.com/apps",
-        setup_instructions="Create a Slack app at api.slack.com/apps → OAuth & Permissions → copy Bot User OAuth Token",
+        setup_instructions="Create a Slack app at api.slack.com/apps -> OAuth & Permissions -> copy Bot User OAuth Token",
         free_tier="Free for small teams",
         capabilities=[
             PlatformCapability("send_message", "Send messages to Slack", "post the build status to #dev"),
@@ -362,7 +378,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
         env_var="DISCORD_BOT_TOKEN",
         package_name="discord",
         setup_url="https://discord.com/developers/applications",
-        setup_instructions="Create a Discord bot at discord.com/developers → Bot → copy Token",
+        setup_instructions="Create a Discord bot at discord.com/developers -> Bot -> copy Token",
         free_tier="Free",
         capabilities=[
             PlatformCapability("send_message", "Send messages to Discord", "post update to #general"),
@@ -401,12 +417,12 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="edge_tts", name="Edge TTS", category=PlatformCategory.VOICE,
-        description="Free text-to-speech using Microsoft Edge voices — no API key needed",
+        description="Free text-to-speech using Microsoft Edge voices -- no API key needed",
         icon="🔊", auth_method=AuthMethod.NONE,
         package_name="edge_tts", is_local=True,
         setup_url="https://pypi.org/project/edge-tts/",
         setup_instructions="pip install edge-tts",
-        free_tier="Unlimited — free",
+        free_tier="Unlimited -- free",
         capabilities=[
             PlatformCapability("text_to_speech", "Free text-to-speech", "read this aloud"),
         ],
@@ -414,12 +430,12 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="whisper_local", name="Whisper (Local)", category=PlatformCategory.VOICE,
-        description="Local speech-to-text using OpenAI's Whisper model — runs offline",
+        description="Local speech-to-text using OpenAI's Whisper model -- runs offline",
         icon="👂", auth_method=AuthMethod.NONE,
         package_name="whisper", is_local=True,
         setup_url="https://github.com/openai/whisper",
         setup_instructions="pip install openai-whisper",
-        free_tier="Unlimited — runs on your hardware",
+        free_tier="Unlimited -- runs on your hardware",
         capabilities=[
             PlatformCapability("speech_to_text", "Transcribe audio locally", "transcribe this recording"),
         ],
@@ -427,12 +443,12 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="piper_tts", name="Piper TTS", category=PlatformCategory.VOICE,
-        description="Fast local text-to-speech — lightweight and offline",
+        description="Fast local text-to-speech -- lightweight and offline",
         icon="🎵", auth_method=AuthMethod.NONE,
         package_name="piper", is_local=True,
         setup_url="https://github.com/rhasspy/piper",
         setup_instructions="pip install piper-tts",
-        free_tier="Unlimited — runs locally",
+        free_tier="Unlimited -- runs locally",
         capabilities=[
             PlatformCapability("text_to_speech", "Fast local TTS", "read this quickly"),
         ],
@@ -444,7 +460,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="dalle", name="DALL-E 3", category=PlatformCategory.IMAGE,
-        description="Generate images from text descriptions — via OpenAI",
+        description="Generate images from text descriptions -- via OpenAI",
         icon="🎨", auth_method=AuthMethod.API_KEY,
         env_var="OPENAI_API_KEY", secure_store_key="openai",
         package_name="openai",
@@ -471,12 +487,12 @@ def _build_platforms() -> Dict[str, PlatformDef]:
 
     _add(PlatformDef(
         id="sdxl_local", name="SDXL (Local)", category=PlatformCategory.IMAGE,
-        description="Run Stable Diffusion XL locally via ComfyUI — completely free",
+        description="Run Stable Diffusion XL locally via ComfyUI -- completely free",
         icon="🎭", auth_method=AuthMethod.NONE,
         package_name="diffusers", is_local=True,
         setup_url="https://github.com/comfyanonymous/ComfyUI",
         setup_instructions="Install ComfyUI or diffusers: pip install diffusers",
-        free_tier="Unlimited — runs on your GPU",
+        free_tier="Unlimited -- runs on your GPU",
         capabilities=[
             PlatformCapability("generate_image", "Local image generation", "generate an icon locally"),
         ],

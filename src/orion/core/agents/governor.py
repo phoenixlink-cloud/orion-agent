@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Governor (v6.4.0)
+Orion Agent -- Governor (v6.4.0)
 
 Orion's own decision layer. Always Orion, never configurable.
 Migrated from Orion_MVP/core/llm_calls.py (orion_governor_decision).
@@ -9,20 +25,20 @@ It takes the Builder's proposal and Reviewer's decision,
 then produces the final outcome.
 
 Governor rules (from Orion Persona):
-  - BLOCK → stop, show block reason (Reviewer says HARD STOP)
-  - REVISE_AND_APPROVE → use reviewer's corrected proposal
-  - APPROVE → use builder's original proposal
-  - SAFE mode → suppress file actions, show as answer
+  - BLOCK -> stop, show block reason (Reviewer says HARD STOP)
+  - REVISE_AND_APPROVE -> use reviewer's corrected proposal
+  - APPROVE -> use builder's original proposal
+  - SAFE mode -> suppress file actions, show as answer
 
 Governance hierarchy (immutable):
-  Human authority → Governance framework → AI autonomy
+  Human authority -> Governance framework -> AI autonomy
   Never the reverse.
 
 Autonomy tiers:
   GREEN:  Proceed independently (low-risk, reversible)
   YELLOW: Proceed then report (medium-risk)
   RED:    Await approval (high-risk, irreversible)
-  HARD:   Never — human only (financial, legal, ethical)
+  HARD:   Never -- human only (financial, legal, ethical)
 """
 
 import logging
@@ -34,7 +50,7 @@ from orion.core.agents.reviewer import ReviewerResult
 
 logger = logging.getLogger("orion.governor")
 
-# Hard boundary categories — Governor NEVER allows these through autonomously.
+# Hard boundary categories -- Governor NEVER allows these through autonomously.
 # These are structural, not configurable.
 HARD_BOUNDARIES = frozenset({
     "financial_transaction",
@@ -79,10 +95,10 @@ def decide(
     decision = reviewer_result.decision
 
     # =========================================================================
-    # BLOCK — hard stop
+    # BLOCK -- hard stop
     # =========================================================================
     if decision == "BLOCK":
-        logger.warning(f"Governor: Reviewer BLOCKED — {reviewer_result.block_reason}")
+        logger.warning(f"Governor: Reviewer BLOCKED -- {reviewer_result.block_reason}")
         return GovernorResult(
             outcome="ANSWER",
             response=f"⛔ Reviewer BLOCKED this proposal.\n\nReason: {reviewer_result.block_reason}",
@@ -116,7 +132,7 @@ def decide(
         revision_suffix = f"\n\n📝 Reviewer corrections: {'; '.join(reviewer_result.revision_notes)}"
 
     # =========================================================================
-    # ACTION_INTENT — mode gating
+    # ACTION_INTENT -- mode gating
     # =========================================================================
     if outcome == "ACTION_INTENT":
         if mode not in ("pro", "project"):

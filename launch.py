@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ORION — Unified Launcher (v6.4.0)
+ORION -- Unified Launcher (v6.4.0)
 
 Single entry point for all Orion modes:
     python launch.py              # Interactive menu

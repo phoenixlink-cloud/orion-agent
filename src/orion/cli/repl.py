@@ -1,5 +1,21 @@
+# Orion Agent
+# Copyright (C) 2025 Phoenix Link (Pty) Ltd. All Rights Reserved.
+#
+# This file is part of Orion Agent.
+#
+# Orion Agent is dual-licensed:
+#
+# 1. Open Source: GNU Affero General Public License v3.0 (AGPL-3.0)
+#    You may use, modify, and distribute this file under AGPL-3.0.
+#    See LICENSE for the full text.
+#
+# 2. Commercial: Available from Phoenix Link (Pty) Ltd
+#    For proprietary use, SaaS deployment, or enterprise licensing.
+#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#
+# Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent — Interactive REPL (v6.4.0)
+Orion Agent -- Interactive REPL (v6.4.0)
 
 Main entry point workflow:
     USER REQUEST
@@ -59,7 +75,7 @@ class OrionConsole:
     def print_help(self):
         print("""
   ╭─────────────────────────────────────────────╮
-  │          Orion — Command Reference           │
+  │          Orion -- Command Reference           │
   ╰─────────────────────────────────────────────╯
 
   GETTING STARTED
@@ -208,7 +224,7 @@ def start_repl():
         from orion.integrations.platform_service import get_platform_service
         _platform_svc = get_platform_service()
         _platform_svc.set_approval_callback(console.aegis_approval_prompt)
-        console.print_info("AEGIS Invariant 6 active — external writes require your approval")
+        console.print_info("AEGIS Invariant 6 active -- external writes require your approval")
     except Exception:
         pass  # Platform service not available
 
@@ -391,7 +407,7 @@ def start_repl():
             stats = memory_engine.get_stats()
             memory_engine.end_session()
             console.print_info(
-                f"Session ended — {stats.tier1_entries} session memories, "
+                f"Session ended -- {stats.tier1_entries} session memories, "
                 f"{stats.tier2_entries} project, {stats.tier3_entries} global"
             )
             if log:
