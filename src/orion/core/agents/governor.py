@@ -8,11 +8,21 @@ This is DETERMINISTIC LOGIC, not an LLM call.
 It takes the Builder's proposal and Reviewer's decision,
 then produces the final outcome.
 
-Governor rules:
-  - BLOCK → stop, show block reason
+Governor rules (from Orion Persona):
+  - BLOCK → stop, show block reason (Reviewer says HARD STOP)
   - REVISE_AND_APPROVE → use reviewer's corrected proposal
   - APPROVE → use builder's original proposal
   - SAFE mode → suppress file actions, show as answer
+
+Governance hierarchy (immutable):
+  Human authority → Governance framework → AI autonomy
+  Never the reverse.
+
+Autonomy tiers:
+  GREEN:  Proceed independently (low-risk, reversible)
+  YELLOW: Proceed then report (medium-risk)
+  RED:    Await approval (high-risk, irreversible)
+  HARD:   Never — human only (financial, legal, ethical)
 """
 
 import logging
@@ -23,6 +33,17 @@ from orion.core.agents.builder import BuilderResult, extract_json
 from orion.core.agents.reviewer import ReviewerResult
 
 logger = logging.getLogger("orion.governor")
+
+# Hard boundary categories — Governor NEVER allows these through autonomously.
+# These are structural, not configurable.
+HARD_BOUNDARIES = frozenset({
+    "financial_transaction",
+    "legal_commitment",
+    "ethical_violation",
+    "production_deploy",
+    "security_credential_exposure",
+    "user_data_deletion",
+})
 
 
 @dataclass

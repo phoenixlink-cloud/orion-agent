@@ -174,8 +174,16 @@ def _build_system_prompt(mode: str, constraints: dict, execution_mode: bool, is_
 
     exec_section = _EXECUTION_MODE if execution_mode else ""
 
+    # Load Orion persona
+    persona_section = ""
+    try:
+        from orion.core.persona import get_builder_persona
+        persona_section = get_builder_persona()
+    except Exception:
+        pass
+
     if is_local:
-        return f"""You are a code generator. Create complete, working files.
+        return f"""{persona_section}
 
 OUTPUT FORMAT (standard file listing):
 To create a file, output the filename on its own line, then the code in a fenced block:
@@ -196,12 +204,7 @@ RULES:
 
 {constraint_section}"""
     else:
-        return f"""You are the Builder in a governed AI system.
-
-Your role:
-- Propose solutions based on the evidence provided
-- Generate code or file contents when requested
-- Be specific and actionable
+        return f"""{persona_section}
 
 Current mode: {mode.upper()}
 {"You MAY propose file operations." if mode in ("pro", "project") else "You may NOT propose file operations in SAFE mode."}

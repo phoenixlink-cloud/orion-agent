@@ -48,6 +48,15 @@ class FastPath:
     Uses httpx for fully async HTTP — never blocks the event loop.
     """
 
+    @staticmethod
+    def _get_persona() -> str:
+        """Load the Orion persona for FastPath."""
+        try:
+            from orion.core.persona import get_builder_persona, AUTONOMY_TIERS
+            return get_builder_persona() + "\n\n" + AUTONOMY_TIERS
+        except Exception:
+            return "You are Orion, a governed AI coding assistant."
+
     SYSTEM_PROMPT = """You are Orion, a governed AI coding assistant with AEGIS safety.
 
 You have direct access to the user's codebase. Be concise and direct.
@@ -76,6 +85,19 @@ IMPORTANT RULES:
     def __init__(self, workspace_path: str, model: str = "gpt-4o"):
         self.workspace = str(Path(workspace_path).resolve())
         self.model = model
+
+        # Build persona-aware system prompt (instance-level overrides class-level)
+        persona = self._get_persona()
+        if persona and len(persona) > 50:
+            self.SYSTEM_PROMPT = f"""{persona}
+
+FAST PATH RULES:
+- Stay within the workspace directory
+- For write operations, show a brief diff of changes
+- Be concise and direct
+- If you can't do something, explain why briefly
+- When the user asks about connected services (GitHub, Slack, etc.), check platform capabilities
+"""
 
     def _get_model_config(self) -> Dict[str, Any]:
         """

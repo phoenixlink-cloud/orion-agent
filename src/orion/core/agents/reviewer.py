@@ -31,9 +31,16 @@ class ReviewerResult:
     model: str = ""
 
 
-_REVIEWER_SYSTEM_PROMPT = """You are a QUALITY-CONTROL REVIEWER in a governed AI system.
+def _get_reviewer_persona() -> str:
+    """Load the Orion persona for the Reviewer."""
+    try:
+        from orion.core.persona import get_reviewer_persona
+        return get_reviewer_persona()
+    except Exception:
+        return "You are a quality-control reviewer in a governed AI system."
 
-Your role is to ensure proposals are correct and safe, NOT to block progress.
+
+_REVIEWER_SYSTEM_PROMPT = """{persona}
 
 Current mode: {mode}
 
@@ -109,7 +116,10 @@ async def run_reviewer(
     model_cfg = get_model_config()
     reviewer = model_cfg.get_reviewer()
 
-    system_prompt = _REVIEWER_SYSTEM_PROMPT.format(mode=mode.upper())
+    system_prompt = _REVIEWER_SYSTEM_PROMPT.format(
+        persona=_get_reviewer_persona(),
+        mode=mode.upper(),
+    )
 
     user_prompt = f"""## ORIGINAL USER REQUEST
 {user_input}
