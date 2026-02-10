@@ -2236,6 +2236,200 @@ async def set_workspace(workspace: str):
 
 
 # =============================================================================
+# TRAINING / KNOWLEDGE DISTILLATION
+# =============================================================================
+
+@app.post("/api/training/load")
+async def load_curriculum(domain: str, curriculum_file: str):
+    """Load a training curriculum."""
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        from orion.core.learning.benchmark import BenchmarkEngine
+        from orion.core.learning.curriculum import CurriculumEngine
+
+        settings = _load_user_settings()
+        workspace = settings.get("workspace", "")
+        me = get_memory_engine(workspace)
+        benchmark = BenchmarkEngine()
+        engine = CurriculumEngine(memory_engine=me, benchmark_engine=benchmark, workspace_path=workspace)
+        state = engine.load_curriculum(domain, curriculum_file)
+        log = _get_orion_log()
+        if log:
+            log.info("Training", f"Curriculum loaded: {domain}", prompts=state.total_prompts)
+        return {"status": "success", "domain": domain, "prompts": state.total_prompts, "threshold": state.graduation_threshold}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/training/run/{domain}")
+async def run_training_cycle(domain: str, prompt_id: str = None):
+    """Run a single training cycle."""
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        from orion.core.learning.benchmark import BenchmarkEngine
+        from orion.core.learning.curriculum import CurriculumEngine
+
+        settings = _load_user_settings()
+        workspace = settings.get("workspace", "")
+        me = get_memory_engine(workspace)
+        benchmark = BenchmarkEngine()
+        engine = CurriculumEngine(memory_engine=me, benchmark_engine=benchmark, workspace_path=workspace)
+
+        # Reload curriculum from saved state
+        from pathlib import Path as _Path
+        state_dir = engine._training_dir / domain / "curriculum.json"
+        if state_dir.exists():
+            engine.load_curriculum(domain, str(state_dir))
+        else:
+            raise HTTPException(status_code=404, detail=f"Domain '{domain}' not loaded")
+
+        result = await engine.run_training_cycle(domain, prompt_id)
+        log = _get_orion_log()
+        if log:
+            log.info("Training", f"Cycle complete: {domain}/{result.prompt_id}", score=result.quality_score)
+        return {
+            "prompt_id": result.prompt_id, "cycle": result.cycle_number,
+            "quality_score": result.quality_score, "similarity": result.similarity_score,
+            "missing_concepts": result.missing_concepts, "patterns_created": len(result.patterns_created),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/training/auto/{domain}")
+async def run_auto_training(domain: str, max_cycles: int = 3):
+    """Run full auto-training for a domain."""
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        from orion.core.learning.benchmark import BenchmarkEngine
+        from orion.core.learning.curriculum import CurriculumEngine
+
+        settings = _load_user_settings()
+        workspace = settings.get("workspace", "")
+        me = get_memory_engine(workspace)
+        benchmark = BenchmarkEngine()
+        engine = CurriculumEngine(memory_engine=me, benchmark_engine=benchmark, workspace_path=workspace)
+
+        state_dir = engine._training_dir / domain / "curriculum.json"
+        if state_dir.exists():
+            engine.load_curriculum(domain, str(state_dir))
+        else:
+            raise HTTPException(status_code=404, detail=f"Domain '{domain}' not loaded")
+
+        results = await engine.run_full_curriculum(domain, max_cycles=max_cycles)
+        state = engine.get_domain_status(domain)
+        return {
+            "domain": domain, "status": state.status if state else "unknown",
+            "cycles_completed": len(results),
+            "avg_score": state.current_avg_score if state else 0,
+            "graduated": state.status == "graduated" if state else False,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/training/status")
+async def get_training_status(domain: str = None):
+    """Get training status for all or specific domain."""
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        from orion.core.learning.benchmark import BenchmarkEngine
+        from orion.core.learning.curriculum import CurriculumEngine
+
+        settings = _load_user_settings()
+        workspace = settings.get("workspace", "")
+        me = get_memory_engine(workspace)
+        benchmark = BenchmarkEngine()
+        engine = CurriculumEngine(memory_engine=me, benchmark_engine=benchmark, workspace_path=workspace)
+
+        if domain:
+            state = engine.get_domain_status(domain)
+            if not state:
+                return {"domain": domain, "status": "not_found"}
+            return {
+                "domain": state.domain, "status": state.status,
+                "prompts": state.total_prompts, "cycles": state.completed_cycles,
+                "avg_score": state.current_avg_score, "threshold": state.graduation_threshold,
+            }
+        else:
+            states = engine.list_domains()
+            return {
+                "domains": [
+                    {"domain": s.domain, "status": s.status, "avg_score": s.current_avg_score, "cycles": s.completed_cycles}
+                    for s in states
+                ]
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/training/export/{domain}")
+async def export_knowledge_pack(domain: str, version: str, name: str = None):
+    """Export a graduated domain as a knowledge pack."""
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        from orion.core.learning.knowledge_pack import KnowledgePackManager
+
+        settings = _load_user_settings()
+        workspace = settings.get("workspace", "")
+        me = get_memory_engine(workspace)
+        mgr = KnowledgePackManager(me)
+        pack = mgr.export_pack(
+            domain=domain,
+            name=name or f"Orion {domain.replace('_', ' ').title()}",
+            version=version,
+            description=f"Knowledge pack for {domain}",
+        )
+        return {
+            "pack_id": pack.pack_id, "name": pack.name, "version": pack.version,
+            "patterns": pack.pattern_count, "anti_patterns": pack.anti_pattern_count,
+            "checksum": pack.checksum,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/training/import")
+async def import_knowledge_pack(pack_path: str, strategy: str = "skip_existing"):
+    """Import a knowledge pack."""
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        from orion.core.learning.knowledge_pack import KnowledgePackManager
+
+        settings = _load_user_settings()
+        workspace = settings.get("workspace", "")
+        me = get_memory_engine(workspace)
+        mgr = KnowledgePackManager(me)
+        result = mgr.import_pack(pack_path, merge_strategy=strategy)
+        return {
+            "imported": result.patterns_imported, "skipped": result.patterns_skipped,
+            "conflicted": result.patterns_conflicted, "domain": result.domain, "version": result.version,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/training/packs")
+async def list_knowledge_packs():
+    """List available and installed knowledge packs."""
+    try:
+        from orion.core.memory.engine import get_memory_engine
+        from orion.core.learning.knowledge_pack import KnowledgePackManager
+
+        settings = _load_user_settings()
+        workspace = settings.get("workspace", "")
+        me = get_memory_engine(workspace)
+        mgr = KnowledgePackManager(me)
+        return {"available": mgr.list_packs(), "installed": mgr.list_installed_packs()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # CONTEXT (repo map, quality)
 # =============================================================================
 

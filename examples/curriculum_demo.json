@@ -1,0 +1,47 @@
+{
+  "domain": "demo_python",
+  "description": "Python Best Practices — Demo Curriculum",
+  "source_files": [],
+  "graduation_threshold": 0.75,
+  "prompts": [
+    {
+      "id": "demo_001",
+      "prompt": "What are the key principles of writing clean Python code?",
+      "source_context": "",
+      "difficulty": "basic",
+      "expected_concepts": [
+        "PEP 8 style guide",
+        "meaningful variable names",
+        "DRY principle",
+        "single responsibility",
+        "type hints"
+      ]
+    },
+    {
+      "id": "demo_002",
+      "prompt": "Explain Python's error handling best practices",
+      "source_context": "",
+      "difficulty": "basic",
+      "expected_concepts": [
+        "specific exception types",
+        "try-except-finally",
+        "avoid bare except",
+        "custom exceptions",
+        "logging errors"
+      ]
+    },
+    {
+      "id": "demo_003",
+      "prompt": "How should you structure a Python package for distribution?",
+      "source_context": "",
+      "difficulty": "intermediate",
+      "expected_concepts": [
+        "pyproject.toml",
+        "src layout",
+        "__init__.py",
+        "entry points",
+        "dependency management"
+      ]
+    }
+  ]
+}

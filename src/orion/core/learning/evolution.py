@@ -14,6 +14,7 @@ WHAT THIS DOES:
 """
 
 import json
+import time
 import sqlite3
 import statistics
 from dataclasses import dataclass, field, asdict
@@ -440,6 +441,115 @@ class EvolutionEngine:
                 for m in timeline[:5]
             ],
         }
+
+    # =========================================================================
+    # PUBLIC API: DOMAIN TRAINING TRACKING
+    # =========================================================================
+
+    def track_domain_training(self, domain: str, score: float, cycle: int):
+        """Record a training cycle result for domain progression tracking."""
+        conn = sqlite3.connect(self._db_path)
+        cursor = conn.cursor()
+
+        # Ensure domain_training table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domain_training (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT NOT NULL,
+                score REAL NOT NULL,
+                cycle INTEGER NOT NULL,
+                timestamp REAL NOT NULL
+            )
+        """)
+        cursor.execute(
+            "INSERT INTO domain_training (domain, score, cycle, timestamp) VALUES (?, ?, ?, ?)",
+            (domain, score, cycle, time.time()),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_domain_progress(self, domain: str) -> Dict[str, Any]:
+        """Get training progress for a domain."""
+        conn = sqlite3.connect(self._db_path)
+        cursor = conn.cursor()
+
+        # Ensure table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domain_training (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT NOT NULL,
+                score REAL NOT NULL,
+                cycle INTEGER NOT NULL,
+                timestamp REAL NOT NULL
+            )
+        """)
+
+        rows = cursor.execute(
+            "SELECT score FROM domain_training WHERE domain = ? ORDER BY timestamp",
+            (domain,),
+        ).fetchall()
+        conn.close()
+
+        if not rows:
+            return {"status": "not_started", "scores": [], "average": 0.0}
+
+        scores = [r[0] for r in rows]
+
+        # Check if graduated
+        graduated_row = None
+        try:
+            conn2 = sqlite3.connect(self._db_path)
+            graduated_row = conn2.execute(
+                "SELECT 1 FROM domain_graduations WHERE domain = ?", (domain,)
+            ).fetchone()
+            conn2.close()
+        except Exception:
+            pass
+
+        status = "graduated" if graduated_row else "in_progress"
+
+        return {
+            "status": status,
+            "scores": scores,
+            "average": sum(scores) / len(scores) if scores else 0.0,
+            "best": max(scores) if scores else 0.0,
+            "worst": min(scores) if scores else 0.0,
+            "total_cycles": len(scores),
+            "trend": self._calculate_domain_trend(scores),
+        }
+
+    def _calculate_domain_trend(self, scores: List[float]) -> str:
+        """Determine if scores are improving, declining, or plateaued."""
+        if len(scores) < 3:
+            return "insufficient_data"
+        recent = scores[-3:]
+        earlier = scores[-6:-3] if len(scores) >= 6 else scores[:3]
+        recent_avg = sum(recent) / len(recent)
+        earlier_avg = sum(earlier) / len(earlier)
+        diff = recent_avg - earlier_avg
+        if diff > 0.1:
+            return "improving"
+        elif diff < -0.1:
+            return "declining"
+        else:
+            return "plateaued"
+
+    def graduate_domain(self, domain: str):
+        """Mark a domain as graduated."""
+        conn = sqlite3.connect(self._db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domain_graduations (
+                domain TEXT PRIMARY KEY,
+                graduated_at REAL NOT NULL
+            )
+        """)
+        cursor.execute(
+            "INSERT OR REPLACE INTO domain_graduations (domain, graduated_at) VALUES (?, ?)",
+            (domain, time.time()),
+        )
+        conn.commit()
+        conn.close()
 
     # =========================================================================
     # INTERNAL: DATABASE

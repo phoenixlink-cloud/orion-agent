@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "orion-agent"
-version = "7.0.0"
+version = "7.1.0"
 description = "Self-improving, multi-agent AI coding assistant with persistent memory and continuous learning"
 readme = "README.md"
 license = { text = "MIT" }
@@ -60,6 +60,10 @@ web = [
     "websockets>=12.0",
     "authlib>=1.3",
 ]
+training = [
+    "sentence-transformers>=2.2.0",
+    "numpy>=1.24.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.1",
@@ -70,7 +74,7 @@ dev = [
     "safety>=3.0",
     "pre-commit>=3.6",
 ]
-all = ["orion-agent[security,cloud,voice,web,dev]"]
+all = ["orion-agent[security,cloud,voice,web,dev,training]"]
 
 [project.scripts]
 orion = "orion.cli.app:main"

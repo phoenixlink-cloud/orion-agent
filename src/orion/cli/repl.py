@@ -222,6 +222,21 @@ def start_repl():
                 continue
 
             # Handle slash commands
+            if user_input.startswith("/train"):
+                import asyncio
+                from orion.cli.commands_training import handle_train_command
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                            pool.submit(asyncio.run, handle_train_command(user_input, router_instance, memory_engine, console)).result()
+                    else:
+                        loop.run_until_complete(handle_train_command(user_input, router_instance, memory_engine, console))
+                except RuntimeError:
+                    asyncio.run(handle_train_command(user_input, router_instance, memory_engine, console))
+                continue
+
             if user_input.startswith("/"):
                 from orion.cli.commands import handle_command
                 result = handle_command(

@@ -45,6 +45,8 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime, timedelta
 
+from orion.core.memory.embeddings import EmbeddingStore
+
 
 # =============================================================================
 # DATA CLASSES
@@ -170,6 +172,9 @@ class MemoryEngine:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
+        # Embedding store for semantic recall
+        self._embedding_store = EmbeddingStore(db_path=str(self._db_path))
+
     # =========================================================================
     # PUBLIC API: REMEMBER
     # =========================================================================
@@ -220,6 +225,8 @@ class MemoryEngine:
             self._save_project_memory()
         elif tier == 3:
             self._store_tier3(entry)
+            if self._embedding_store.available:
+                self._embedding_store.index_memory(entry.id, entry.content)
 
         return entry
 
@@ -282,15 +289,45 @@ class MemoryEngine:
 
         return final
 
-    def recall_for_prompt(self, query: str, max_tokens: int = 2000) -> str:
+    def recall_for_prompt(self, query: str, max_tokens: int = 2000, domain: str = None, top_k: int = 10) -> str:
         """
         Recall memories formatted for LLM prompt injection.
+        Uses embedding-based semantic search if available, falls back to keyword matching.
 
         Returns a formatted string ready to include in the system prompt.
         """
-        memories = self.recall(query, max_results=8, min_confidence=0.5)
+        if self._embedding_store.available:
+            # Embedding-based search for Tier 3
+            results = self._embedding_store.search(query, top_k=top_k, domain=domain)
+            tier3_entries = []
+            for memory_id, score in results:
+                if score > 0.5:
+                    entry = self._get_tier3_entry(memory_id)
+                    if entry:
+                        tier3_entries.append(entry)
+            # Also include session + project memories via keyword
+            keyword_memories = self.recall(query, max_results=top_k, min_confidence=0.5, tiers=[1, 2])
+            # Merge, dedup by id
+            seen_ids = {e.id for e in tier3_entries}
+            memories = tier3_entries[:]
+            for m in keyword_memories:
+                if m.id not in seen_ids:
+                    memories.append(m)
+                    seen_ids.add(m.id)
+        else:
+            # Fallback to existing keyword search
+            memories = self.recall(query, max_results=top_k, min_confidence=0.5)
+
+        # Sort by confidence * access_count (most reliable patterns first)
+        memories.sort(key=lambda e: e.confidence * (1 + e.access_count * 0.1), reverse=True)
+        memories = memories[:top_k]
+
         if not memories:
             return ""
+
+        # Increment access counts
+        for entry in memories:
+            self._increment_access(entry.id)
 
         lines = [
             "## ORION MEMORY CONTEXT",
@@ -881,6 +918,96 @@ class MemoryEngine:
         elif any(w in desc for w in ["deploy", "release", "ci", "cd"]):
             return "devops"
         return "general"
+
+    def _get_tier3_entry(self, memory_id: str) -> Optional[MemoryEntry]:
+        """Retrieve a single Tier 3 entry by ID."""
+        try:
+            conn = sqlite3.connect(self._db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM memories WHERE id = ?", (memory_id,))
+            row = cursor.fetchone()
+            if not row:
+                conn.close()
+                return None
+            cols = [d[0] for d in cursor.description]
+            conn.close()
+            data = dict(zip(cols, row))
+            data["metadata"] = json.loads(data.get("metadata", "{}"))
+            return MemoryEntry.from_dict(data)
+        except Exception:
+            return None
+
+    def _increment_access(self, memory_id: str):
+        """Increment the access count for a memory entry."""
+        # Tier 1/2
+        if memory_id in self._session:
+            self._session[memory_id].access_count += 1
+            return
+        if memory_id in self._project_cache:
+            self._project_cache[memory_id].access_count += 1
+            return
+        # Tier 3
+        try:
+            conn = sqlite3.connect(self._db_path)
+            conn.execute(
+                "UPDATE memories SET access_count = access_count + 1, last_accessed = ? WHERE id = ?",
+                (datetime.utcnow().isoformat(), memory_id),
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    def _content_hash_exists(self, content_hash: str) -> bool:
+        """Check if a content hash already exists in Tier 3 metadata."""
+        try:
+            conn = sqlite3.connect(self._db_path)
+            row = conn.execute(
+                "SELECT COUNT(*) FROM memories WHERE metadata LIKE ?",
+                (f'%"content_hash": "{content_hash}"%',),
+            ).fetchone()
+            conn.close()
+            return row[0] > 0
+        except Exception:
+            return False
+
+    def load_knowledge_pack(self, patterns: list, pack_id: str, pack_version: str) -> int:
+        """
+        Bulk-insert patterns from a knowledge pack into Tier 3.
+        Returns count of patterns inserted.
+        """
+        inserted = 0
+        for pattern in patterns:
+            content_hash = hashlib.sha256(pattern["content"].encode()).hexdigest()[:16]
+            if self._content_hash_exists(content_hash):
+                continue
+
+            now = datetime.utcnow().isoformat()
+            entry = MemoryEntry(
+                id=f"kp_{pack_id[:8]}_{inserted:04d}",
+                content=pattern["content"],
+                tier=3,
+                category=pattern.get("category", "pattern"),
+                confidence=pattern.get("confidence", 0.9),
+                created_at=now,
+                last_accessed=now,
+                access_count=0,
+                source="knowledge_pack",
+                metadata={
+                    "source": "knowledge_pack",
+                    "pack_id": pack_id,
+                    "pack_version": pack_version,
+                    "domain": pattern.get("domain", "general"),
+                    "content_hash": content_hash,
+                    **(pattern.get("metadata", {}) if isinstance(pattern.get("metadata"), dict) else {}),
+                },
+            )
+            self._store_tier3(entry)
+            if self._embedding_store.available:
+                self._embedding_store.index_memory(entry.id, entry.content)
+            inserted += 1
+
+        return inserted
 
     @staticmethod
     def _count_tiers(memories: List[MemoryEntry]) -> int:

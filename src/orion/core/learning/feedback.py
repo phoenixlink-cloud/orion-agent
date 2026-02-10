@@ -13,15 +13,29 @@ Flow:
     4. Use in future similar requests
 """
 
+import time
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from orion.core.learning.patterns import classify_request_type
 from orion.core.memory.institutional import InstitutionalMemory
 from orion.core.memory.project import ProjectMemory
 
 logger = logging.getLogger("orion.learning.feedback")
+
+
+@dataclass
+class StructuredFeedback:
+    """Extended feedback for curriculum training."""
+    rating: int                     # 1-5
+    text: str                       # Human-readable summary
+    domain: str                     # Training domain
+    missing_concepts: List[str] = field(default_factory=list)
+    incorrect_claims: List[str] = field(default_factory=list)
+    strengths: List[str] = field(default_factory=list)
+    source: str = "curriculum"      # "user" or "curriculum"
 
 
 class LearningLoop:
@@ -150,6 +164,95 @@ class LearningLoop:
             "institutional": inst_stats,
             "project": proj_stats,
         }
+
+
+    def record_structured_feedback(
+        self,
+        interaction_id: str,
+        feedback: StructuredFeedback,
+        memory_engine=None,
+    ) -> List[str]:
+        """
+        Record structured feedback and create domain-specific patterns.
+        Returns list of created memory entry IDs.
+
+        Args:
+            interaction_id: Unique ID for this training interaction.
+            feedback: StructuredFeedback with concepts, claims, strengths.
+            memory_engine: MemoryEngine instance for storing patterns in Tier 3.
+        """
+        if memory_engine is None:
+            logger.warning("No memory_engine provided to record_structured_feedback")
+            return []
+
+        created_ids = []
+
+        # Create anti-patterns for each missing concept
+        for concept in feedback.missing_concepts:
+            entry = memory_engine.remember(
+                content=(
+                    f"ANTI-PATTERN [{feedback.domain}]: Missed concept: {concept}. "
+                    f"Ensure this is covered when discussing related topics."
+                ),
+                tier=3,
+                category="anti_pattern",
+                confidence=0.7,
+                source=feedback.source,
+                metadata={
+                    "domain": feedback.domain,
+                    "source": feedback.source,
+                    "concept": concept,
+                    "interaction_id": interaction_id,
+                },
+            )
+            created_ids.append(entry.id)
+
+        # Create anti-patterns for incorrect claims
+        for claim in feedback.incorrect_claims:
+            entry = memory_engine.remember(
+                content=(
+                    f"ANTI-PATTERN [{feedback.domain}]: Incorrect claim made: {claim}. "
+                    f"Do not repeat this error."
+                ),
+                tier=3,
+                category="anti_pattern",
+                confidence=0.8,
+                source=feedback.source,
+                metadata={
+                    "domain": feedback.domain,
+                    "source": feedback.source,
+                    "claim": claim,
+                    "interaction_id": interaction_id,
+                },
+            )
+            created_ids.append(entry.id)
+
+        # Create success patterns for strengths (only on rating >= 4)
+        if feedback.rating >= 4:
+            for strength in feedback.strengths:
+                entry = memory_engine.remember(
+                    content=(
+                        f"SUCCESS [{feedback.domain}]: {strength}. "
+                        f"Continue this approach for similar tasks."
+                    ),
+                    tier=3,
+                    category="pattern",
+                    confidence=0.8,
+                    source=feedback.source,
+                    metadata={
+                        "domain": feedback.domain,
+                        "source": feedback.source,
+                        "strength": strength,
+                        "interaction_id": interaction_id,
+                    },
+                )
+                created_ids.append(entry.id)
+
+        logger.info(
+            "Recorded structured feedback for %s: %d patterns created (rating=%d)",
+            feedback.domain, len(created_ids), feedback.rating,
+        )
+        return created_ids
 
 
 def get_learning_loop(workspace_path: Optional[str] = None) -> LearningLoop:
