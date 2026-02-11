@@ -57,7 +57,7 @@ class PlatformService:
 
     # Per-platform rate limits (requests per minute)
     _PLATFORM_RATE_LIMITS = {
-        "github": 80,      # GitHub: 5000/hr Ã¢â€°Ë† 83/min
+        "github": 80,      # GitHub: 5000/hr ≈ 83/min
         "slack": 50,       # Slack: ~50/min for most tiers
         "notion": 30,      # Notion: 3 req/sec avg
         "jira": 60,        # Jira Cloud: varies

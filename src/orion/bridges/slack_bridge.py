@@ -164,7 +164,7 @@ class SlackBridge(MessagingBridge):
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"âš ï¸ *AEGIS APPROVAL REQUIRED*\n\n{prompt}"
+                        "text": f"⚠️ *AEGIS APPROVAL REQUIRED*\n\n{prompt}"
                     }
                 },
                 {
@@ -172,14 +172,14 @@ class SlackBridge(MessagingBridge):
                     "elements": [
                         {
                             "type": "button",
-                            "text": {"type": "plain_text", "text": "âœ… Approve"},
+                            "text": {"type": "plain_text", "text": "✅ Approve"},
                             "style": "primary",
                             "action_id": f"aegis_approve_{approval_id}",
                             "value": approval_id,
                         },
                         {
                             "type": "button",
-                            "text": {"type": "plain_text", "text": "âŒ Deny"},
+                            "text": {"type": "plain_text", "text": "❌ Deny"},
                             "style": "danger",
                             "action_id": f"aegis_deny_{approval_id}",
                             "value": approval_id,
@@ -194,4 +194,4 @@ class SlackBridge(MessagingBridge):
                 blocks=blocks,
             )
         except Exception as e:
-            await self.send(chat_id, f"âš ï¸ AEGIS APPROVAL REQUIRED\n\n{prompt}")
+            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}")

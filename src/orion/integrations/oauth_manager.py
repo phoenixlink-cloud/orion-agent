@@ -61,7 +61,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "userinfo_url": "https://www.googleapis.com/oauth2/v2/userinfo",
         "scopes": ["openid", "profile", "email"],
         "supports_pkce": True,
-        "icon": "ðŸ”µ",
+        "icon": "🔵",
     },
     "microsoft": {
         "name": "Microsoft",
@@ -72,7 +72,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "userinfo_url": "https://graph.microsoft.com/v1.0/me",
         "scopes": ["openid", "profile", "User.Read"],
         "supports_pkce": True,
-        "icon": "ðŸŸ¦",
+        "icon": "🟦",
     },
 }
 
@@ -417,7 +417,7 @@ def get_provider_status() -> Dict[str, Any]:
         result[pid] = {
             "name": prov["name"],
             "description": prov["description"],
-            "icon": prov.get("icon", "ðŸ”Œ"),
+            "icon": prov.get("icon", "🔌"),
             "auth_type": prov["auth_type"],
             "connected": bool(connected),
             "connected_at": stored.get(pid, {}).get("connected_at"),

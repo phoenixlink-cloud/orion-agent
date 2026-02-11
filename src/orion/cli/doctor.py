@@ -27,7 +27,7 @@ Enterprise-grade system health check that validates:
   7. Integration registry status
 
 Follows the `brew doctor` / `flutter doctor` pattern:
-  - Each check returns Ã¢Å“â€œ (pass), Ã¢Å¡Â  (warning), or Ã¢Å“â€” (fail)
+  - Each check returns ✓ (pass), ⚠ (warning), or ✗ (fail)
   - Actionable remediation steps for each failure
   - Summary with overall health score
 
@@ -57,7 +57,7 @@ class CheckResult:
 
     @property
     def icon(self) -> str:
-        return {"pass": "Ã¢Å“â€œ", "warn": "Ã¢Å¡Â ", "fail": "Ã¢Å“â€”"}.get(self.status, "?")
+        return {"pass": "✓", "warn": "⚠", "fail": "✗"}.get(self.status, "?")
 
     @property
     def color(self) -> str:
@@ -105,7 +105,7 @@ def check_python_environment() -> CheckResult:
         return CheckResult(
             name="Python Environment",
             status="fail",
-            message=f"Python {py_version.major}.{py_version.minor} -- requires Ã¢â€°Â¥3.10",
+            message=f"Python {py_version.major}.{py_version.minor} -- requires ≥3.10",
             remedy="Install Python 3.10+: https://python.org/downloads",
             details=details,
         )
@@ -469,7 +469,7 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
             print(text)
 
     _print("\n  Orion Doctor -- System Health Check\n", "bold cyan")
-    _print("  " + "Ã¢â€â‚¬" * 50)
+    _print("  " + "─" * 50)
 
     # Sync checks
     sync_checks = [
@@ -504,13 +504,13 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
 
         if check.details:
             for detail in check.details:
-                _print(f"    Ã‚Â· {detail}", "dim")
+                _print(f"    · {detail}", "dim")
 
         if check.remedy:
             _print(f"    -> {check.remedy}", "yellow")
 
     # Summary
-    _print("\n  " + "Ã¢â€â‚¬" * 50)
+    _print("\n  " + "─" * 50)
     summary = (
         f"  {report.passed} passed, "
         f"{report.warnings} warnings, "

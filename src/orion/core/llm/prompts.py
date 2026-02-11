@@ -313,7 +313,7 @@ def build_enhanced_input(
     # Layer 2: Project context
     if past_decisions:
         decisions_text = "\n".join(
-            f"- {d['action'][:50]}: {'Ã¢Å“â€œ' if d['quality'] >= 0.8 else 'Ã¢â€”â€¹' if d['quality'] >= 0.5 else 'Ã¢Å“â€”'}"
+            f"- {d['action'][:50]}: {'✓' if d['quality'] >= 0.8 else '○' if d['quality'] >= 0.5 else '✗'}"
             for d in past_decisions[-5:]
         )
         parts.append(f"\n\n## PROJECT CONTEXT\n### Recent Decisions\n{decisions_text}")

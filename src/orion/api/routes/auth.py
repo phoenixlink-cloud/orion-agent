@@ -565,7 +565,7 @@ async def oauth_callback(
         f"""<html>
 <head><title>Orion -- OAuth Success</title></head>
 <body style="font-family: system-ui; text-align: center; padding: 40px;">
-  <h2 style="color: #22c55e;">âœ“ {OAUTH_PLATFORMS[provider]['name']} Connected</h2>
+  <h2 style="color: #22c55e;">✓ {OAUTH_PLATFORMS[provider]['name']} Connected</h2>
   <p>You can close this window. The Settings page will update automatically.</p>
   <script>
     if (window.opener) {{

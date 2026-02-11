@@ -101,7 +101,7 @@ def decide(
         logger.warning(f"Governor: Reviewer BLOCKED -- {reviewer_result.block_reason}")
         return GovernorResult(
             outcome="ANSWER",
-            response=f"Ã¢â€ºâ€ Reviewer BLOCKED this proposal.\n\nReason: {reviewer_result.block_reason}",
+            response=f"⛔ Reviewer BLOCKED this proposal.\n\nReason: {reviewer_result.block_reason}",
             explanation="Reviewer blocked execution due to safety or constraint violation.",
             reviewer_decision="BLOCK",
         )
@@ -129,7 +129,7 @@ def decide(
     # Build revision suffix
     revision_suffix = ""
     if decision == "REVISE_AND_APPROVE" and reviewer_result.revision_notes:
-        revision_suffix = f"\n\nÃ°Å¸â€œÂ Reviewer corrections: {'; '.join(reviewer_result.revision_notes)}"
+        revision_suffix = f"\n\n📝 Reviewer corrections: {'; '.join(reviewer_result.revision_notes)}"
 
     # =========================================================================
     # ACTION_INTENT -- mode gating
@@ -140,7 +140,7 @@ def decide(
             display = explanation or response or "I can help with that!"
             return GovernorResult(
                 outcome="ANSWER",
-                response=display + "\n\nÃ°Å¸â€™Â¡ _File actions are available in PRO mode. Use `/mode pro` to enable edits._",
+                response=display + "\n\n💡 _File actions are available in PRO mode. Use `/mode pro` to enable edits._",
                 explanation="Safe mode: response shown, file actions suppressed.",
                 reviewer_decision=decision,
                 revision_notes=reviewer_result.revision_notes if decision == "REVISE_AND_APPROVE" else [],

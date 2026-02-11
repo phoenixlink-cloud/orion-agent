@@ -185,7 +185,7 @@ class DiscordBridge(MessagingBridge):
                 except Exception:
                     pass
                 await interaction.response.edit_message(
-                    content=f"âš ï¸ AEGIS APPROVAL\n\n{prompt}\n\nâœ… Approved by {interaction.user}",
+                    content=f"⚠️ AEGIS APPROVAL\n\n{prompt}\n\n✅ Approved by {interaction.user}",
                     view=None,
                 )
 
@@ -200,7 +200,7 @@ class DiscordBridge(MessagingBridge):
                 except Exception:
                     pass
                 await interaction.response.edit_message(
-                    content=f"âš ï¸ AEGIS APPROVAL\n\n{prompt}\n\nâŒ Denied by {interaction.user}",
+                    content=f"⚠️ AEGIS APPROVAL\n\n{prompt}\n\n❌ Denied by {interaction.user}",
                     view=None,
                 )
 
@@ -210,8 +210,8 @@ class DiscordBridge(MessagingBridge):
             view.add_item(deny_btn)
 
             await channel.send(
-                f"âš ï¸ **AEGIS APPROVAL REQUIRED**\n\n{prompt}",
+                f"⚠️ **AEGIS APPROVAL REQUIRED**\n\n{prompt}",
                 view=view,
             )
         except Exception:
-            await self.send(chat_id, f"âš ï¸ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")
+            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")

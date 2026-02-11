@@ -76,9 +76,9 @@ class OrionConsole:
 
     def print_help(self):
         print("""
-  Ã¢â€¢Â­Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€¢Â®
-  Ã¢â€â€š          Orion -- Command Reference           Ã¢â€â€š
-  Ã¢â€¢Â°Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€¢Â¯
+  ╭─────────────────────────────────────────────╮
+  │          Orion -- Command Reference           │
+  ╰─────────────────────────────────────────────╯
 
   GETTING STARTED
     Just type a question or request in plain English.
@@ -171,16 +171,16 @@ class OrionConsole:
         This is the ONLY code path that can approve write actions in CLI mode.
         """
         print("\n" + "=" * 60)
-        print("  Ã¢Å¡Â   AEGIS APPROVAL REQUIRED")
+        print("  ⚠  AEGIS APPROVAL REQUIRED")
         print("=" * 60)
         print(f"\n{prompt}")
         print("=" * 60)
         resp = input("\n  Approve this action? [y/N]: ").strip().lower()
         approved = resp in ("y", "yes")
         if approved:
-            print("  [AEGIS] Ã¢Å“â€œ Action APPROVED by human")
+            print("  [AEGIS] ✓ Action APPROVED by human")
         else:
-            print("  [AEGIS] Ã¢Å“â€” Action DENIED")
+            print("  [AEGIS] ✗ Action DENIED")
         return approved
 
     def _print(self, text: str, **kwargs):

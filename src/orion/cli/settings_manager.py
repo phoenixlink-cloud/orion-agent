@@ -234,7 +234,7 @@ async def run_settings(console=None, action: str = "view") -> Dict[str, Any]:
 
     # View mode -- display all settings grouped by category
     _print("\n  Orion Settings\n", "bold cyan")
-    _print("  " + "Ã¢â€â‚¬" * 50)
+    _print("  " + "─" * 50)
 
     for category, category_settings in SETTING_CATEGORIES.items():
         _print(f"\n  [{category}]", "bold")
@@ -264,7 +264,7 @@ async def run_settings(console=None, action: str = "view") -> Dict[str, Any]:
             if os.environ.get(env):
                 _print(f"    {name}: configured (environment)")
 
-    _print("\n  " + "Ã¢â€â‚¬" * 50)
+    _print("\n  " + "─" * 50)
     _print("  Tip: Edit settings in the Web UI or modify ~/.orion/settings.json\n", "dim")
 
     return settings

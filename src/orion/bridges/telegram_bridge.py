@@ -107,7 +107,7 @@ class TelegramBridge(MessagingBridge):
                     except Exception:
                         pass
 
-                    result = "âœ… Approved" if approved else "âŒ Denied"
+                    result = "✅ Approved" if approved else "❌ Denied"
                     await query.edit_message_text(
                         f"{query.message.text}\n\n{result} by {update.effective_user.full_name}"
                     )
@@ -171,17 +171,17 @@ class TelegramBridge(MessagingBridge):
 
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("âœ… Approve", callback_data=f"aegis_approve:{approval_id}"),
-                    InlineKeyboardButton("âŒ Deny", callback_data=f"aegis_deny:{approval_id}"),
+                    InlineKeyboardButton("✅ Approve", callback_data=f"aegis_approve:{approval_id}"),
+                    InlineKeyboardButton("❌ Deny", callback_data=f"aegis_deny:{approval_id}"),
                 ]
             ])
 
             await self._app.bot.send_message(
                 chat_id=int(chat_id),
-                text=f"âš ï¸ *AEGIS APPROVAL REQUIRED*\n\n{prompt}\n\nThis action requires your approval.",
+                text=f"⚠️ *AEGIS APPROVAL REQUIRED*\n\n{prompt}\n\nThis action requires your approval.",
                 reply_markup=keyboard,
                 parse_mode="Markdown",
             )
         except Exception as e:
             # Fallback without buttons
-            await self.send(chat_id, f"âš ï¸ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")
+            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")

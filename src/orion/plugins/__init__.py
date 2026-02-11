@@ -18,7 +18,7 @@
 Orion Agent -- Plugin System
 
 Re-exports everything from orion.plugins.api so that both import paths
-(``from orion.plugins import â€¦`` and ``from orion.plugins.api import â€¦``)
+(``from orion.plugins import …`` and ``from orion.plugins.api import …``)
 resolve to the **same** classes, singletons, and factory functions.
 """
 
