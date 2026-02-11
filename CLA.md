@@ -125,15 +125,15 @@ By signing below, you accept and agree to the terms of this Contributor License 
 1. Print or copy this agreement
 2. Fill in your information
 3. Sign (electronic signature acceptable)
-4. Email to **cla@phoenixlink.co.za**
+4. Email to **info@phoenixlink.co.za**
 
-For questions about this agreement, contact **legal@phoenixlink.co.za**.
+For questions about this agreement, contact **info@phoenixlink.co.za**.
 
 ---
 
 ## Corporate Contributor License Agreement
 
-If you are making Contributions as part of your work for an employer, your employer must sign a Corporate CLA. Contact **cla@phoenixlink.co.za** to request the Corporate CLA document.
+If you are making Contributions as part of your work for an employer, your employer must sign a Corporate CLA. Contact **info@phoenixlink.co.za** to request the Corporate CLA document.
 
 ---
 

@@ -54,6 +54,6 @@ Public roadmap for Orion Agent development.
 
 ---
 
-Have suggestions for the roadmap? Open an issue or contact partnerships@phoenixlink.co.za
+Have suggestions for the roadmap? Open an issue or contact info@phoenixlink.co.za
 
 *This roadmap is subject to change based on community feedback and priorities.*

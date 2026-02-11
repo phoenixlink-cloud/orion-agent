@@ -43,7 +43,7 @@ pip install orion-agent[dev]        # Development dependencies
 
 ```bash
 # Clone the repository
-git clone https://github.com/phoenix-link/orion-agent.git
+git clone https://github.com/phoenixlink-cloud/orion-agent.git
 cd orion-agent
 
 # Create virtual environment

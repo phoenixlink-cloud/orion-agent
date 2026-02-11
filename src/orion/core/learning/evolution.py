@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Continuous Learning & Evolution Engine (v6.4.0)
+Orion Agent -- Continuous Learning & Evolution Engine (v7.4.0)
 
 Orion's self-improvement system. Tracks performance over time,
 identifies strengths and weaknesses, and generates actionable

@@ -163,7 +163,7 @@ Simply set a new key -- the old one is overwritten:
 
 **Do not report security vulnerabilities through public GitHub issues.**
 
-Report via email: **security@phoenixlink.co.za**
+Report via email: **info@phoenixlink.co.za**
 
 Include:
 - Description of the vulnerability

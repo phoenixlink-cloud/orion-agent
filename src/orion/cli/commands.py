@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- CLI Slash Command Handler (v6.4.0)
+Orion Agent -- CLI Slash Command Handler (v7.4.0)
 
 Handles all /slash commands: /workspace, /add, /drop, /clear, /undo,
 /diff, /commit, /map, /mode, /status, /help, /settings, /tasks, /task.
@@ -268,7 +268,7 @@ def _handle_undo(parts, console, workspace_path, change_history):
             if history:
                 console.print_info("Edit history:")
                 for entry in history[:15]:
-                    icon = {"savepoint": "●", "edit": "✎", "user": "○"}.get(entry["type"], "?")
+                    icon = {"savepoint": "Ã¢â€”Â", "edit": "Ã¢Å“Å½", "user": "Ã¢â€”â€¹"}.get(entry["type"], "?")
                     console._print(f"  {icon} {entry['hash']} {entry['message']}")
             else:
                 console.print_info("No edit history")
@@ -396,7 +396,7 @@ def _handle_connect(parts, console):
             from orion.integrations.platforms import get_platform_registry
             registry = get_platform_registry()
             for p in registry.list_all():
-                status = "✓" if p.connected else "·"
+                status = "Ã¢Å“â€œ" if p.connected else "Ã‚Â·"
                 console._print(f"  {status} {p.id:<15} {p.name} ({p.auth_method.value})")
         except Exception:
             pass
@@ -490,7 +490,7 @@ def _handle_key(parts, console):
             if providers:
                 console.print_info("Configured API keys:")
                 for p in providers:
-                    console._print(f"  ✓ {p}")
+                    console._print(f"  Ã¢Å“â€œ {p}")
             else:
                 console.print_info("No API keys stored")
         except Exception as e:
@@ -598,7 +598,7 @@ def _handle_bridge(parts, console):
             else:
                 console.print_info("Messaging Bridges:")
                 for name, info in status.items():
-                    state = "🟢 running" if info["running"] else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
+                    state = "Ã°Å¸Å¸Â¢ running" if info["running"] else ("Ã°Å¸Å¸Â¡ enabled" if info["enabled"] else "Ã¢Å¡Â« disabled")
                     console._print(f"  {name}: {state} | {info['authorized_users']} users | {info['total_requests']} requests")
             return {}
 
@@ -615,10 +615,10 @@ def _handle_bridge(parts, console):
                 return {}
             manager = get_bridge_manager()
             passphrase = manager.enable(platform, token)
-            console.print_info(f"✅ {platform.title()} bridge enabled!")
-            console.print_info(f"🔑 Auth passphrase: {passphrase}")
+            console.print_info(f"Ã¢Å“â€¦ {platform.title()} bridge enabled!")
+            console.print_info(f"Ã°Å¸â€â€˜ Auth passphrase: {passphrase}")
             console.print_info(f"Send this passphrase to your {platform.title()} bot to authenticate.")
-            console.print_info("⚠️  Keep this passphrase secret -- it controls access to Orion.")
+            console.print_info("Ã¢Å¡Â Ã¯Â¸Â  Keep this passphrase secret -- it controls access to Orion.")
 
         elif subcmd == "disable":
             if len(parts) < 3:
@@ -627,7 +627,7 @@ def _handle_bridge(parts, console):
             platform = parts[2].lower()
             manager = get_bridge_manager()
             if manager.disable(platform):
-                console.print_info(f"⚫ {platform.title()} bridge disabled.")
+                console.print_info(f"Ã¢Å¡Â« {platform.title()} bridge disabled.")
             else:
                 console.print_error(f"No {platform} bridge found.")
 
@@ -638,7 +638,7 @@ def _handle_bridge(parts, console):
                 console.print_info("No bridges configured.")
             else:
                 for name, info in status.items():
-                    state = "🟢 running" if info["running"] else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
+                    state = "Ã°Å¸Å¸Â¢ running" if info["running"] else ("Ã°Å¸Å¸Â¡ enabled" if info["enabled"] else "Ã¢Å¡Â« disabled")
                     console._print(f"\n  [{name.upper()}] {state}")
                     console._print(f"    Authorized users: {info['authorized_users']}")
                     console._print(f"    Total requests:   {info['total_requests']}")
@@ -653,7 +653,7 @@ def _handle_bridge(parts, console):
             user_id = parts[3]
             manager = get_bridge_manager()
             if manager.revoke(platform, user_id):
-                console.print_info(f"🔒 Revoked access for user {user_id} on {platform}.")
+                console.print_info(f"Ã°Å¸â€â€™ Revoked access for user {user_id} on {platform}.")
             else:
                 console.print_error(f"User {user_id} not found on {platform}.")
 

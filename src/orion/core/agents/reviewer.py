@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Reviewer (v6.4.0)
+Orion Agent -- Reviewer (v7.4.0)
 
 Reviews Builder proposals for correctness, safety, and quality.
 Migrated from Orion_MVP/core/llm_calls.py (call_claude_reviewer).

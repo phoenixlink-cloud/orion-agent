@@ -61,13 +61,13 @@ Pull requests from contributors without a signed CLA **will not be merged**. Thi
 
 ### How to Sign the CLA
 
-1. Before your first contribution, email **cla@phoenixlink.co.za**
+1. Before your first contribution, email **info@phoenixlink.co.za**
 2. Include your GitHub username and a brief description of your intended contribution
 3. We'll send you the CLA document within 48 hours
 4. Sign electronically and return
 5. You're cleared to contribute -- we'll note your GitHub username as approved
 
-For contributions made on behalf of an employer, a **Corporate CLA** is required. Contact cla@phoenixlink.co.za for the corporate agreement.
+For contributions made on behalf of an employer, a **Corporate CLA** is required. Contact info@phoenixlink.co.za for the corporate agreement.
 
 ## Contributor Rights -- Clear Summary
 
@@ -104,7 +104,7 @@ We want contributors to understand exactly what they're agreeing to:
 
 ### Want More Than Contributor Status?
 
-If you're planning significant work and want a commercial arrangement (revenue share, bounty, contract), contact **partnerships@phoenixlink.co.za** **before** submitting code. We're open to fair arrangements for major contributions.
+If you're planning significant work and want a commercial arrangement (revenue share, bounty, contract), contact **info@phoenixlink.co.za** **before** submitting code. We're open to fair arrangements for major contributions.
 
 ## Trademark
 
@@ -116,8 +116,6 @@ If you're planning significant work and want a commercial arrangement (revenue s
 
 | Purpose | Contact |
 |---------|---------|
-| Legal inquiries | legal@phoenixlink.co.za |
-| CLA signing | cla@phoenixlink.co.za |
-| Commercial licensing | licensing@phoenixlink.co.za |
 | General inquiries | info@phoenixlink.co.za |
+| Technical support | support@phoenixlink.co.za |
 | Website | https://phoenixlink.co.za |

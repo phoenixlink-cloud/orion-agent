@@ -12,7 +12,7 @@ All contributors must sign a CLA before any code can be merged. **No exceptions.
 
 **To sign the CLA:**
 
-1. Email **cla@phoenixlink.co.za** with:
+1. Email **info@phoenixlink.co.za** with:
    - Your GitHub username
    - Your full legal name
    - Brief description of your intended contribution (optional)
@@ -21,7 +21,7 @@ All contributors must sign a CLA before any code can be merged. **No exceptions.
 4. We'll confirm your GitHub username is approved
 5. You're cleared to contribute!
 
-**For corporate contributions** (work done as part of your employment): A Corporate CLA is required. Your employer must sign. Contact cla@phoenixlink.co.za.
+**For corporate contributions** (work done as part of your employment): A Corporate CLA is required. Your employer must sign. Contact info@phoenixlink.co.za.
 
 See [CLA.md](./CLA.md) for the full agreement text.
 
@@ -74,11 +74,11 @@ We believe contributors who add significant value should benefit. Phoenix Link o
 
 ### Bounty Program
 
-For specific features on our roadmap, we may offer bounties. Check [GitHub Issues](https://github.com/phoenix-link/orion-agent/labels/bounty) for bounty-tagged issues.
+For specific features on our roadmap, we may offer bounties. Check [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/labels/bounty) for bounty-tagged issues.
 
 ### Revenue Sharing
 
-For major features that drive commercial sales, we're open to revenue-sharing arrangements. Contact **partnerships@phoenixlink.co.za** to discuss:
+For major features that drive commercial sales, we're open to revenue-sharing arrangements. Contact **info@phoenixlink.co.za** to discuss:
 - Significant new integrations (new LLM providers, enterprise connectors)
 - Major subsystems (new agent types, specialized workflows)
 - Industry-specific adaptations
@@ -97,7 +97,7 @@ Built something that complements Orion? We may be interested in:
 - Licensing it for inclusion in Orion
 - Joint development partnerships
 
-**Contact:** partnerships@phoenixlink.co.za
+**Contact:** info@phoenixlink.co.za
 
 ---
 
@@ -120,7 +120,7 @@ For significant work, please discuss with maintainers before investing time. We 
 ## Development Setup
 ```bash
 # Clone the repository
-git clone https://github.com/phoenix-link/orion-agent.git
+git clone https://github.com/phoenixlink-cloud/orion-agent.git
 cd orion-agent
 
 # Install in development mode with all dependencies
@@ -192,10 +192,8 @@ Your contribution becomes part of Orion Agent under the project's dual-licensing
 | Topic | Contact |
 |-------|---------|
 | Technical questions | GitHub Issues |
-| CLA questions | cla@phoenixlink.co.za |
-| Partnership/commercial opportunities | partnerships@phoenixlink.co.za |
-| Legal questions | legal@phoenixlink.co.za |
-| General contribution questions | contribute@phoenixlink.co.za |
+| CLA, licensing, partnerships | info@phoenixlink.co.za |
+| Technical support | support@phoenixlink.co.za |
 
 ---
 

@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Interactive REPL (v6.4.0)
+Orion Agent -- Interactive REPL (v7.4.0)
 
 Main entry point workflow:
     USER REQUEST
@@ -40,13 +40,15 @@ import sys
 import asyncio
 from typing import Optional, List
 
+from orion._version import __version__
+
 
 class OrionConsole:
     """Minimal console for the REPL. Provides print helpers."""
 
     def print_banner(self):
         print("\n" + "=" * 60)
-        print("  ORION AGENT v6.4.0")
+        print(f"  ORION AGENT v{__version__}")
         print("  Type /help for commands, /quit to exit")
         print("=" * 60 + "\n")
 
@@ -74,9 +76,9 @@ class OrionConsole:
 
     def print_help(self):
         print("""
-  ╭─────────────────────────────────────────────╮
-  │          Orion -- Command Reference           │
-  ╰─────────────────────────────────────────────╯
+  Ã¢â€¢Â­Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€¢Â®
+  Ã¢â€â€š          Orion -- Command Reference           Ã¢â€â€š
+  Ã¢â€¢Â°Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€¢Â¯
 
   GETTING STARTED
     Just type a question or request in plain English.
@@ -169,16 +171,16 @@ class OrionConsole:
         This is the ONLY code path that can approve write actions in CLI mode.
         """
         print("\n" + "=" * 60)
-        print("  ⚠  AEGIS APPROVAL REQUIRED")
+        print("  Ã¢Å¡Â   AEGIS APPROVAL REQUIRED")
         print("=" * 60)
         print(f"\n{prompt}")
         print("=" * 60)
         resp = input("\n  Approve this action? [y/N]: ").strip().lower()
         approved = resp in ("y", "yes")
         if approved:
-            print("  [AEGIS] ✓ Action APPROVED by human")
+            print("  [AEGIS] Ã¢Å“â€œ Action APPROVED by human")
         else:
-            print("  [AEGIS] ✗ Action DENIED")
+            print("  [AEGIS] Ã¢Å“â€” Action DENIED")
         return approved
 
     def _print(self, text: str, **kwargs):

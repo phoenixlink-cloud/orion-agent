@@ -24,7 +24,7 @@ We pledge to make participation in Orion a harassment-free experience for everyo
 
 Instances of unacceptable behavior may be reported to:
 
-**conduct@phoenixlink.co.za**
+**info@phoenixlink.co.za**
 
 All complaints will be reviewed and investigated. Maintainers who do not follow the Code of Conduct may be removed from the project.
 

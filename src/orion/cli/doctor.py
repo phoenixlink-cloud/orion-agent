@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- /doctor Diagnostic Module (v6.4.0)
+Orion Agent -- /doctor Diagnostic Module (v7.4.0)
 
 Enterprise-grade system health check that validates:
   1. Python environment & dependencies
@@ -27,7 +27,7 @@ Enterprise-grade system health check that validates:
   7. Integration registry status
 
 Follows the `brew doctor` / `flutter doctor` pattern:
-  - Each check returns ✓ (pass), ⚠ (warning), or ✗ (fail)
+  - Each check returns Ã¢Å“â€œ (pass), Ã¢Å¡Â  (warning), or Ã¢Å“â€” (fail)
   - Actionable remediation steps for each failure
   - Summary with overall health score
 
@@ -57,7 +57,7 @@ class CheckResult:
 
     @property
     def icon(self) -> str:
-        return {"pass": "✓", "warn": "⚠", "fail": "✗"}.get(self.status, "?")
+        return {"pass": "Ã¢Å“â€œ", "warn": "Ã¢Å¡Â ", "fail": "Ã¢Å“â€”"}.get(self.status, "?")
 
     @property
     def color(self) -> str:
@@ -105,7 +105,7 @@ def check_python_environment() -> CheckResult:
         return CheckResult(
             name="Python Environment",
             status="fail",
-            message=f"Python {py_version.major}.{py_version.minor} -- requires ≥3.10",
+            message=f"Python {py_version.major}.{py_version.minor} -- requires Ã¢â€°Â¥3.10",
             remedy="Install Python 3.10+: https://python.org/downloads",
             details=details,
         )
@@ -332,7 +332,7 @@ def check_api_keys() -> CheckResult:
 
 async def check_api_server() -> CheckResult:
     """Check if the API server is running."""
-    api_url = os.environ.get("ORION_API_URL", "http://localhost:8000")
+    api_url = os.environ.get("ORION_API_URL", "http://localhost:8001")
     details = [f"URL: {api_url}"]
 
     try:
@@ -469,7 +469,7 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
             print(text)
 
     _print("\n  Orion Doctor -- System Health Check\n", "bold cyan")
-    _print("  " + "─" * 50)
+    _print("  " + "Ã¢â€â‚¬" * 50)
 
     # Sync checks
     sync_checks = [
@@ -504,13 +504,13 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
 
         if check.details:
             for detail in check.details:
-                _print(f"    · {detail}", "dim")
+                _print(f"    Ã‚Â· {detail}", "dim")
 
         if check.remedy:
             _print(f"    -> {check.remedy}", "yellow")
 
     # Summary
-    _print("\n  " + "─" * 50)
+    _print("\n  " + "Ã¢â€â‚¬" * 50)
     summary = (
         f"  {report.passed} passed, "
         f"{report.warnings} warnings, "

@@ -285,7 +285,7 @@ logging:
 If your issue isn't listed here:
 
 1. Check the [FAQ](FAQ.md)
-2. Search [GitHub Issues](https://github.com/phoenix-link/orion-agent/issues)
+2. Search [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues)
 3. Open a new issue with:
    - Orion version (`orion --version`)
    - OS and Python version

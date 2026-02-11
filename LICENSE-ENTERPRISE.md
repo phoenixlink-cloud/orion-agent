@@ -54,10 +54,10 @@ For organizations that cannot comply with AGPL-3.0 requirements, Phoenix Link of
 
 | Tier | Use Case | Contact |
 |------|----------|---------|
-| Startup | Early-stage companies, <$1M ARR | licensing@phoenixlink.co.za |
-| Business | Mid-market, standard commercial use | licensing@phoenixlink.co.za |
-| Enterprise | Large organizations, custom terms, SLAs | licensing@phoenixlink.co.za |
-| OEM | Embedding in products for redistribution | licensing@phoenixlink.co.za |
+| Startup | Early-stage companies, <$1M ARR | info@phoenixlink.co.za |
+| Business | Mid-market, standard commercial use | info@phoenixlink.co.za |
+| Enterprise | Large organizations, custom terms, SLAs | info@phoenixlink.co.za |
+| OEM | Embedding in products for redistribution | info@phoenixlink.co.za |
 
 ## Frequently Asked Questions
 
@@ -81,7 +81,7 @@ For organizations that cannot comply with AGPL-3.0 requirements, Phoenix Link of
 
 ### What if I'm not sure which license I need?
 
-Contact us at licensing@phoenixlink.co.za. We're happy to discuss your use case and recommend the appropriate license.
+Contact us at info@phoenixlink.co.za. We're happy to discuss your use case and recommend the appropriate license.
 
 ## Contributing
 
@@ -91,6 +91,6 @@ All contributions to Orion Agent require a signed Contributor License Agreement 
 
 **Phoenix Link (Pty) Ltd**
 
-- **Commercial Licensing:** licensing@phoenixlink.co.za
-- **Legal Questions:** legal@phoenixlink.co.za
+- **Commercial Licensing:** info@phoenixlink.co.za
+- **Technical Support:** support@phoenixlink.co.za
 - **Website:** https://phoenixlink.co.za

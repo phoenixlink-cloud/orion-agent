@@ -20,7 +20,7 @@ Thank you to everyone who has financially supported the development of Orion Age
 
 ---
 
-Want to be listed here? After making a contribution, email funding@phoenixlink.co.za with:
+Want to be listed here? After making a contribution, email info@phoenixlink.co.za with:
 - Your name (or GitHub username)
 - Contribution tier
 - Whether you'd like to be listed

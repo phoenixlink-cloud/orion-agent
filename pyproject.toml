@@ -10,10 +10,10 @@ readme = "README.md"
 license = "AGPL-3.0-or-later"
 requires-python = ">=3.10"
 authors = [
-    {name = "Phoenix Link (Pty) Ltd", email = "dev@phoenixlink.co.za"}
+    {name = "Phoenix Link (Pty) Ltd", email = "info@phoenixlink.co.za"}
 ]
 maintainers = [
-    {name = "Phoenix Link (Pty) Ltd", email = "dev@phoenixlink.co.za"}
+    {name = "Phoenix Link (Pty) Ltd", email = "info@phoenixlink.co.za"}
 ]
 keywords = ["ai", "coding-assistant", "multi-agent", "llm", "automation"]
 classifiers = [
@@ -89,8 +89,8 @@ orion = "orion.cli.app:main"
 [project.urls]
 Homepage = "https://phoenixlink.co.za/orion"
 Documentation = "https://docs.phoenixlink.co.za/orion"
-Repository = "https://github.com/phoenix-link/orion-agent"
-Issues = "https://github.com/phoenix-link/orion-agent/issues"
+Repository = "https://github.com/phoenixlink-cloud/orion-agent"
+Issues = "https://github.com/phoenixlink-cloud/orion-agent/issues"
 "Commercial Licensing" = "https://phoenixlink.co.za/orion/licensing"
 
 [tool.hatch.build.targets.wheel]

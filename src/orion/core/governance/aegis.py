@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
@@ -319,24 +319,24 @@ def _is_path_confined(path: str, workspace_path: str) -> bool:
       1. Case-insensitive filesystems (Windows)
       2. String-prefix false positives  (/workspace vs /workspace-evil)
       3. Null-byte injection
-      4. Windows reserved device names  (CON, NUL, AUX …)
+      4. Windows reserved device names  (CON, NUL, AUX â€¦)
       5. NTFS Alternate Data Streams    (file.txt:hidden)
       6. Symlink / junction traversal   (resolved before comparison)
     """
     if not workspace_path or not path:
         return False
 
-    # ── 3. Null-byte injection ────────────────────────────────────────
+    # â”€â”€ 3. Null-byte injection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if "\x00" in path or "\x00" in workspace_path:
         return False
 
-    # ── 5. NTFS Alternate Data Streams ────────────────────────────────
+    # â”€â”€ 5. NTFS Alternate Data Streams â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if ":" in path.replace("\\", "/").split("/", 1)[-1]:
-        # Allow drive letter colon (C:\…) but reject ADS colons in
+        # Allow drive letter colon (C:\â€¦) but reject ADS colons in
         # any path *component* after an optional drive prefix.
         return False
 
-    # ── 4. Windows reserved device names ──────────────────────────────
+    # â”€â”€ 4. Windows reserved device names â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     for part in Path(path).parts:
         stem = part.split(".")[0].upper()
         if stem in _WIN_RESERVED_NAMES:
@@ -348,7 +348,7 @@ def _is_path_confined(path: str, workspace_path: str) -> bool:
         workspace = Path(workspace_path).resolve()
         target = (workspace / path).resolve()
 
-        # ── 1 + 2. Use os.path.normcase (lowercases on Windows,
+        # â”€â”€ 1 + 2. Use os.path.normcase (lowercases on Windows,
         #     no-op elsewhere) then Path.relative_to() which is immune
         #     to the /workspace vs /workspace-evil prefix bug.
         norm_workspace = Path(os.path.normcase(str(workspace)))

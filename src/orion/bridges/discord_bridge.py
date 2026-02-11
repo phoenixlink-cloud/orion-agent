@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
@@ -179,13 +179,13 @@ class DiscordBridge(MessagingBridge):
                     import httpx
                     async with httpx.AsyncClient() as client:
                         await client.post(
-                            f"http://localhost:8000/api/aegis/respond/{approval_id}",
+                            f"http://localhost:8001/api/aegis/respond/{approval_id}",
                             json={"approved": True}, timeout=10,
                         )
                 except Exception:
                     pass
                 await interaction.response.edit_message(
-                    content=f"⚠️ AEGIS APPROVAL\n\n{prompt}\n\n✅ Approved by {interaction.user}",
+                    content=f"âš ï¸ AEGIS APPROVAL\n\n{prompt}\n\nâœ… Approved by {interaction.user}",
                     view=None,
                 )
 
@@ -194,13 +194,13 @@ class DiscordBridge(MessagingBridge):
                     import httpx
                     async with httpx.AsyncClient() as client:
                         await client.post(
-                            f"http://localhost:8000/api/aegis/respond/{approval_id}",
+                            f"http://localhost:8001/api/aegis/respond/{approval_id}",
                             json={"approved": False}, timeout=10,
                         )
                 except Exception:
                     pass
                 await interaction.response.edit_message(
-                    content=f"⚠️ AEGIS APPROVAL\n\n{prompt}\n\n❌ Denied by {interaction.user}",
+                    content=f"âš ï¸ AEGIS APPROVAL\n\n{prompt}\n\nâŒ Denied by {interaction.user}",
                     view=None,
                 )
 
@@ -210,8 +210,8 @@ class DiscordBridge(MessagingBridge):
             view.add_item(deny_btn)
 
             await channel.send(
-                f"⚠️ **AEGIS APPROVAL REQUIRED**\n\n{prompt}",
+                f"âš ï¸ **AEGIS APPROVAL REQUIRED**\n\n{prompt}",
                 view=view,
             )
         except Exception:
-            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")
+            await self.send(chat_id, f"âš ï¸ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")

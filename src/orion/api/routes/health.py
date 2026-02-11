@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- Health & Runtime Routes."""
@@ -48,9 +48,9 @@ async def get_runtime_info():
         except Exception:
             pass
     return {
-        "api_port": 8000,
+        "api_port": 8001,
         "web_port": 3001,
-        "api_url": "http://localhost:8000",
+        "api_url": "http://localhost:8001",
         "web_url": "http://localhost:3001",
         "version": __version__,
     }

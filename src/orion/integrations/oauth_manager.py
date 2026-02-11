@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
@@ -61,7 +61,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "userinfo_url": "https://www.googleapis.com/oauth2/v2/userinfo",
         "scopes": ["openid", "profile", "email"],
         "supports_pkce": True,
-        "icon": "🔵",
+        "icon": "ðŸ”µ",
     },
     "microsoft": {
         "name": "Microsoft",
@@ -72,7 +72,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "userinfo_url": "https://graph.microsoft.com/v1.0/me",
         "scopes": ["openid", "profile", "User.Read"],
         "supports_pkce": True,
-        "icon": "🟦",
+        "icon": "ðŸŸ¦",
     },
 }
 
@@ -417,7 +417,7 @@ def get_provider_status() -> Dict[str, Any]:
         result[pid] = {
             "name": prov["name"],
             "description": prov["description"],
-            "icon": prov.get("icon", "🔌"),
+            "icon": prov.get("icon", "ðŸ”Œ"),
             "auth_type": prov["auth_type"],
             "connected": bool(connected),
             "connected_at": stored.get(pid, {}).get("connected_at"),

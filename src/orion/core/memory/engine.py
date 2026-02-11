@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Three-Tier Memory Engine (v6.4.0)
+Orion Agent -- Three-Tier Memory Engine (v7.4.0)
 
 Orion's competitive moat: a unified, persistent memory system that learns
 and evolves with every interaction. No other AI coding tool has this.

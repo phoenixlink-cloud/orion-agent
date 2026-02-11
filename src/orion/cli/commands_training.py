@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
@@ -130,7 +130,7 @@ async def _handle_load(args, workspace, memory_engine, console):
         source_str = ", ".join(source_files) if source_files else "none"
 
         console.print(
-            f"[green]✅ Loaded curriculum: {curriculum.get('description', domain)}[/green]\n"
+            f"[green]âœ… Loaded curriculum: {curriculum.get('description', domain)}[/green]\n"
             f"   Domain: {domain}\n"
             f"   Prompts: {state.total_prompts}\n"
             f"   Difficulty: {diff_str}\n"
@@ -138,9 +138,9 @@ async def _handle_load(args, workspace, memory_engine, console):
         )
 
     except FileNotFoundError as e:
-        console.print(f"[red]❌ {e}[/red]")
+        console.print(f"[red]âŒ {e}[/red]")
     except Exception as e:
-        console.print(f"[red]❌ Failed to load curriculum: {e}[/red]")
+        console.print(f"[red]âŒ Failed to load curriculum: {e}[/red]")
 
 
 async def _handle_run(args, workspace, memory_engine, console):
@@ -168,11 +168,11 @@ async def _handle_run(args, workspace, memory_engine, console):
         if state_dir.exists():
             engine.load_curriculum(domain, str(state_dir))
         else:
-            console.print(f"[red]❌ Domain '{domain}' not loaded. Use /train load first.[/red]")
+            console.print(f"[red]âŒ Domain '{domain}' not loaded. Use /train load first.[/red]")
             return
 
         start = time.time()
-        console.print(f"[bold]🎓 Training cycle: {domain}[/bold]")
+        console.print(f"[bold]ðŸŽ“ Training cycle: {domain}[/bold]")
 
         result = await engine.run_training_cycle(domain, prompt_id)
         elapsed = time.time() - start
@@ -181,18 +181,18 @@ async def _handle_run(args, workspace, memory_engine, console):
         avg_pct = (state.current_avg_score * 100) if state else 0
 
         console.print(
-            f"   ├── Prompt: {result.prompt_id} (cycle {result.cycle_number})\n"
-            f"   ├── Quality score: {result.quality_score}/5\n"
-            f"   ├── Similarity: {result.similarity_score:.2f}\n"
-            f"   ├── Missing: {result.missing_concepts if result.missing_concepts else 'none'}\n"
-            f"   ├── Patterns created: {len(result.patterns_created)}\n"
-            f"   ├── Time: {elapsed:.1f}s\n"
-            f"   └── Domain score: {avg_pct:.0f}% "
+            f"   â”œâ”€â”€ Prompt: {result.prompt_id} (cycle {result.cycle_number})\n"
+            f"   â”œâ”€â”€ Quality score: {result.quality_score}/5\n"
+            f"   â”œâ”€â”€ Similarity: {result.similarity_score:.2f}\n"
+            f"   â”œâ”€â”€ Missing: {result.missing_concepts if result.missing_concepts else 'none'}\n"
+            f"   â”œâ”€â”€ Patterns created: {len(result.patterns_created)}\n"
+            f"   â”œâ”€â”€ Time: {elapsed:.1f}s\n"
+            f"   â””â”€â”€ Domain score: {avg_pct:.0f}% "
             f"(graduation at {state.graduation_threshold * 100:.0f}%)"
         )
 
     except Exception as e:
-        console.print(f"[red]❌ Training failed: {e}[/red]")
+        console.print(f"[red]âŒ Training failed: {e}[/red]")
 
 
 async def _handle_auto(args, workspace, memory_engine, console):
@@ -228,11 +228,11 @@ async def _handle_auto(args, workspace, memory_engine, console):
         if state_dir.exists():
             engine.load_curriculum(domain, str(state_dir))
         else:
-            console.print(f"[red]❌ Domain '{domain}' not loaded. Use /train load first.[/red]")
+            console.print(f"[red]âŒ Domain '{domain}' not loaded. Use /train load first.[/red]")
             return
 
         start = time.time()
-        console.print(f"[bold]🎓 Auto-training: {domain}[/bold]")
+        console.print(f"[bold]ðŸŽ“ Auto-training: {domain}[/bold]")
 
         results = await engine.run_full_curriculum(domain, max_cycles=max_cycles)
         elapsed = time.time() - start
@@ -240,7 +240,7 @@ async def _handle_auto(args, workspace, memory_engine, console):
         state = engine.get_domain_status(domain)
         total_patterns = sum(len(r.patterns_created) for r in results)
 
-        status_emoji = "✅" if state and state.status == "graduated" else "🔄"
+        status_emoji = "âœ…" if state and state.status == "graduated" else "ðŸ”„"
         status_text = state.status if state else "unknown"
         avg_pct = (state.current_avg_score * 100) if state else 0
 
@@ -253,7 +253,7 @@ async def _handle_auto(args, workspace, memory_engine, console):
         )
 
     except Exception as e:
-        console.print(f"[red]❌ Auto-training failed: {e}[/red]")
+        console.print(f"[red]âŒ Auto-training failed: {e}[/red]")
 
 
 async def _handle_status(args, workspace, memory_engine, console):
@@ -274,7 +274,7 @@ async def _handle_status(args, workspace, memory_engine, console):
             state = engine.get_domain_status(domain)
             if state:
                 console.print(
-                    f"[bold]🎓 Training Status: {domain}[/bold]\n"
+                    f"[bold]ðŸŽ“ Training Status: {domain}[/bold]\n"
                     f"   Status: {state.status}\n"
                     f"   Prompts: {state.total_prompts}\n"
                     f"   Cycles: {state.completed_cycles}\n"
@@ -291,7 +291,7 @@ async def _handle_status(args, workspace, memory_engine, console):
                 console.print("[yellow]No training domains found. Use /train load to start.[/yellow]")
                 return
 
-            console.print("[bold]🎓 Training Status[/bold]")
+            console.print("[bold]ðŸŽ“ Training Status[/bold]")
             for s in states:
                 status = s.status.upper() if isinstance(s.status, str) else s.status
                 avg = f"{s.current_avg_score * 100:.0f}%" if s.current_avg_score else "--"
@@ -300,7 +300,7 @@ async def _handle_status(args, workspace, memory_engine, console):
                 )
 
     except Exception as e:
-        console.print(f"[red]❌ Status check failed: {e}[/red]")
+        console.print(f"[red]âŒ Status check failed: {e}[/red]")
 
 
 async def _handle_export(args, workspace, memory_engine, console):
@@ -341,7 +341,7 @@ async def _handle_export(args, workspace, memory_engine, console):
         size_kb = pack_file.stat().st_size / 1024 if pack_file.exists() else 0
 
         console.print(
-            f"[green]📦 Exported: {pack.name} v{version}[/green]\n"
+            f"[green]ðŸ“¦ Exported: {pack.name} v{version}[/green]\n"
             f"   File: {pack_file}\n"
             f"   Patterns: {pack.pattern_count} success + {pack.anti_pattern_count} anti-patterns\n"
             f"   Checksum: {pack.checksum[:40]}...\n"
@@ -349,7 +349,7 @@ async def _handle_export(args, workspace, memory_engine, console):
         )
 
     except Exception as e:
-        console.print(f"[red]❌ Export failed: {e}[/red]")
+        console.print(f"[red]âŒ Export failed: {e}[/red]")
 
 
 async def _handle_import(args, memory_engine, console):
@@ -372,13 +372,13 @@ async def _handle_import(args, memory_engine, console):
 
         # Verify first
         if not mgr.verify_pack(pack_file):
-            console.print("[red]❌ Pack checksum verification failed -- file may be corrupted[/red]")
+            console.print("[red]âŒ Pack checksum verification failed -- file may be corrupted[/red]")
             return
 
         result = mgr.import_pack(pack_file, merge_strategy=strategy)
 
         console.print(
-            f"[green]📦 Imported: {result.domain} v{result.version}[/green]\n"
+            f"[green]ðŸ“¦ Imported: {result.domain} v{result.version}[/green]\n"
             f"   Patterns imported: {result.patterns_imported}\n"
             f"   Patterns skipped: {result.patterns_skipped}\n"
             f"   Patterns conflicted: {result.patterns_conflicted}\n"
@@ -386,7 +386,7 @@ async def _handle_import(args, memory_engine, console):
         )
 
     except Exception as e:
-        console.print(f"[red]❌ Import failed: {e}[/red]")
+        console.print(f"[red]âŒ Import failed: {e}[/red]")
 
 
 async def _handle_packs(memory_engine, console):
@@ -399,13 +399,13 @@ async def _handle_packs(memory_engine, console):
         installed = mgr.list_installed_packs()
         available = mgr.list_packs()
 
-        console.print("[bold]📦 Knowledge Packs[/bold]")
+        console.print("[bold]ðŸ“¦ Knowledge Packs[/bold]")
 
         if installed:
             console.print("   [bold]Installed:[/bold]")
             for p in installed:
                 console.print(
-                    f"   ├── {p['domain']} v{p.get('pack_version', '?')} "
+                    f"   â”œâ”€â”€ {p['domain']} v{p.get('pack_version', '?')} "
                     f"({p['pattern_count']} patterns)"
                 )
         else:
@@ -419,11 +419,11 @@ async def _handle_packs(memory_engine, console):
                 )
                 status = "installed" if is_installed else "not installed"
                 console.print(
-                    f"   ├── {p['name']} v{p['version']} "
+                    f"   â”œâ”€â”€ {p['name']} v{p['version']} "
                     f"({p['pattern_count']} patterns) -- {status}"
                 )
         else:
             console.print("   [dim]No packs available locally[/dim]")
 
     except Exception as e:
-        console.print(f"[red]❌ Failed to list packs: {e}[/red]")
+        console.print(f"[red]âŒ Failed to list packs: {e}[/red]")

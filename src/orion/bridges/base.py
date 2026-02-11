@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
@@ -261,7 +261,7 @@ class MessagingBridge(ABC):
                     self._log.security("bridge_auth", passed=True,
                                        user_id=user_id, platform=self.platform)
                 await self.send(chat_id,
-                    "✅ Authenticated successfully. You can now interact with Orion.\n\n"
+                    "âœ… Authenticated successfully. You can now interact with Orion.\n\n"
                     "Type your request in plain English, or /help for commands."
                 )
                 return
@@ -271,7 +271,7 @@ class MessagingBridge(ABC):
                     self._log.security("bridge_auth", passed=False,
                                        user_id=user_id, platform=self.platform)
                 await self.send(chat_id,
-                    "🔒 This Orion instance requires authentication.\n"
+                    "ðŸ”’ This Orion instance requires authentication.\n"
                     "Send the passphrase to get started."
                 )
                 return
@@ -289,7 +289,7 @@ class MessagingBridge(ABC):
 
         # ---- Step 2: Rate limiting ----
         if not self._rate_limiter.is_allowed(user_id):
-            remaining_msg = "⏳ Rate limit reached. Please wait a moment."
+            remaining_msg = "â³ Rate limit reached. Please wait a moment."
             await self.send(chat_id, remaining_msg)
             if self._log:
                 self._log.warn("Bridge", "Rate limited", user_id=user_id)
@@ -303,11 +303,11 @@ class MessagingBridge(ABC):
 
         # ---- Step 4: Route through Orion ----
         if not self._router:
-            await self.send(chat_id, "⚠️ Orion router not initialized. Set a workspace first.")
+            await self.send(chat_id, "âš ï¸ Orion router not initialized. Set a workspace first.")
             return
 
         try:
-            await self.send(chat_id, "🔄 Processing...")
+            await self.send(chat_id, "ðŸ”„ Processing...")
 
             result = await self._router.handle_request(text)
             response = result.get("response", "No response generated.")
@@ -329,7 +329,7 @@ class MessagingBridge(ABC):
                                 user_id=user_id)
 
         except Exception as e:
-            error_msg = f"❌ Error: {str(e)[:200]}"
+            error_msg = f"âŒ Error: {str(e)[:200]}"
             await self.send(chat_id, error_msg)
             if self._log:
                 self._log.error("Bridge", f"Request failed: {e}",
@@ -342,7 +342,7 @@ class MessagingBridge(ABC):
 
         if cmd == "/help":
             await self.send(chat_id,
-                "🌟 *Orion Commands*\n\n"
+                "ðŸŒŸ *Orion Commands*\n\n"
                 "/help -- Show this help\n"
                 "/status -- Bridge status & stats\n"
                 "/memory -- Memory stats\n"
@@ -356,7 +356,7 @@ class MessagingBridge(ABC):
             user = self.config.allowed_users.get(user_id)
             remaining = self._rate_limiter.remaining(user_id)
             status = (
-                f"📊 *Bridge Status*\n\n"
+                f"ðŸ“Š *Bridge Status*\n\n"
                 f"Platform: {self.platform}\n"
                 f"Authorized users: {sum(1 for u in self.config.allowed_users.values() if u.authorized)}\n"
                 f"Your requests: {user.request_count if user else 0}\n"
@@ -370,7 +370,7 @@ class MessagingBridge(ABC):
             user = self.config.allowed_users.get(user_id)
             if user:
                 info = (
-                    f"👤 *Your Identity*\n\n"
+                    f"ðŸ‘¤ *Your Identity*\n\n"
                     f"Platform: {user.platform}\n"
                     f"ID: {user.platform_user_id}\n"
                     f"Name: {user.display_name}\n"
@@ -385,7 +385,7 @@ class MessagingBridge(ABC):
             if self._memory_engine:
                 stats = self._memory_engine.get_stats()
                 mem_info = (
-                    f"🧠 *Memory Stats*\n\n"
+                    f"ðŸ§  *Memory Stats*\n\n"
                     f"Session (T1): {stats.tier1_entries}\n"
                     f"Project (T2): {stats.tier2_entries}\n"
                     f"Global  (T3): {stats.tier3_entries}\n"
@@ -400,7 +400,7 @@ class MessagingBridge(ABC):
 
         if cmd == "/workspace":
             await self.send(chat_id,
-                f"📂 Workspace: {self.config.workspace or '(not set)'}")
+                f"ðŸ“‚ Workspace: {self.config.workspace or '(not set)'}")
             return True
 
         return False  # Not a bridge command

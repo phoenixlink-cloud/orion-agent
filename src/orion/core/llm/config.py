@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Flexible Model Configuration (v6.4.0)
+Orion Agent -- Flexible Model Configuration (v7.4.0)
 
 Users choose 1 or 2 AI models for Builder and Reviewer roles.
 Governor is ALWAYS Orion's internal logic -- never user-configurable.

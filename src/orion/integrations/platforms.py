@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Platform Registry (v6.4.0)
+Orion Agent -- Platform Registry (v7.4.0)
 
 Comprehensive registry of ALL platforms Orion can connect to.
 Each platform defines:
@@ -125,7 +125,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="ollama", name="Ollama (Local)", category=PlatformCategory.AI_MODELS,
         description="Run AI models locally on your machine -- completely free and private",
-        icon="🦙", auth_method=AuthMethod.NONE,
+        icon="Ã°Å¸Â¦â„¢", auth_method=AuthMethod.NONE,
         package_name="httpx", is_local=True,
         free_tier="Unlimited -- runs on your hardware",
         setup_url="https://ollama.com/download",
@@ -140,7 +140,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="openai", name="OpenAI", category=PlatformCategory.AI_MODELS,
         description="GPT-4o, GPT-4, o1 -- powerful reasoning and code generation",
-        icon="🟢", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸Å¸Â¢", auth_method=AuthMethod.API_KEY,
         env_var="OPENAI_API_KEY", package_name="openai",
         setup_url="https://platform.openai.com/api-keys",
         setup_instructions="Create an API key at platform.openai.com -> API Keys",
@@ -157,7 +157,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="anthropic", name="Anthropic", category=PlatformCategory.AI_MODELS,
         description="Claude 4 Sonnet & Opus -- excellent for code review and analysis",
-        icon="🟠", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸Å¸Â ", auth_method=AuthMethod.API_KEY,
         env_var="ANTHROPIC_API_KEY", package_name="anthropic",
         setup_url="https://console.anthropic.com/settings/keys",
         setup_instructions="Create an API key at console.anthropic.com -> Settings -> API Keys",
@@ -172,7 +172,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="google", name="Google Gemini", category=PlatformCategory.AI_MODELS,
         description="Gemini 2.5 Pro & Flash -- free tier with 1500 req/day",
-        icon="🔵", auth_method=AuthMethod.OAUTH,
+        icon="Ã°Å¸â€Âµ", auth_method=AuthMethod.OAUTH,
         env_var="GOOGLE_API_KEY", oauth_provider="google",
         package_name="google.generativeai",
         setup_url="https://aistudio.google.com/apikey",
@@ -189,7 +189,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="groq", name="Groq", category=PlatformCategory.AI_MODELS,
         description="Ultra-fast inference -- Llama 3.3 70B at 500+ tokens/sec",
-        icon="⚡", auth_method=AuthMethod.API_KEY,
+        icon="Ã¢Å¡Â¡", auth_method=AuthMethod.API_KEY,
         env_var="GROQ_API_KEY", package_name="groq",
         setup_url="https://console.groq.com/keys",
         setup_instructions="Create a free API key at console.groq.com",
@@ -203,7 +203,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="mistral", name="Mistral AI", category=PlatformCategory.AI_MODELS,
         description="Mistral Large & Codestral -- strong coding models from Europe",
-        icon="🌊", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸Å’Å ", auth_method=AuthMethod.API_KEY,
         env_var="MISTRAL_API_KEY", package_name="mistralai",
         setup_url="https://console.mistral.ai/api-keys",
         setup_instructions="Create an API key at console.mistral.ai",
@@ -217,7 +217,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="cohere", name="Cohere", category=PlatformCategory.AI_MODELS,
         description="Command R+ -- strong for RAG and enterprise search",
-        icon="🟣", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸Å¸Â£", auth_method=AuthMethod.API_KEY,
         env_var="COHERE_API_KEY", package_name="cohere",
         setup_url="https://dashboard.cohere.com/api-keys",
         setup_instructions="Create an API key at dashboard.cohere.com",
@@ -231,7 +231,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="together", name="Together AI", category=PlatformCategory.AI_MODELS,
         description="Run open-source models (Llama, Mixtral, DeepSeek) in the cloud",
-        icon="🤝", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸Â¤Â", auth_method=AuthMethod.API_KEY,
         env_var="TOGETHER_API_KEY", package_name="together",
         setup_url="https://api.together.xyz/settings/api-keys",
         setup_instructions="Create an API key at together.xyz",
@@ -245,7 +245,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="openrouter", name="OpenRouter", category=PlatformCategory.AI_MODELS,
         description="Access 100+ models through one API -- compare providers easily",
-        icon="🔀", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸â€â‚¬", auth_method=AuthMethod.API_KEY,
         env_var="OPENROUTER_API_KEY", package_name="openai",
         setup_url="https://openrouter.ai/keys",
         setup_instructions="Create an API key at openrouter.ai",
@@ -262,7 +262,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="github", name="GitHub", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Repositories, issues, pull requests, code search, Actions CI/CD",
-        icon="🐙", auth_method=AuthMethod.CLI_TOOL,
+        icon="Ã°Å¸Ââ„¢", auth_method=AuthMethod.CLI_TOOL,
         env_var="GITHUB_TOKEN", cli_tool="gh",
         setup_url="https://cli.github.com/",
         setup_instructions="Install the GitHub CLI (gh), then run: gh auth login",
@@ -281,7 +281,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="gitlab", name="GitLab", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Repositories, merge requests, CI/CD pipelines, issue tracking",
-        icon="🦊", auth_method=AuthMethod.CLI_TOOL,
+        icon="Ã°Å¸Â¦Å ", auth_method=AuthMethod.CLI_TOOL,
         env_var="GITLAB_TOKEN", cli_tool="glab",
         setup_url="https://gitlab.com/-/user_settings/personal_access_tokens",
         setup_instructions="Install glab CLI or create a personal access token at GitLab -> Settings -> Access Tokens",
@@ -297,7 +297,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="docker", name="Docker", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Run code in isolated containers -- safe sandbox execution",
-        icon="🐳", auth_method=AuthMethod.NONE,
+        icon="Ã°Å¸ÂÂ³", auth_method=AuthMethod.NONE,
         package_name="docker", is_local=True,
         setup_url="https://docs.docker.com/get-docker/",
         setup_instructions="Install Docker Desktop -- no API key needed",
@@ -311,7 +311,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="notion", name="Notion", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Access Notion pages, databases, and project docs",
-        icon="📝", auth_method=AuthMethod.TOKEN,
+        icon="Ã°Å¸â€œÂ", auth_method=AuthMethod.TOKEN,
         env_var="NOTION_TOKEN",
         setup_url="https://www.notion.so/my-integrations",
         setup_instructions="Create an integration at notion.so/my-integrations -> copy the Internal Integration Token",
@@ -326,7 +326,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="linear", name="Linear", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Issue tracking and project management",
-        icon="📐", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸â€œÂ", auth_method=AuthMethod.API_KEY,
         env_var="LINEAR_API_KEY",
         setup_url="https://linear.app/settings/api",
         setup_instructions="Create an API key at linear.app -> Settings -> API -> Personal API keys",
@@ -340,7 +340,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="jira", name="Jira", category=PlatformCategory.DEVELOPER_TOOLS,
         description="Issue tracking for enterprise teams",
-        icon="📋", auth_method=AuthMethod.TOKEN,
+        icon="Ã°Å¸â€œâ€¹", auth_method=AuthMethod.TOKEN,
         env_var="JIRA_API_TOKEN",
         setup_url="https://id.atlassian.com/manage-profile/security/api-tokens",
         setup_instructions="Create an API token at id.atlassian.com -> Security -> API tokens",
@@ -358,7 +358,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="slack", name="Slack", category=PlatformCategory.MESSAGING,
         description="Send messages, notifications, and code snippets to Slack channels",
-        icon="💬", auth_method=AuthMethod.TOKEN,
+        icon="Ã°Å¸â€™Â¬", auth_method=AuthMethod.TOKEN,
         env_var="SLACK_BOT_TOKEN",
         package_name="slack_sdk",
         setup_url="https://api.slack.com/apps",
@@ -374,7 +374,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="discord", name="Discord", category=PlatformCategory.MESSAGING,
         description="Send messages and notifications to Discord servers",
-        icon="🎮", auth_method=AuthMethod.TOKEN,
+        icon="Ã°Å¸Å½Â®", auth_method=AuthMethod.TOKEN,
         env_var="DISCORD_BOT_TOKEN",
         package_name="discord",
         setup_url="https://discord.com/developers/applications",
@@ -388,7 +388,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="telegram", name="Telegram", category=PlatformCategory.MESSAGING,
         description="Send notifications and updates via Telegram bot",
-        icon="✈️", auth_method=AuthMethod.TOKEN,
+        icon="Ã¢Å“Ë†Ã¯Â¸Â", auth_method=AuthMethod.TOKEN,
         env_var="TELEGRAM_BOT_TOKEN",
         setup_url="https://t.me/BotFather",
         setup_instructions="Message @BotFather on Telegram to create a bot and get the token",
@@ -405,7 +405,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="elevenlabs", name="ElevenLabs", category=PlatformCategory.VOICE,
         description="Premium text-to-speech with natural-sounding voices",
-        icon="🎙️", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸Å½â„¢Ã¯Â¸Â", auth_method=AuthMethod.API_KEY,
         env_var="ELEVENLABS_API_KEY", package_name="elevenlabs",
         setup_url="https://elevenlabs.io/app/settings/api-keys",
         setup_instructions="Create an API key at elevenlabs.io",
@@ -418,7 +418,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="edge_tts", name="Edge TTS", category=PlatformCategory.VOICE,
         description="Free text-to-speech using Microsoft Edge voices -- no API key needed",
-        icon="🔊", auth_method=AuthMethod.NONE,
+        icon="Ã°Å¸â€Å ", auth_method=AuthMethod.NONE,
         package_name="edge_tts", is_local=True,
         setup_url="https://pypi.org/project/edge-tts/",
         setup_instructions="pip install edge-tts",
@@ -431,7 +431,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="whisper_local", name="Whisper (Local)", category=PlatformCategory.VOICE,
         description="Local speech-to-text using OpenAI's Whisper model -- runs offline",
-        icon="👂", auth_method=AuthMethod.NONE,
+        icon="Ã°Å¸â€˜â€š", auth_method=AuthMethod.NONE,
         package_name="whisper", is_local=True,
         setup_url="https://github.com/openai/whisper",
         setup_instructions="pip install openai-whisper",
@@ -444,7 +444,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="piper_tts", name="Piper TTS", category=PlatformCategory.VOICE,
         description="Fast local text-to-speech -- lightweight and offline",
-        icon="🎵", auth_method=AuthMethod.NONE,
+        icon="Ã°Å¸Å½Âµ", auth_method=AuthMethod.NONE,
         package_name="piper", is_local=True,
         setup_url="https://github.com/rhasspy/piper",
         setup_instructions="pip install piper-tts",
@@ -461,7 +461,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="dalle", name="DALL-E 3", category=PlatformCategory.IMAGE,
         description="Generate images from text descriptions -- via OpenAI",
-        icon="🎨", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸Å½Â¨", auth_method=AuthMethod.API_KEY,
         env_var="OPENAI_API_KEY", secure_store_key="openai",
         package_name="openai",
         setup_url="https://platform.openai.com/api-keys",
@@ -475,7 +475,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="stability", name="Stability AI", category=PlatformCategory.IMAGE,
         description="Stable Diffusion image generation in the cloud",
-        icon="🖼️", auth_method=AuthMethod.API_KEY,
+        icon="Ã°Å¸â€“Â¼Ã¯Â¸Â", auth_method=AuthMethod.API_KEY,
         env_var="STABILITY_API_KEY",
         setup_url="https://platform.stability.ai/account/keys",
         setup_instructions="Create an API key at platform.stability.ai",
@@ -488,7 +488,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="sdxl_local", name="SDXL (Local)", category=PlatformCategory.IMAGE,
         description="Run Stable Diffusion XL locally via ComfyUI -- completely free",
-        icon="🎭", auth_method=AuthMethod.NONE,
+        icon="Ã°Å¸Å½Â­", auth_method=AuthMethod.NONE,
         package_name="diffusers", is_local=True,
         setup_url="https://github.com/comfyanonymous/ComfyUI",
         setup_instructions="Install ComfyUI or diffusers: pip install diffusers",
@@ -505,7 +505,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="google_drive", name="Google Drive", category=PlatformCategory.CLOUD_STORAGE,
         description="Access files and documents from Google Drive",
-        icon="📁", auth_method=AuthMethod.OAUTH,
+        icon="Ã°Å¸â€œÂ", auth_method=AuthMethod.OAUTH,
         oauth_provider="google",
         setup_instructions="Connect your Google account to access Drive files",
         free_tier="15 GB free storage",
@@ -518,7 +518,7 @@ def _build_platforms() -> Dict[str, PlatformDef]:
     _add(PlatformDef(
         id="onedrive", name="OneDrive", category=PlatformCategory.CLOUD_STORAGE,
         description="Access files from Microsoft OneDrive and SharePoint",
-        icon="☁️", auth_method=AuthMethod.OAUTH,
+        icon="Ã¢ËœÂÃ¯Â¸Â", auth_method=AuthMethod.OAUTH,
         oauth_provider="microsoft",
         setup_instructions="Connect your Microsoft account to access OneDrive files",
         free_tier="5 GB free storage",
@@ -717,10 +717,10 @@ def get_platform_registry() -> PlatformRegistry:
 # =============================================================================
 
 CATEGORY_LABELS = {
-    "ai_models": {"label": "AI Models", "description": "Language models for coding, analysis, and generation", "icon": "🧠"},
-    "developer_tools": {"label": "Developer Tools", "description": "Git, issue tracking, containers, and docs", "icon": "🛠️"},
-    "messaging": {"label": "Messaging", "description": "Send notifications and updates to your team", "icon": "💬"},
-    "voice": {"label": "Voice", "description": "Text-to-speech and speech-to-text", "icon": "🎙️"},
-    "image": {"label": "Image Generation", "description": "Create images, diagrams, and mockups", "icon": "🎨"},
-    "cloud_storage": {"label": "Cloud Storage", "description": "Access files from cloud drives", "icon": "☁️"},
+    "ai_models": {"label": "AI Models", "description": "Language models for coding, analysis, and generation", "icon": "Ã°Å¸Â§Â "},
+    "developer_tools": {"label": "Developer Tools", "description": "Git, issue tracking, containers, and docs", "icon": "Ã°Å¸â€ºÂ Ã¯Â¸Â"},
+    "messaging": {"label": "Messaging", "description": "Send notifications and updates to your team", "icon": "Ã°Å¸â€™Â¬"},
+    "voice": {"label": "Voice", "description": "Text-to-speech and speech-to-text", "icon": "Ã°Å¸Å½â„¢Ã¯Â¸Â"},
+    "image": {"label": "Image Generation", "description": "Create images, diagrams, and mockups", "icon": "Ã°Å¸Å½Â¨"},
+    "cloud_storage": {"label": "Cloud Storage", "description": "Access files from cloud drives", "icon": "Ã¢ËœÂÃ¯Â¸Â"},
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ORION -- Unified Launcher (v6.4.0)
+ORION -- Unified Launcher
 
 Single entry point for all Orion modes:
     python launch.py              # Interactive menu
@@ -28,12 +28,17 @@ ORION_DIR = Path(__file__).parent
 SRC_DIR = ORION_DIR / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+try:
+    from orion._version import __version__
+except ImportError:
+    __version__ = "7.4.0"
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
 RUNTIME_CONFIG_PATH = Path.home() / ".orion" / "runtime.json"
-DEFAULT_API_PORT = 8000
+DEFAULT_API_PORT = 8001
 DEFAULT_WEB_PORT = 3001
 
 
@@ -58,7 +63,7 @@ def save_runtime_config(api_port: int, web_port: int) -> dict:
         "api_url": f"http://localhost:{api_port}",
         "web_url": f"http://localhost:{web_port}",
         "pid": os.getpid(),
-        "version": "6.4.0",
+        "version": __version__,
     }
     with open(RUNTIME_CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=2)
@@ -100,7 +105,7 @@ def print_banner():
     print("  ║    ╚██████╔╝██║  ██║██║╚██████╔╝██║ ╚████║           ║")
     print("  ║     ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝           ║")
     print("  ║                                                       ║")
-    print("  ║        Governed AI Assistant with AEGIS v6.4.0        ║")
+    print("  ║        Governed AI Assistant with AEGIS        ║")
     print("  ║                                                       ║")
     print("  ╚═══════════════════════════════════════════════════════╝")
     print()
@@ -123,7 +128,7 @@ def print_menu():
 
 def run_cli_mode():
     """Run the CLI interface."""
-    print("\n  Starting Orion CLI v6.4.0...")
+    print("\n  Starting Orion CLI...")
     print("  Type '/help' for commands, '/quit' to exit.\n")
 
     try:

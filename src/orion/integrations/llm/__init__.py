@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- LLM Provider Integrations (v6.4.0)
+Orion Agent -- LLM Provider Integrations (v7.4.0)
 
 Re-exports from core/llm/providers.py for convenience.
 All LLM provider logic lives in core/llm/providers.py (unified async call_provider).

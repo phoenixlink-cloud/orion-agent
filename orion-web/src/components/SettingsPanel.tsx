@@ -663,7 +663,7 @@ export default function SettingsPanel() {
   const [deviceFlow, setDeviceFlow] = useState<{ provider: string; userCode: string; verificationUri: string; deviceCode: string; interval: number } | null>(null)
   const [devicePollTimer, setDevicePollTimer] = useState<any>(null)
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
 
   const loadOAuthStatus = () => {
     fetch(`${API_BASE}/api/oauth/status`)

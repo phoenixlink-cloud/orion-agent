@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
@@ -100,14 +100,14 @@ class TelegramBridge(MessagingBridge):
                         import httpx
                         async with httpx.AsyncClient() as client:
                             await client.post(
-                                f"http://localhost:8000/api/aegis/respond/{approval_id}",
+                                f"http://localhost:8001/api/aegis/respond/{approval_id}",
                                 json={"approved": approved},
                                 timeout=10,
                             )
                     except Exception:
                         pass
 
-                    result = "✅ Approved" if approved else "❌ Denied"
+                    result = "âœ… Approved" if approved else "âŒ Denied"
                     await query.edit_message_text(
                         f"{query.message.text}\n\n{result} by {update.effective_user.full_name}"
                     )
@@ -171,17 +171,17 @@ class TelegramBridge(MessagingBridge):
 
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("✅ Approve", callback_data=f"aegis_approve:{approval_id}"),
-                    InlineKeyboardButton("❌ Deny", callback_data=f"aegis_deny:{approval_id}"),
+                    InlineKeyboardButton("âœ… Approve", callback_data=f"aegis_approve:{approval_id}"),
+                    InlineKeyboardButton("âŒ Deny", callback_data=f"aegis_deny:{approval_id}"),
                 ]
             ])
 
             await self._app.bot.send_message(
                 chat_id=int(chat_id),
-                text=f"⚠️ *AEGIS APPROVAL REQUIRED*\n\n{prompt}\n\nThis action requires your approval.",
+                text=f"âš ï¸ *AEGIS APPROVAL REQUIRED*\n\n{prompt}\n\nThis action requires your approval.",
                 reply_markup=keyboard,
                 parse_mode="Markdown",
             )
         except Exception as e:
             # Fallback without buttons
-            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")
+            await self.send(chat_id, f"âš ï¸ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")

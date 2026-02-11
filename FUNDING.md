@@ -58,9 +58,9 @@ As a contributor, you receive:
 
 Contributions do NOT provide:
 
-- A commercial license (contact licensing@phoenixlink.co.za for that)
+- A commercial license (contact info@phoenixlink.co.za for that)
 - Priority support (contact support@phoenixlink.co.za for that)
-- Custom features (contact partnerships@phoenixlink.co.za for that)
+- Custom features (contact info@phoenixlink.co.za for that)
 - Any rights beyond the standard AGPL-3.0 license
 
 ## Other Ways to Support
@@ -77,7 +77,7 @@ Financial contributions aren't the only way to help:
 
 If you need to use Orion in a proprietary product or SaaS without AGPL-3.0 obligations, commercial licensing is available separately.
 
-**Contact:** licensing@phoenixlink.co.za
+**Contact:** info@phoenixlink.co.za
 
 See [LICENSE-ENTERPRISE.md](./LICENSE-ENTERPRISE.md) for details.
 
@@ -85,9 +85,8 @@ See [LICENSE-ENTERPRISE.md](./LICENSE-ENTERPRISE.md) for details.
 
 | Topic | Contact |
 |-------|---------|
-| Funding questions | funding@phoenixlink.co.za |
-| Commercial licensing | licensing@phoenixlink.co.za |
-| General inquiries | info@phoenixlink.co.za |
+| Funding questions | info@phoenixlink.co.za |
+| Technical support | support@phoenixlink.co.za |
 
 ---
 

@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Platform Service (v6.4.0)
+Orion Agent -- Platform Service (v7.4.0)
 
 Service layer that Orion agents use to interact with connected platforms.
 Handles auth token retrieval, API calls, and capability routing.
@@ -57,7 +57,7 @@ class PlatformService:
 
     # Per-platform rate limits (requests per minute)
     _PLATFORM_RATE_LIMITS = {
-        "github": 80,      # GitHub: 5000/hr ≈ 83/min
+        "github": 80,      # GitHub: 5000/hr Ã¢â€°Ë† 83/min
         "slack": 50,       # Slack: ~50/min for most tiers
         "notion": 30,      # Notion: 3 req/sec avg
         "jira": 60,        # Jira Cloud: varies

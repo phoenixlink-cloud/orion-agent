@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Prompt Builder (v6.4.0)
+Orion Agent -- Prompt Builder (v7.4.0)
 
 Extracted from intelligent_orion.py to reduce god-class size.
 Contains: expansion instructions, project plan parsing, and enhanced input building.
@@ -313,7 +313,7 @@ def build_enhanced_input(
     # Layer 2: Project context
     if past_decisions:
         decisions_text = "\n".join(
-            f"- {d['action'][:50]}: {'✓' if d['quality'] >= 0.8 else '○' if d['quality'] >= 0.5 else '✗'}"
+            f"- {d['action'][:50]}: {'Ã¢Å“â€œ' if d['quality'] >= 0.8 else 'Ã¢â€”â€¹' if d['quality'] >= 0.5 else 'Ã¢Å“â€”'}"
             for d in past_decisions[-5:]
         )
         parts.append(f"\n\n## PROJECT CONTEXT\n### Recent Decisions\n{decisions_text}")

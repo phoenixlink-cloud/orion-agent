@@ -163,7 +163,7 @@ Ensure the API server is running and the port matches the `.env.local` configura
 
 ### Can I use Orion in a commercial product?
 
-Under AGPL-3.0, you must share your modifications. For proprietary use without AGPL obligations, contact licensing@phoenixlink.co.za for a commercial license.
+Under AGPL-3.0, you must share your modifications. For proprietary use without AGPL obligations, contact info@phoenixlink.co.za for a commercial license.
 
 ### Can I use Orion as a SaaS?
 
@@ -201,13 +201,13 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md). Key steps:
 
 ### Where do I report bugs?
 
-[GitHub Issues](https://github.com/phoenix-link/orion-agent/issues)
+[GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues)
 
 ### Where do I report security issues?
 
 **Do not use GitHub Issues for security vulnerabilities.**
 
-Email: security@phoenixlink.co.za
+Email: info@phoenixlink.co.za
 
 ---
 

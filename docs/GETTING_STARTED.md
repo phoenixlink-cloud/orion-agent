@@ -22,7 +22,7 @@ pip install orion-agent[all]
 
 ### Option C: From source
 ```bash
-git clone https://github.com/phoenix-link/orion-agent.git
+git clone https://github.com/phoenixlink-cloud/orion-agent.git
 cd orion-agent
 pip install -e ".[dev]"
 ```

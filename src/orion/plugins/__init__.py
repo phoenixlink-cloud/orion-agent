@@ -11,14 +11,14 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
 Orion Agent -- Plugin System
 
 Re-exports everything from orion.plugins.api so that both import paths
-(``from orion.plugins import …`` and ``from orion.plugins.api import …``)
+(``from orion.plugins import â€¦`` and ``from orion.plugins.api import â€¦``)
 resolve to the **same** classes, singletons, and factory functions.
 """
 

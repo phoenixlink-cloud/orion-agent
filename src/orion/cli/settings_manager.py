@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- /settings CLI Management Module (v6.4.0)
+Orion Agent -- /settings CLI Management Module (v7.4.0)
 
 Interactive CLI settings viewer and editor.
 
@@ -234,7 +234,7 @@ async def run_settings(console=None, action: str = "view") -> Dict[str, Any]:
 
     # View mode -- display all settings grouped by category
     _print("\n  Orion Settings\n", "bold cyan")
-    _print("  " + "─" * 50)
+    _print("  " + "Ã¢â€â‚¬" * 50)
 
     for category, category_settings in SETTING_CATEGORIES.items():
         _print(f"\n  [{category}]", "bold")
@@ -264,7 +264,7 @@ async def run_settings(console=None, action: str = "view") -> Dict[str, Any]:
             if os.environ.get(env):
                 _print(f"    {name}: configured (environment)")
 
-    _print("\n  " + "─" * 50)
+    _print("\n  " + "Ã¢â€â‚¬" * 50)
     _print("  Tip: Edit settings in the Web UI or modify ~/.orion/settings.json\n", "dim")
 
     return settings

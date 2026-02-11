@@ -13,7 +13,9 @@
 
 Instead, please report them via email to:
 
-**security@phoenixlink.co.za**
+**info@phoenixlink.co.za**
+
+Include "SECURITY" in the subject line.
 
 Include:
 - Description of the vulnerability

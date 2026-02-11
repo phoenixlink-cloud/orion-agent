@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- Platform & Integration Routes."""
@@ -221,7 +221,7 @@ async def oauth_connect_platform(platform_id: str):
         "created_at": str(time.time()),
     }
 
-    redirect_uri = "http://localhost:8000/api/oauth/callback"
+    redirect_uri = "http://localhost:8001/api/oauth/callback"
     params = {
         "client_id": client_id,
         "response_type": "code",

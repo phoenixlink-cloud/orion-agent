@@ -11,7 +11,7 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- API Key & OAuth Routes."""
@@ -398,7 +398,7 @@ async def oauth_login(request: OAuthLoginRequest):
     }
 
     # Use provided redirect_uri or default to our callback
-    redirect_uri = request.redirect_uri or "http://localhost:8000/api/oauth/callback"
+    redirect_uri = request.redirect_uri or "http://localhost:8001/api/oauth/callback"
 
     # Build authorization URL
     params = {
@@ -488,7 +488,7 @@ async def oauth_callback(
     token_data = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": "http://localhost:8000/api/oauth/callback",
+        "redirect_uri": "http://localhost:8001/api/oauth/callback",
         "client_id": client_id,
     }
     if client_secret:
@@ -565,7 +565,7 @@ async def oauth_callback(
         f"""<html>
 <head><title>Orion -- OAuth Success</title></head>
 <body style="font-family: system-ui; text-align: center; padding: 40px;">
-  <h2 style="color: #22c55e;">✓ {OAUTH_PLATFORMS[provider]['name']} Connected</h2>
+  <h2 style="color: #22c55e;">âœ“ {OAUTH_PLATFORMS[provider]['name']} Connected</h2>
   <p>You can close this window. The Settings page will update automatically.</p>
   <script>
     if (window.opener) {{
@@ -681,7 +681,7 @@ async def oauth_connect(provider: str):
                     "message": f"Configure Client Secret for {prov['name']}",
                 }
 
-        redirect_uri = "http://localhost:8000/api/oauth/callback"
+        redirect_uri = "http://localhost:8001/api/oauth/callback"
         auth_url, state_token = build_auth_url(provider, redirect_uri, client_id)
         return {
             "status": "redirect",
@@ -713,7 +713,7 @@ def _get_provider_setup_help(provider: str, prov: dict) -> list:
     return [
         f"1. Go to {url}",
         f"2. Create a new OAuth App for Orion",
-        f"3. Set the callback URL to: http://localhost:8000/api/oauth/callback",
+        f"3. Set the callback URL to: http://localhost:8001/api/oauth/callback",
         f"4. Copy the Client ID (and Secret if needed) and paste below",
     ]
 

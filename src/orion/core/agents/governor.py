@@ -11,11 +11,11 @@
 #
 # 2. Commercial: Available from Phoenix Link (Pty) Ltd
 #    For proprietary use, SaaS deployment, or enterprise licensing.
-#    See LICENSE-ENTERPRISE.md or contact licensing@phoenixlink.co.za
+#    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Governor (v6.4.0)
+Orion Agent -- Governor (v7.4.0)
 
 Orion's own decision layer. Always Orion, never configurable.
 Migrated from Orion_MVP/core/llm_calls.py (orion_governor_decision).
@@ -101,7 +101,7 @@ def decide(
         logger.warning(f"Governor: Reviewer BLOCKED -- {reviewer_result.block_reason}")
         return GovernorResult(
             outcome="ANSWER",
-            response=f"⛔ Reviewer BLOCKED this proposal.\n\nReason: {reviewer_result.block_reason}",
+            response=f"Ã¢â€ºâ€ Reviewer BLOCKED this proposal.\n\nReason: {reviewer_result.block_reason}",
             explanation="Reviewer blocked execution due to safety or constraint violation.",
             reviewer_decision="BLOCK",
         )
@@ -129,7 +129,7 @@ def decide(
     # Build revision suffix
     revision_suffix = ""
     if decision == "REVISE_AND_APPROVE" and reviewer_result.revision_notes:
-        revision_suffix = f"\n\n📝 Reviewer corrections: {'; '.join(reviewer_result.revision_notes)}"
+        revision_suffix = f"\n\nÃ°Å¸â€œÂ Reviewer corrections: {'; '.join(reviewer_result.revision_notes)}"
 
     # =========================================================================
     # ACTION_INTENT -- mode gating
@@ -140,7 +140,7 @@ def decide(
             display = explanation or response or "I can help with that!"
             return GovernorResult(
                 outcome="ANSWER",
-                response=display + "\n\n💡 _File actions are available in PRO mode. Use `/mode pro` to enable edits._",
+                response=display + "\n\nÃ°Å¸â€™Â¡ _File actions are available in PRO mode. Use `/mode pro` to enable edits._",
                 explanation="Safe mode: response shown, file actions suppressed.",
                 reviewer_decision=decision,
                 revision_notes=reviewer_result.revision_notes if decision == "REVISE_AND_APPROVE" else [],
