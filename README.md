@@ -210,3 +210,21 @@ All contributions require a signed Contributor License Agreement (CLA).
 | Legal questions | legal@phoenixlink.co.za |
 | CLA signing | cla@phoenixlink.co.za |
 | Website | [phoenixlink.co.za](https://phoenixlink.co.za) |
+
+---
+
+## Support Orion Development
+
+Orion is free and open-source under AGPL-3.0. If it has benefited you in any way and you would like to see its continued development, please consider making a voluntary financial contribution.
+
+[![Support Orion Development](https://img.shields.io/badge/Support-Orion%20Development-blue?style=for-the-badge)](https://payf.st/t2pmo)
+
+Your contribution helps fund:
+- Core development and new features
+- Security audits and AEGIS governance
+- Documentation and community support
+- Long-term project sustainability
+
+**This is a voluntary contribution, not a purchase.** See [FUNDING.md](./FUNDING.md) for details.
+
+*Other ways to help: Star the repo | Report bugs | Improve docs | Contribute code*

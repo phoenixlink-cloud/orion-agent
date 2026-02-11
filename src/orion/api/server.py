@@ -20,7 +20,7 @@ Orion Agent -- API Server (v7.1.0)
 FastAPI server for web UI integration.
 Routes are organized into modules under orion.api.routes/.
 
-Run with: uvicorn orion.api.server:app --reload --port 8000
+Run with: uvicorn orion.api.server:app --reload --port 8001
 """
 
 import time
@@ -250,4 +250,4 @@ app.include_router(gdpr_router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8001)
