@@ -1,3 +1,7 @@
+# =============================================================================
+# Orion Agent .gitignore
+# =============================================================================
+
 # Python
 __pycache__/
 *.py[cod]
@@ -8,6 +12,7 @@ dist/
 build/
 *.egg
 .eggs/
+*.whl
 
 # Virtual environments
 .venv/
@@ -20,27 +25,45 @@ env/
 *.swp
 *.swo
 *~
+*.code-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# Environment
+# Environment / Secrets (CRITICAL — never commit)
 .env
 .env.local
+.env.development
+.env.production
 .env.*.local
+.env.staging
+secrets.json
+credentials.json
+.credentials
 
 # Testing
 .coverage
 htmlcov/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 
-# Orion data (user-specific)
+# Orion data (user-specific — contains personal data)
 *.db
+*.sqlite
+*.sqlite3
 data/ledger.jsonl
 data/traces/
 logs/
+*.log
+memory.json
+project_memory.json
+institutional.db
+
+# Orion config (user-specific)
+.orion/
 
 # Node / Web UI
 node_modules/
