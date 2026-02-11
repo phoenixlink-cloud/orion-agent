@@ -30,7 +30,7 @@ from orion.core.production.logging import StructuredLogger
 class ProductionStack:
     """Assembles all production infrastructure components."""
 
-    def __init__(self, version: str = "7.1.0"):
+    def __init__(self, version: str = "7.4.0"):
         self.health = HealthProbe(version)
         self.metrics = MetricsCollector()
         self.shutdown = GracefulShutdown()
@@ -51,7 +51,7 @@ class ProductionStack:
         self.logger.info("Production stack stopped")
 
 
-def get_production_stack(version: str = "7.1.0") -> ProductionStack:
+def get_production_stack(version: str = "7.4.0") -> ProductionStack:
     """Factory function to create a ProductionStack."""
     return ProductionStack(version)
 

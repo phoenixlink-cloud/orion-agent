@@ -65,7 +65,7 @@ class HealthProbe:
         /live    -- Liveness probe (is the process alive?)
     """
 
-    def __init__(self, version: str = "7.1.0"):
+    def __init__(self, version: str = "7.4.0"):
         self.version = version
         self._start_time = time.time()
         self._ready = False
