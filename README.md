@@ -8,6 +8,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-412%20passing-green.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Status: Beta](https://img.shields.io/badge/status-beta-orange.svg)](#)
 
 [Getting Started](#-quick-start) |
 [Documentation](docs/README.md) |
@@ -16,6 +17,8 @@
 [Support Development](#-support-orion-development)
 
 </div>
+
+> **Beta Software** -- Orion Agent is under active development. Core features are functional and tested (412 passing tests), but you may encounter rough edges, incomplete integrations, or breaking changes between versions. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
 
 ---
 

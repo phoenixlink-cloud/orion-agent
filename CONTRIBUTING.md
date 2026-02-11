@@ -1,5 +1,7 @@
 # Contributing to Orion Agent
 
+> **Note:** Orion Agent is currently in **beta**. We especially welcome bug reports, documentation improvements, and feedback on the developer experience.
+
 Thank you for your interest in contributing to Orion!
 
 ## Before You Contribute

@@ -1,10 +1,12 @@
 # Security Policy
 
+> **Note:** Orion Agent is currently in **beta**. Security reports are taken seriously regardless of release stage.
+
 ## Supported Versions
 
 | Version | Supported |
 |---------|-----------|
-| 7.x.x | Yes |
+| 7.x.x (beta) | Yes |
 | < 7.0 | No |
 
 ## Reporting a Vulnerability
