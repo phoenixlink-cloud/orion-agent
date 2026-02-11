@@ -72,3 +72,19 @@ out/
 
 # Docker
 docker-compose.override.yml
+
+# AI tool configs
+.claude/
+.sandbox/
+
+# Internal / audit docs (not for public release)
+*AUDIT*.md
+*AUDIT*.html
+COMPARISON_*.md
+COMPARISON_*.html
+ORION_PERSONA.md
+ORION_KNOWLEDGE_DISTILLATION_IMPL.md
+PHASED_BUILD_PLAN.md
+
+# Orion cache files
+src/.orion/
