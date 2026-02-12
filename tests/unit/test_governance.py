@@ -1,5 +1,6 @@
 """Tests for orion.core.governance.aegis -- AEGIS governance gate."""
 
+import sys
 from dataclasses import dataclass, field
 
 import pytest
@@ -62,6 +63,7 @@ class TestIsPathConfined:
         assert _is_path_confined(str(target), str(tmp_path)) is True
 
     # --- Bypass vector 1: Case-insensitive filesystem (Windows) ---
+    @pytest.mark.skipif(sys.platform != "win32", reason="Case-insensitive paths are Windows-only")
     def test_case_mismatch_workspace(self, tmp_path):
         """Same directory, different casing -- must still be confined."""
         ws = str(tmp_path)
@@ -155,6 +157,7 @@ class TestIsPathConfined:
     def test_deeply_nested(self, tmp_path):
         assert _is_path_confined("a/b/c/d/e/f/g.py", str(tmp_path)) is True
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="Backslash is not a path separator on Linux")
     def test_backslash_traversal(self, tmp_path):
         assert _is_path_confined("..\\..\\etc\\passwd", str(tmp_path)) is False
 
