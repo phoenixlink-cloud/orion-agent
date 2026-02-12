@@ -1,25 +1,19 @@
 """Tests for orion.core.editing -- safety, formats, validator."""
 
-import os
-import subprocess
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-
 from orion.core.editing.formats import (
+    DEFAULT_PROFILE,
+    MODEL_PROFILES,
     EditFormat,
     ModelProfile,
+    get_format_instructions,
     get_model_profile,
     select_edit_format,
-    get_format_instructions,
-    MODEL_PROFILES,
-    DEFAULT_PROFILE,
 )
-
 
 # =========================================================================
 # EDIT FORMAT SELECTOR
 # =========================================================================
+
 
 class TestEditFormat:
     def test_enum_values(self):
@@ -69,12 +63,14 @@ class TestFormatInstructions:
 
     def test_format_instructions_for_model(self):
         from orion.core.editing.formats import get_format_instructions_for_model
+
         fmt, instructions = get_format_instructions_for_model("gpt-4o")
         assert isinstance(fmt, EditFormat)
         assert len(instructions) > 0
 
     def test_all_models_produce_instructions(self):
         from orion.core.editing.formats import get_format_instructions_for_model
+
         for model in ["gpt-4o", "claude-sonnet-4-20250514", "qwen2.5-coder:14b"]:
             fmt, instructions = get_format_instructions_for_model(model)
             assert len(instructions) > 0, f"No instructions for {model}"

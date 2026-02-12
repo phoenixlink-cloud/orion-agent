@@ -22,11 +22,16 @@ Handles all /slash commands: /workspace, /add, /drop, /clear, /undo,
 """
 
 import os
-from typing import Optional
 
 
-def handle_command(cmd: str, console, workspace_path: str, mode: str,
-                   context_files: list = None, change_history: list = None) -> dict:
+def handle_command(
+    cmd: str,
+    console,
+    workspace_path: str,
+    mode: str,
+    context_files: list = None,
+    change_history: list = None,
+) -> dict:
     """Handle slash commands -- familiar CLI patterns users expect."""
     parts = cmd.split()
     command = parts[0].lower()
@@ -81,13 +86,18 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
     elif command == "/doctor":
         try:
             import asyncio
+
             from orion.cli.doctor import run_doctor
+
             try:
                 loop = asyncio.get_running_loop()
                 # Already in async context -- schedule as task
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
-                    loop.run_in_executor(pool, lambda: asyncio.run(run_doctor(console, workspace_path)))
+                    loop.run_in_executor(
+                        pool, lambda: asyncio.run(run_doctor(console, workspace_path))
+                    )
             except RuntimeError:
                 # No running loop -- safe to use asyncio.run
                 asyncio.run(run_doctor(console, workspace_path))
@@ -98,11 +108,14 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
     elif command == "/settings":
         try:
             import asyncio
+
             from orion.cli.settings_manager import run_settings
+
             action = parts[1] if len(parts) > 1 else "view"
             try:
                 loop = asyncio.get_running_loop()
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as pool:
                     loop.run_in_executor(pool, lambda: asyncio.run(run_settings(console, action)))
             except RuntimeError:
@@ -114,6 +127,7 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
     elif command == "/health":
         try:
             from orion.integrations.health import IntegrationHealthChecker
+
             checker = IntegrationHealthChecker()
             dashboard = checker.get_dashboard()
             console.print_info(f"Health: {dashboard.get('summary', 'unknown')}")
@@ -139,6 +153,7 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
     elif command == "/log":
         try:
             from orion.core.learning.evolution import get_evolution_engine
+
             engine = get_evolution_engine()
             summary = engine.get_evolution_summary()
             console.print_info(f"Evolution: {summary}")
@@ -154,6 +169,7 @@ def handle_command(cmd: str, console, workspace_path: str, mode: str,
 # =============================================================================
 # INDIVIDUAL COMMAND HANDLERS
 # =============================================================================
+
 
 def _handle_workspace(parts, console, workspace_path):
     """Handle /workspace command and subcommands."""
@@ -192,6 +208,7 @@ def _handle_add(parts, console, workspace_path, context_files):
     file_pattern = " ".join(parts[1:]).strip('"').strip("'")
     if workspace_path:
         import glob
+
         full_pattern = os.path.join(workspace_path, file_pattern)
         matches = glob.glob(full_pattern, recursive=True)
         if matches:
@@ -241,6 +258,7 @@ def _handle_undo(parts, console, workspace_path, change_history):
 
     try:
         from orion.core.editing.safety import get_git_safety
+
         safety = get_git_safety(workspace_path)
 
         subcommand = parts[1].lower() if len(parts) > 1 else ""
@@ -258,7 +276,9 @@ def _handle_undo(parts, console, workspace_path, change_history):
             if stack:
                 console.print_info("Undo stack:")
                 for entry in stack:
-                    console._print(f"  [{entry['index']}] {entry['hash']} {entry['description']} ({entry['files']} files)")
+                    console._print(
+                        f"  [{entry['index']}] {entry['hash']} {entry['description']} ({entry['files']} files)"
+                    )
             else:
                 console.print_info("Undo stack is empty")
             return {}
@@ -278,7 +298,9 @@ def _handle_undo(parts, console, workspace_path, change_history):
         if safety.get_savepoint_count() > 0:
             result = safety.undo()
             if result.success:
-                console.print_success(f"Undo: {result.message} (restored {result.files_restored} files)")
+                console.print_success(
+                    f"Undo: {result.message} (restored {result.files_restored} files)"
+                )
             else:
                 console.print_error(result.message)
             return {"change_history": change_history}
@@ -294,11 +316,9 @@ def _handle_diff(console, workspace_path):
     if workspace_path:
         try:
             import subprocess
+
             result = subprocess.run(
-                ["git", "diff", "--stat"],
-                cwd=workspace_path,
-                capture_output=True,
-                text=True
+                ["git", "diff", "--stat"], cwd=workspace_path, capture_output=True, text=True
             )
             if result.stdout.strip():
                 console.print_info("Pending changes:")
@@ -321,12 +341,10 @@ def _handle_commit(parts, console, workspace_path):
     msg = " ".join(parts[1:]) if len(parts) > 1 else "orion: automated changes"
     try:
         import subprocess
+
         subprocess.run(["git", "add", "-A"], cwd=workspace_path, check=True)
         result = subprocess.run(
-            ["git", "commit", "-m", msg],
-            cwd=workspace_path,
-            capture_output=True,
-            text=True
+            ["git", "commit", "-m", msg], cwd=workspace_path, capture_output=True, text=True
         )
         if result.returncode == 0:
             console.print_success(f"Committed: {msg}")
@@ -346,13 +364,19 @@ def _handle_map(console, workspace_path):
     console.print_info("Repository map:")
     try:
         from orion.core.context.repo_map import generate_repo_map
+
         repo_map = generate_repo_map(workspace_path)
         console._print(repo_map)
     except ImportError:
         for root, dirs, files in os.walk(workspace_path):
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__', 'venv', '.git']]
-            level = root.replace(workspace_path, '').count(os.sep)
-            indent = '  ' * level
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".")
+                and d not in ["node_modules", "__pycache__", "venv", ".git"]
+            ]
+            level = root.replace(workspace_path, "").count(os.sep)
+            indent = "  " * level
             folder = os.path.basename(root)
             if level < 3:
                 console._print(f"{indent}{folder}/")
@@ -365,23 +389,23 @@ def _handle_map(console, workspace_path):
 
 def _handle_mode(parts, console, mode):
     """Handle /mode [new_mode] -- Show or change mode."""
-    VALID_MODES = {"safe", "pro", "project"}
+    valid_modes = {"safe", "pro", "project"}
 
     if len(parts) < 2:
         console.print_info(f"Current mode: {mode.upper()}")
         return {}
 
     new_mode = parts[1].lower()
-    if new_mode in VALID_MODES:
+    if new_mode in valid_modes:
         mode_desc = {
             "safe": "SAFE (read-only)",
             "pro": "PRO (file operations with approval)",
-            "project": "PROJECT (file + command execution with approval)"
+            "project": "PROJECT (file + command execution with approval)",
         }
         console.print_success(f"Mode switched to: {mode_desc.get(new_mode, new_mode.upper())}")
         return {"mode": new_mode}
     else:
-        console.print_error(f"Invalid mode. Use: {', '.join(sorted(VALID_MODES))}")
+        console.print_error(f"Invalid mode. Use: {', '.join(sorted(valid_modes))}")
         return {}
 
 
@@ -394,6 +418,7 @@ def _handle_connect(parts, console):
         console.print_info("  /connect                 -- list all platforms")
         try:
             from orion.integrations.platforms import get_platform_registry
+
             registry = get_platform_registry()
             for p in registry.list_all():
                 status = "✓" if p.connected else "·"
@@ -407,6 +432,7 @@ def _handle_connect(parts, console):
 
     try:
         from orion.integrations.platforms import get_platform_registry
+
         registry = get_platform_registry()
         platform = registry.get(platform_id)
         if not platform:
@@ -415,11 +441,16 @@ def _handle_connect(parts, console):
 
         if not token and platform.cli_tool:
             import shutil
+
             if shutil.which(platform.cli_tool):
-                console.print_success(f"{platform.name} connected via {platform.cli_tool} CLI (auto-detected)")
+                console.print_success(
+                    f"{platform.name} connected via {platform.cli_tool} CLI (auto-detected)"
+                )
                 return {}
             else:
-                console.print_error(f"{platform.cli_tool} CLI not found. Install it or provide a token.")
+                console.print_error(
+                    f"{platform.cli_tool} CLI not found. Install it or provide a token."
+                )
                 if platform.setup_instructions:
                     console.print_info(f"  Setup: {platform.setup_instructions}")
                 return {}
@@ -433,6 +464,7 @@ def _handle_connect(parts, console):
             return {}
 
         from orion.security.store import get_secure_store
+
         store = get_secure_store()
         backend = store.set_key(platform.secure_store_key or platform.id, token)
         if platform.env_var:
@@ -454,6 +486,7 @@ def _handle_disconnect(parts, console):
     try:
         from orion.integrations.platforms import get_platform_registry
         from orion.security.store import get_secure_store
+
         registry = get_platform_registry()
         platform = registry.get(platform_id)
         if not platform:
@@ -485,6 +518,7 @@ def _handle_key(parts, console):
     if action == "status":
         try:
             from orion.security.store import get_secure_store
+
             store = get_secure_store()
             providers = store.list_providers()
             if providers:
@@ -505,6 +539,7 @@ def _handle_key(parts, console):
         key = parts[3]
         try:
             from orion.security.store import get_secure_store
+
             store = get_secure_store()
             backend = store.set_key(provider, key)
             console.print_success(f"Key for '{provider}' stored in {backend}")
@@ -519,6 +554,7 @@ def _handle_key(parts, console):
         provider = parts[2]
         try:
             from orion.security.store import get_secure_store
+
             store = get_secure_store()
             store.delete_key(provider)
             console.print_success(f"Key for '{provider}' removed")
@@ -534,6 +570,7 @@ def _handle_memory(parts, console):
     """Handle /memory [search <query> | stats | evolution] -- View memory stats or search."""
     try:
         from orion.core.memory.engine import get_memory_engine
+
         engine = get_memory_engine()
 
         if len(parts) >= 3 and parts[1].lower() == "search":
@@ -573,7 +610,11 @@ def _handle_memory(parts, console):
         console._print(f"  Global  (Tier 3):    {stats.tier3_entries} entries")
         console._print(f"  Approvals:           {stats.total_approvals}")
         console._print(f"  Rejections:          {stats.total_rejections}")
-        console._print(f"  Approval rate:       {stats.approval_rate:.1%}" if (stats.total_approvals + stats.total_rejections) > 0 else "  Approval rate:       N/A")
+        console._print(
+            f"  Approval rate:       {stats.approval_rate:.1%}"
+            if (stats.total_approvals + stats.total_rejections) > 0
+            else "  Approval rate:       N/A"
+        )
         console._print(f"  Patterns learned:    {stats.patterns_learned}")
         console._print(f"  Anti-patterns:       {stats.anti_patterns_learned}")
         console._print(f"  Preferences stored:  {stats.preferences_stored}")
@@ -598,8 +639,14 @@ def _handle_bridge(parts, console):
             else:
                 console.print_info("Messaging Bridges:")
                 for name, info in status.items():
-                    state = "🟢 running" if info["running"] else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
-                    console._print(f"  {name}: {state} | {info['authorized_users']} users | {info['total_requests']} requests")
+                    state = (
+                        "🟢 running"
+                        if info["running"]
+                        else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
+                    )
+                    console._print(
+                        f"  {name}: {state} | {info['authorized_users']} users | {info['total_requests']} requests"
+                    )
             return {}
 
         subcmd = parts[1].lower()
@@ -617,7 +664,9 @@ def _handle_bridge(parts, console):
             passphrase = manager.enable(platform, token)
             console.print_info(f"✅ {platform.title()} bridge enabled!")
             console.print_info(f"🔑 Auth passphrase: {passphrase}")
-            console.print_info(f"Send this passphrase to your {platform.title()} bot to authenticate.")
+            console.print_info(
+                f"Send this passphrase to your {platform.title()} bot to authenticate."
+            )
             console.print_info("⚠️  Keep this passphrase secret -- it controls access to Orion.")
 
         elif subcmd == "disable":
@@ -638,7 +687,11 @@ def _handle_bridge(parts, console):
                 console.print_info("No bridges configured.")
             else:
                 for name, info in status.items():
-                    state = "🟢 running" if info["running"] else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
+                    state = (
+                        "🟢 running"
+                        if info["running"]
+                        else ("🟡 enabled" if info["enabled"] else "⚫ disabled")
+                    )
                     console._print(f"\n  [{name.upper()}] {state}")
                     console._print(f"    Authorized users: {info['authorized_users']}")
                     console._print(f"    Total requests:   {info['total_requests']}")
@@ -663,5 +716,3 @@ def _handle_bridge(parts, console):
     except Exception as e:
         console.print_error(f"Bridge error: {e}")
     return {}
-
-

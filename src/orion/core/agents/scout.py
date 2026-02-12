@@ -27,7 +27,7 @@ runs in <500ms to avoid slowing down simple requests.
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from orion.core.context.repo_map import RepoMap
@@ -35,18 +35,20 @@ if TYPE_CHECKING:
 
 class Route(Enum):
     """Request routing destinations."""
-    FAST_PATH = "fast"      # Simple: read, answer, single file edit
-    COUNCIL = "council"      # Complex: multi-file, architecture
+
+    FAST_PATH = "fast"  # Simple: read, answer, single file edit
+    COUNCIL = "council"  # Complex: multi-file, architecture
     ESCALATION = "escalate"  # Dangerous: delete, security-critical
 
 
 @dataclass
 class ScoutReport:
     """Result of Scout analysis."""
+
     route: Route
-    relevant_files: List[str]
+    relevant_files: list[str]
     complexity_score: float  # 0.0 - 1.0
-    risk_level: float        # 0.0 - 1.0
+    risk_level: float  # 0.0 - 1.0
     reasoning: str
 
 
@@ -59,21 +61,19 @@ class Scout:
     # Patterns that indicate simple operations
     SIMPLE_PATTERNS = [
         # File reading
-        r'\b(show|display|print|read|cat|view|open)\s+(me\s+)?(the\s+)?(contents?\s+of\s+)?[\w./]+\.(py|js|ts|json|yaml|yml|md|txt|toml|cfg|ini)\b',
-        r'\bwhat\s+(does|is\s+in)\s+[\w./]+\.(py|js|ts|json|yaml|yml|md|txt)\b',
-        r'\bread\s+[\w./]+',
+        r"\b(show|display|print|read|cat|view|open)\s+(me\s+)?(the\s+)?(contents?\s+of\s+)?[\w./]+\.(py|js|ts|json|yaml|yml|md|txt|toml|cfg|ini)\b",
+        r"\bwhat\s+(does|is\s+in)\s+[\w./]+\.(py|js|ts|json|yaml|yml|md|txt)\b",
+        r"\bread\s+[\w./]+",
         r"read\s+(\S+)",
         r"show\s+(?:me\s+)?(\S+)",
         r"what\s+(?:does|is)\s+",
         r"explain\s+",
-
         # Simple fixes (typos, single line)
-        r'\bfix\s+(the\s+)?(typo|spelling|grammar|mistake)\b',
-        r'\bfix\s+(the\s+)?(a\s+)?bug\s+(in|on|at)\s+(line\s+)?\d+',
-        r'\bcorrect\s+(the\s+)?(typo|spelling|mistake)\b',
-        r'\b(change|update|fix)\s+(line\s+)?\d+\b',
+        r"\bfix\s+(the\s+)?(typo|spelling|grammar|mistake)\b",
+        r"\bfix\s+(the\s+)?(a\s+)?bug\s+(in|on|at)\s+(line\s+)?\d+",
+        r"\bcorrect\s+(the\s+)?(typo|spelling|mistake)\b",
+        r"\b(change|update|fix)\s+(line\s+)?\d+\b",
         r"fix\s+(?:the\s+)?(?:bug|error|issue)\s+in\s+(\S+)",
-
         # Other simple operations
         r"rename\s+",
         r"add\s+(?:a\s+)?(?:comment|docstring)",
@@ -109,38 +109,33 @@ class Scout:
         # Destructive operations
         r"delete\s+(?:all|multiple|\*|everything)",
         r"remove\s+(?:all|multiple|\*|everything)",
-        r'\b(delete|remove|drop)\s+(all|every|\*|the\s+entire)',
+        r"\b(delete|remove|drop)\s+(all|every|\*|the\s+entire)",
         r"drop\s+(?:table|database|collection)",
         r"rm\s+-rf",
         r"truncate\s+",
         r"wipe\s+",
         r"destroy\s+",
-        r'\b(wipe|destroy|nuke)\b',
-
+        r"\b(wipe|destroy|nuke)\b",
         # Git repository destruction
-        r'\b(delete|remove|rm)\b.*\.git\b',
-        r'\.git\s*(directory|folder)',
-
+        r"\b(delete|remove|rm)\b.*\.git\b",
+        r"\.git\s*(directory|folder)",
         # Credentials (more specific - not "token" alone)
-        r'\b(api[_-]?key|password|secret[_-]?key|credential)s?\b',
-        r'\b(expose|leak|print|log|show)\s+.*(password|secret|key|credential)',
-        r'\bprivate[_-]?key\b',
-        r'\.env\b',
-
+        r"\b(api[_-]?key|password|secret[_-]?key|credential)s?\b",
+        r"\b(expose|leak|print|log|show)\s+.*(password|secret|key|credential)",
+        r"\bprivate[_-]?key\b",
+        r"\.env\b",
         # System-level danger
         r"sudo\s+",
         r"chmod\s+777",
         r"format\s+(?:disk|drive)",
-        r'\b/(etc|var|usr|root)\b',
-
+        r"\b/(etc|var|usr|root)\b",
         # Production danger
-        r'\bproduction\s+(database|server|env)\b',
-
+        r"\bproduction\s+(database|server|env)\b",
         # Overwrite
         r"overwrite\s+(?:all|everything)",
     ]
 
-    def __init__(self, workspace_path: str, repo_map: Optional['RepoMap'] = None):
+    def __init__(self, workspace_path: str, repo_map: Optional["RepoMap"] = None):
         self.workspace = workspace_path
         self.repo_map = repo_map
 
@@ -164,7 +159,7 @@ class Scout:
                     relevant_files=self._find_relevant_files(request),
                     complexity_score=0.9,
                     risk_level=0.9,
-                    reasoning=f"Matched danger pattern: {pattern}"
+                    reasoning=f"Matched danger pattern: {pattern}",
                 )
 
         # Check for simple patterns
@@ -175,7 +170,7 @@ class Scout:
                     relevant_files=self._find_relevant_files(request),
                     complexity_score=0.2,
                     risk_level=0.1,
-                    reasoning=f"Matched simple pattern: {pattern}"
+                    reasoning=f"Matched simple pattern: {pattern}",
                 )
 
         # Check for complex patterns
@@ -186,7 +181,7 @@ class Scout:
                     relevant_files=self._find_relevant_files(request),
                     complexity_score=0.7,
                     risk_level=0.3,
-                    reasoning=f"Matched complex pattern: {pattern}"
+                    reasoning=f"Matched complex pattern: {pattern}",
                 )
 
         # Default: Use file count heuristic
@@ -199,7 +194,7 @@ class Scout:
                 relevant_files=relevant,
                 complexity_score=0.2,
                 risk_level=0.1,
-                reasoning="No specific files mentioned - treating as simple request"
+                reasoning="No specific files mentioned - treating as simple request",
             )
         elif len(relevant) == 1:
             return ScoutReport(
@@ -207,7 +202,7 @@ class Scout:
                 relevant_files=relevant,
                 complexity_score=0.3,
                 risk_level=0.2,
-                reasoning="Single file operation"
+                reasoning="Single file operation",
             )
         elif len(relevant) <= 3:
             return ScoutReport(
@@ -215,7 +210,7 @@ class Scout:
                 relevant_files=relevant,
                 complexity_score=0.5,
                 risk_level=0.3,
-                reasoning=f"Multi-file operation ({len(relevant)} files)"
+                reasoning=f"Multi-file operation ({len(relevant)} files)",
             )
         else:
             return ScoutReport(
@@ -223,10 +218,10 @@ class Scout:
                 relevant_files=relevant,
                 complexity_score=0.7,
                 risk_level=0.4,
-                reasoning=f"Large scope operation ({len(relevant)} files)"
+                reasoning=f"Large scope operation ({len(relevant)} files)",
             )
 
-    def _find_relevant_files(self, request: str) -> List[str]:
+    def _find_relevant_files(self, request: str) -> list[str]:
         """
         Find files relevant to the request.
 
@@ -239,17 +234,19 @@ class Scout:
         # Fallback: extract file paths from request
         return self._extract_file_paths(request)
 
-    def _extract_file_paths(self, request: str) -> List[str]:
+    def _extract_file_paths(self, request: str) -> list[str]:
         """Extract file paths mentioned in the request."""
         files = []
 
         # Common file extensions (non-capturing group so findall returns full match)
-        extensions = r'\.(?:py|js|ts|jsx|tsx|go|rs|java|cs|cpp|c|h|hpp|json|yaml|yml|md|txt|html|css|sql)'
+        extensions = (
+            r"\.(?:py|js|ts|jsx|tsx|go|rs|java|cs|cpp|c|h|hpp|json|yaml|yml|md|txt|html|css|sql)"
+        )
 
         # Pattern for file paths
         patterns = [
-            rf'([\w\-./\\]+{extensions})',  # path/to/file.ext
-            r'`([^`]+)`',  # `filename` in backticks
+            rf"([\w\-./\\]+{extensions})",  # path/to/file.ext
+            r"`([^`]+)`",  # `filename` in backticks
         ]
 
         for pattern in patterns:
@@ -258,13 +255,13 @@ class Scout:
                 if isinstance(match, tuple):
                     match = match[0]
                 # Clean up the match
-                clean = match.strip('`').strip()
+                clean = match.strip("`").strip()
                 if clean and len(clean) > 2:
                     files.append(clean)
 
         return list(set(files))[:10]  # Dedupe and limit
 
 
-def get_scout(workspace_path: str, repo_map: Optional['RepoMap'] = None) -> Scout:
+def get_scout(workspace_path: str, repo_map: Optional["RepoMap"] = None) -> Scout:
     """Factory function to get a Scout instance."""
     return Scout(workspace_path, repo_map)

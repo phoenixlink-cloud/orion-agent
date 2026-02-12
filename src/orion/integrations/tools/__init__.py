@@ -23,7 +23,7 @@ Providers: GitHub, GitLab, Jira, Linear, Notion, etc.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.integrations.tools")
 
@@ -41,7 +41,7 @@ class ToolProviderBase(ABC):
         return "pat"
 
     @abstractmethod
-    async def api_call(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    async def api_call(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make an authenticated API call to the tool."""
         ...
 
@@ -56,19 +56,23 @@ class GitHubProvider(ToolProviderBase):
     def name(self) -> str:
         return "github"
 
-    def _get_token(self) -> Optional[str]:
+    def _get_token(self) -> str | None:
         try:
             from orion.security.store import SecureStore
+
             return SecureStore().get_key("github")
         except Exception:
             return None
 
-    async def api_call(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    async def api_call(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         import httpx
 
         token = self._get_token()
         if not token:
-            return {"success": False, "error": "GitHub token not configured. Use /key set github <token>."}
+            return {
+                "success": False,
+                "error": "GitHub token not configured. Use /key set github <token>.",
+            }
 
         base = "https://api.github.com"
         headers = {
@@ -78,7 +82,9 @@ class GitHubProvider(ToolProviderBase):
         }
 
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.request(method.upper(), f"{base}{endpoint}", headers=headers, **kwargs)
+            resp = await client.request(
+                method.upper(), f"{base}{endpoint}", headers=headers, **kwargs
+            )
             if resp.status_code >= 400:
                 return {"success": False, "status": resp.status_code, "error": resp.text[:500]}
             return {"success": True, "status": resp.status_code, "data": resp.json()}
@@ -99,19 +105,23 @@ class NotionProvider(ToolProviderBase):
     def auth_type(self) -> str:
         return "bot_token"
 
-    def _get_token(self) -> Optional[str]:
+    def _get_token(self) -> str | None:
         try:
             from orion.security.store import SecureStore
+
             return SecureStore().get_key("notion")
         except Exception:
             return None
 
-    async def api_call(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
+    async def api_call(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         import httpx
 
         token = self._get_token()
         if not token:
-            return {"success": False, "error": "Notion token not configured. Use /key set notion <token>."}
+            return {
+                "success": False,
+                "error": "Notion token not configured. Use /key set notion <token>.",
+            }
 
         base = "https://api.notion.com/v1"
         headers = {
@@ -121,7 +131,9 @@ class NotionProvider(ToolProviderBase):
         }
 
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.request(method.upper(), f"{base}{endpoint}", headers=headers, **kwargs)
+            resp = await client.request(
+                method.upper(), f"{base}{endpoint}", headers=headers, **kwargs
+            )
             if resp.status_code >= 400:
                 return {"success": False, "status": resp.status_code, "error": resp.text[:500]}
             return {"success": True, "status": resp.status_code, "data": resp.json()}
@@ -129,18 +141,18 @@ class NotionProvider(ToolProviderBase):
 
 # ── Provider registry ────────────────────────────────────────────────────
 
-_PROVIDERS: Dict[str, ToolProviderBase] = {}
+_PROVIDERS: dict[str, ToolProviderBase] = {}
 
 
 def register_tool_provider(provider: ToolProviderBase):
     _PROVIDERS[provider.name] = provider
 
 
-def get_tool_provider(name: str) -> Optional[ToolProviderBase]:
+def get_tool_provider(name: str) -> ToolProviderBase | None:
     return _PROVIDERS.get(name)
 
 
-def list_tool_providers() -> List[str]:
+def list_tool_providers() -> list[str]:
     return list(_PROVIDERS.keys())
 
 

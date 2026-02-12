@@ -29,11 +29,11 @@ Flow:
     4. Use in future similar requests
 """
 
-import time
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from orion.core.learning.patterns import classify_request_type
 from orion.core.memory.institutional import InstitutionalMemory
@@ -45,13 +45,14 @@ logger = logging.getLogger("orion.learning.feedback")
 @dataclass
 class StructuredFeedback:
     """Extended feedback for curriculum training."""
-    rating: int                     # 1-5
-    text: str                       # Human-readable summary
-    domain: str                     # Training domain
-    missing_concepts: List[str] = field(default_factory=list)
-    incorrect_claims: List[str] = field(default_factory=list)
-    strengths: List[str] = field(default_factory=list)
-    source: str = "curriculum"      # "user" or "curriculum"
+
+    rating: int  # 1-5
+    text: str  # Human-readable summary
+    domain: str  # Training domain
+    missing_concepts: list[str] = field(default_factory=list)
+    incorrect_claims: list[str] = field(default_factory=list)
+    strengths: list[str] = field(default_factory=list)
+    source: str = "curriculum"  # "user" or "curriculum"
 
 
 class LearningLoop:
@@ -62,15 +63,13 @@ class LearningLoop:
     institutional and project-level wisdom over time.
     """
 
-    def __init__(self, workspace_path: Optional[str] = None):
+    def __init__(self, workspace_path: str | None = None):
         self.workspace = workspace_path
         self.institutional = InstitutionalMemory()
-        self.project: Optional[ProjectMemory] = None
+        self.project: ProjectMemory | None = None
         if workspace_path:
-            try:
+            with contextlib.suppress(Exception):
                 self.project = ProjectMemory(workspace_path)
-            except Exception:
-                pass
 
     def process_feedback(
         self,
@@ -78,8 +77,8 @@ class LearningLoop:
         original_response: str,
         feedback_type: str,
         feedback_content: str = "",
-        context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Process user feedback and learn from it.
 
@@ -98,15 +97,21 @@ class LearningLoop:
         if feedback_type == "positive":
             return self._learn_success(original_request, original_response, context)
         elif feedback_type == "negative":
-            return self._learn_failure(original_request, original_response, feedback_content, context)
+            return self._learn_failure(
+                original_request, original_response, feedback_content, context
+            )
         elif feedback_type == "edit":
-            return self._learn_from_edit(original_request, original_response, feedback_content, context)
+            return self._learn_from_edit(
+                original_request, original_response, feedback_content, context
+            )
         else:
             return {"success": False, "error": f"Unknown feedback type: {feedback_type}"}
 
     # ── Internal learning methods ────────────────────────────────────────
 
-    def _learn_success(self, request: str, response: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _learn_success(
+        self, request: str, response: str, context: dict[str, Any]
+    ) -> dict[str, Any]:
         request_type = classify_request_type(request)
 
         self.institutional.learn_from_outcome(
@@ -127,7 +132,9 @@ class LearningLoop:
         logger.info("Learned success pattern: type=%s", request_type)
         return {"success": True, "learned": "success_pattern", "request_type": request_type}
 
-    def _learn_failure(self, request: str, response: str, feedback: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _learn_failure(
+        self, request: str, response: str, feedback: str, context: dict[str, Any]
+    ) -> dict[str, Any]:
         request_type = classify_request_type(request)
 
         self.institutional.learn_from_outcome(
@@ -147,15 +154,22 @@ class LearningLoop:
             )
 
         logger.info("Learned anti-pattern: type=%s feedback=%s", request_type, feedback[:60])
-        return {"success": True, "learned": "anti_pattern", "request_type": request_type, "feedback": feedback}
+        return {
+            "success": True,
+            "learned": "anti_pattern",
+            "request_type": request_type,
+            "feedback": feedback,
+        }
 
-    def _learn_from_edit(self, request: str, original: str, edited: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _learn_from_edit(
+        self, request: str, original: str, edited: str, context: dict[str, Any]
+    ) -> dict[str, Any]:
         request_type = classify_request_type(request)
 
         self.institutional.learn_from_outcome(
             action_type=request_type,
             context=request[:100],
-            outcome=f"User edited response -- prefers different style",
+            outcome="User edited response -- prefers different style",
             quality_score=0.5,
         )
 
@@ -172,7 +186,7 @@ class LearningLoop:
 
     # ── Stats ────────────────────────────────────────────────────────────
 
-    def get_feedback_stats(self) -> Dict[str, Any]:
+    def get_feedback_stats(self) -> dict[str, Any]:
         """Get statistics about feedback and accumulated learnings."""
         inst_stats = self.institutional.get_statistics()
         proj_stats = self.project.get_statistics() if self.project else {}
@@ -181,13 +195,12 @@ class LearningLoop:
             "project": proj_stats,
         }
 
-
     def record_structured_feedback(
         self,
         interaction_id: str,
         feedback: StructuredFeedback,
         memory_engine=None,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Record structured feedback and create domain-specific patterns.
         Returns list of created memory entry IDs.
@@ -266,11 +279,13 @@ class LearningLoop:
 
         logger.info(
             "Recorded structured feedback for %s: %d patterns created (rating=%d)",
-            feedback.domain, len(created_ids), feedback.rating,
+            feedback.domain,
+            len(created_ids),
+            feedback.rating,
         )
         return created_ids
 
 
-def get_learning_loop(workspace_path: Optional[str] = None) -> LearningLoop:
+def get_learning_loop(workspace_path: str | None = None) -> LearningLoop:
     """Factory function to get a LearningLoop instance."""
     return LearningLoop(workspace_path)

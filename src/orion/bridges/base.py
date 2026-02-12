@@ -30,37 +30,40 @@ SECURITY MODEL (NON-NEGOTIABLE):
 """
 
 import asyncio
-import time
-import json
 import hashlib
+import json
 import secrets
+import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Dict, List, Any, Callable, Awaitable
-from pathlib import Path
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-
+from pathlib import Path
+from typing import Any
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class BridgeUser:
     """An authenticated bridge user."""
-    platform: str                    # "telegram", "slack", "discord"
-    platform_user_id: str            # Platform-specific user ID
-    display_name: str = ""           # Human-readable name
-    authorized: bool = False         # Has passed passphrase auth
-    authorized_at: str = ""          # ISO timestamp
-    last_active: str = ""            # ISO timestamp
-    request_count: int = 0           # Total requests made
-    is_owner: bool = False           # Primary owner (first to auth)
+
+    platform: str  # "telegram", "slack", "discord"
+    platform_user_id: str  # Platform-specific user ID
+    display_name: str = ""  # Human-readable name
+    authorized: bool = False  # Has passed passphrase auth
+    authorized_at: str = ""  # ISO timestamp
+    last_active: str = ""  # ISO timestamp
+    request_count: int = 0  # Total requests made
+    is_owner: bool = False  # Primary owner (first to auth)
 
 
 @dataclass
 class BridgeMessage:
     """An inbound message from a messaging platform."""
+
     platform: str
     user_id: str
     chat_id: str
@@ -68,20 +71,21 @@ class BridgeMessage:
     display_name: str = ""
     timestamp: str = ""
     message_id: str = ""
-    reply_to: str = ""               # For threaded replies
+    reply_to: str = ""  # For threaded replies
 
 
 @dataclass
 class BridgeConfig:
     """Configuration for a messaging bridge."""
+
     platform: str
     enabled: bool = False
-    token: str = ""                   # Bot token (stored encrypted)
-    workspace: str = ""               # Default workspace path
-    passphrase_hash: str = ""         # SHA-256 of the auth passphrase
-    allowed_users: Dict[str, BridgeUser] = field(default_factory=dict)
-    rate_limit_per_minute: int = 10   # Max requests per user per minute
-    max_response_length: int = 4000   # Platform message length limit
+    token: str = ""  # Bot token (stored encrypted)
+    workspace: str = ""  # Default workspace path
+    passphrase_hash: str = ""  # SHA-256 of the auth passphrase
+    allowed_users: dict[str, BridgeUser] = field(default_factory=dict)
+    rate_limit_per_minute: int = 10  # Max requests per user per minute
+    max_response_length: int = 4000  # Platform message length limit
     created_at: str = ""
 
 
@@ -89,12 +93,13 @@ class BridgeConfig:
 # RATE LIMITER (per-user)
 # =============================================================================
 
+
 class UserRateLimiter:
     """Per-user rate limiting for bridge requests."""
 
     def __init__(self, max_per_minute: int = 10):
         self.max_per_minute = max_per_minute
-        self._timestamps: Dict[str, List[float]] = {}
+        self._timestamps: dict[str, list[float]] = {}
 
     def is_allowed(self, user_id: str) -> bool:
         """Check if a user is within their rate limit."""
@@ -105,9 +110,7 @@ class UserRateLimiter:
             self._timestamps[user_id] = []
 
         # Prune old timestamps
-        self._timestamps[user_id] = [
-            t for t in self._timestamps[user_id] if t > cutoff
-        ]
+        self._timestamps[user_id] = [t for t in self._timestamps[user_id] if t > cutoff]
 
         if len(self._timestamps[user_id]) >= self.max_per_minute:
             return False
@@ -128,6 +131,7 @@ class UserRateLimiter:
 # =============================================================================
 # ABSTRACT BRIDGE
 # =============================================================================
+
 
 class MessagingBridge(ABC):
     """
@@ -150,7 +154,7 @@ class MessagingBridge(ABC):
         self._router = None
         self._memory_engine = None
         self._log = None
-        self._on_message: Optional[Callable] = None
+        self._on_message: Callable | None = None
 
     # =========================================================================
     # ABSTRACT METHODS -- Platform adapters implement these
@@ -172,8 +176,7 @@ class MessagingBridge(ABC):
         ...
 
     @abstractmethod
-    async def send_approval_prompt(self, chat_id: str, prompt: str,
-                                   approval_id: str) -> None:
+    async def send_approval_prompt(self, chat_id: str, prompt: str, approval_id: str) -> None:
         """Send an AEGIS approval request with Approve/Deny buttons."""
         ...
 
@@ -183,9 +186,7 @@ class MessagingBridge(ABC):
 
     def set_passphrase(self, passphrase: str):
         """Set the authentication passphrase (hashed, never stored in plain text)."""
-        self.config.passphrase_hash = hashlib.sha256(
-            passphrase.encode("utf-8")
-        ).hexdigest()
+        self.config.passphrase_hash = hashlib.sha256(passphrase.encode("utf-8")).hexdigest()
 
     def generate_passphrase(self) -> str:
         """Generate a random passphrase and set it. Returns the plain text."""
@@ -249,8 +250,9 @@ class MessagingBridge(ABC):
         text = message.text.strip()
 
         if self._log:
-            self._log.info("Bridge", f"Inbound from {self.platform}",
-                           user_id=user_id, chat_id=chat_id)
+            self._log.info(
+                "Bridge", f"Inbound from {self.platform}", user_id=user_id, chat_id=chat_id
+            )
 
         # ---- Step 1: Authorization ----
         if not self.is_authorized(user_id):
@@ -258,29 +260,34 @@ class MessagingBridge(ABC):
                 # Passphrase correct -- authorize this user
                 user = self.authorize_user(user_id, message.display_name)
                 if self._log:
-                    self._log.security("bridge_auth", passed=True,
-                                       user_id=user_id, platform=self.platform)
-                await self.send(chat_id,
+                    self._log.security(
+                        "bridge_auth", passed=True, user_id=user_id, platform=self.platform
+                    )
+                await self.send(
+                    chat_id,
                     "✅ Authenticated successfully. You can now interact with Orion.\n\n"
-                    "Type your request in plain English, or /help for commands."
+                    "Type your request in plain English, or /help for commands.",
                 )
                 return
             elif self.config.passphrase_hash:
                 # Not authorized, wrong passphrase
                 if self._log:
-                    self._log.security("bridge_auth", passed=False,
-                                       user_id=user_id, platform=self.platform)
-                await self.send(chat_id,
+                    self._log.security(
+                        "bridge_auth", passed=False, user_id=user_id, platform=self.platform
+                    )
+                await self.send(
+                    chat_id,
                     "🔒 This Orion instance requires authentication.\n"
-                    "Send the passphrase to get started."
+                    "Send the passphrase to get started.",
                 )
                 return
             else:
                 # No passphrase set -- auto-authorize (owner setup)
                 user = self.authorize_user(user_id, message.display_name)
                 if self._log:
-                    self._log.security("bridge_auto_auth", passed=True,
-                                       user_id=user_id, platform=self.platform)
+                    self._log.security(
+                        "bridge_auto_auth", passed=True, user_id=user_id, platform=self.platform
+                    )
 
         # Update last active
         user = self.config.allowed_users[user_id]
@@ -319,36 +326,38 @@ class MessagingBridge(ABC):
 
             # Truncate for platform limits
             if len(response) > self.config.max_response_length:
-                response = response[:self.config.max_response_length - 50] + \
-                    "\n\n... (truncated -- full response in logs)"
+                response = (
+                    response[: self.config.max_response_length - 50]
+                    + "\n\n... (truncated -- full response in logs)"
+                )
 
             await self.send(chat_id, response)
 
             if self._log:
-                self._log.route(route, text, platform=self.platform,
-                                user_id=user_id)
+                self._log.route(route, text, platform=self.platform, user_id=user_id)
 
         except Exception as e:
             error_msg = f"❌ Error: {str(e)[:200]}"
             await self.send(chat_id, error_msg)
             if self._log:
-                self._log.error("Bridge", f"Request failed: {e}",
-                                user_id=user_id, platform=self.platform)
+                self._log.error(
+                    "Bridge", f"Request failed: {e}", user_id=user_id, platform=self.platform
+                )
 
-    async def _handle_bridge_command(self, text: str, chat_id: str,
-                                     user_id: str) -> bool:
+    async def _handle_bridge_command(self, text: str, chat_id: str, user_id: str) -> bool:
         """Handle bridge-specific commands. Returns True if handled."""
         cmd = text.lower().strip()
 
         if cmd == "/help":
-            await self.send(chat_id,
+            await self.send(
+                chat_id,
                 "🌟 *Orion Commands*\n\n"
                 "/help -- Show this help\n"
                 "/status -- Bridge status & stats\n"
                 "/memory -- Memory stats\n"
                 "/whoami -- Your auth info\n"
                 "/workspace -- Show current workspace\n\n"
-                "Or just type your request in plain English!"
+                "Or just type your request in plain English!",
             )
             return True
 
@@ -399,8 +408,7 @@ class MessagingBridge(ABC):
             return True
 
         if cmd == "/workspace":
-            await self.send(chat_id,
-                f"📂 Workspace: {self.config.workspace or '(not set)'}")
+            await self.send(chat_id, f"📂 Workspace: {self.config.workspace or '(not set)'}")
             return True
 
         return False  # Not a bridge command
@@ -409,6 +417,7 @@ class MessagingBridge(ABC):
 # =============================================================================
 # BRIDGE MANAGER -- Orchestrates all platform bridges
 # =============================================================================
+
 
 class BridgeManager:
     """
@@ -419,7 +428,7 @@ class BridgeManager:
     """
 
     def __init__(self):
-        self._bridges: Dict[str, MessagingBridge] = {}
+        self._bridges: dict[str, MessagingBridge] = {}
         self._config_path = Path.home() / ".orion" / "bridges.json"
         self._router = None
         self._memory_engine = None
@@ -427,6 +436,7 @@ class BridgeManager:
 
         try:
             from orion.core.logging import get_logger
+
             self._log = get_logger()
         except Exception:
             pass
@@ -438,7 +448,7 @@ class BridgeManager:
         if self._config_path.exists():
             try:
                 data = json.loads(self._config_path.read_text(encoding="utf-8"))
-                for platform, cfg_data in data.items():
+                for _platform, cfg_data in data.items():
                     # Reconstruct BridgeUser objects
                     users = {}
                     for uid, udata in cfg_data.get("allowed_users", {}).items():
@@ -462,17 +472,13 @@ class BridgeManager:
                 "token": cfg.token,  # Should be encrypted via SecureStore in production
                 "workspace": cfg.workspace,
                 "passphrase_hash": cfg.passphrase_hash,
-                "allowed_users": {
-                    uid: asdict(u) for uid, u in cfg.allowed_users.items()
-                },
+                "allowed_users": {uid: asdict(u) for uid, u in cfg.allowed_users.items()},
                 "rate_limit_per_minute": cfg.rate_limit_per_minute,
                 "max_response_length": cfg.max_response_length,
                 "created_at": cfg.created_at,
             }
             data[name] = cfg_dict
-        self._config_path.write_text(
-            json.dumps(data, indent=2), encoding="utf-8"
-        )
+        self._config_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     def _register_bridge(self, config: BridgeConfig):
         """Create and register a bridge adapter for the given config."""
@@ -483,16 +489,19 @@ class BridgeManager:
             bridge._log = self._log
             self._bridges[config.platform] = bridge
 
-    def _create_adapter(self, config: BridgeConfig) -> Optional[MessagingBridge]:
+    def _create_adapter(self, config: BridgeConfig) -> MessagingBridge | None:
         """Factory: create the correct platform adapter."""
         if config.platform == "telegram":
             from orion.bridges.telegram_bridge import TelegramBridge
+
             return TelegramBridge(config)
         elif config.platform == "slack":
             from orion.bridges.slack_bridge import SlackBridge
+
             return SlackBridge(config)
         elif config.platform == "discord":
             from orion.bridges.discord_bridge import DiscordBridge
+
             return DiscordBridge(config)
         return None
 
@@ -512,8 +521,7 @@ class BridgeManager:
         for bridge in self._bridges.values():
             bridge._memory_engine = engine
 
-    def enable(self, platform: str, token: str, workspace: str = "",
-               passphrase: str = "") -> str:
+    def enable(self, platform: str, token: str, workspace: str = "", passphrase: str = "") -> str:
         """
         Enable a messaging bridge.
 
@@ -540,8 +548,7 @@ class BridgeManager:
         self._save_config()
 
         if self._log:
-            self._log.info("Bridge", f"Enabled {platform} bridge",
-                           platform=platform)
+            self._log.info("Bridge", f"Enabled {platform} bridge", platform=platform)
 
         return result_passphrase
 
@@ -562,12 +569,13 @@ class BridgeManager:
             if result:
                 self._save_config()
                 if self._log:
-                    self._log.security("bridge_revoke", passed=True,
-                                       user_id=user_id, platform=platform)
+                    self._log.security(
+                        "bridge_revoke", passed=True, user_id=user_id, platform=platform
+                    )
             return result
         return False
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get status of all bridges."""
         status = {}
         for name, bridge in self._bridges.items():
@@ -575,12 +583,8 @@ class BridgeManager:
             status[name] = {
                 "enabled": cfg.enabled,
                 "running": bridge._running,
-                "authorized_users": sum(
-                    1 for u in cfg.allowed_users.values() if u.authorized
-                ),
-                "total_requests": sum(
-                    u.request_count for u in cfg.allowed_users.values()
-                ),
+                "authorized_users": sum(1 for u in cfg.allowed_users.values() if u.authorized),
+                "total_requests": sum(u.request_count for u in cfg.allowed_users.values()),
                 "workspace": cfg.workspace,
                 "rate_limit": cfg.rate_limit_per_minute,
             }
@@ -599,7 +603,7 @@ class BridgeManager:
     async def start_all(self):
         """Start all enabled bridges."""
         tasks = []
-        for name, bridge in self._bridges.items():
+        for _name, bridge in self._bridges.items():
             if bridge.config.enabled:
                 tasks.append(bridge.start())
         if tasks:
@@ -620,7 +624,7 @@ class BridgeManager:
 # SINGLETON
 # =============================================================================
 
-_manager_instance: Optional[BridgeManager] = None
+_manager_instance: BridgeManager | None = None
 
 
 def get_bridge_manager() -> BridgeManager:

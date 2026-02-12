@@ -36,24 +36,24 @@ Usage:
     await run_doctor(console)
 """
 
-import os
-import sys
-import json
 import asyncio
+import json
+import os
 import platform
-from pathlib import Path
-from typing import List, Tuple, Optional
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
 class CheckResult:
     """Result of a single diagnostic check."""
+
     name: str
-    status: str      # "pass", "warn", "fail"
+    status: str  # "pass", "warn", "fail"
     message: str
     remedy: str = ""
-    details: List[str] = field(default_factory=list)
+    details: list[str] = field(default_factory=list)
 
     @property
     def icon(self) -> str:
@@ -67,7 +67,8 @@ class CheckResult:
 @dataclass
 class DoctorReport:
     """Full diagnostic report."""
-    checks: List[CheckResult] = field(default_factory=list)
+
+    checks: list[CheckResult] = field(default_factory=list)
 
     @property
     def passed(self) -> int:
@@ -93,6 +94,7 @@ class DoctorReport:
 # =============================================================================
 # Individual Checks
 # =============================================================================
+
 
 def check_python_environment() -> CheckResult:
     """Check Python version and critical dependencies."""
@@ -156,6 +158,7 @@ def check_secure_store() -> CheckResult:
     """Check secure credential store status."""
     try:
         from orion.security.store import get_secure_store
+
         store = get_secure_store()
         status = store.get_status()
 
@@ -241,6 +244,7 @@ async def check_ollama() -> CheckResult:
 
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(f"{ollama_url}/api/tags")
             if resp.status_code == 200:
@@ -295,6 +299,7 @@ def check_api_keys() -> CheckResult:
         has_secure = False
         try:
             from orion.security.store import get_secure_store
+
             store = get_secure_store()
             has_secure = store.has_key(name)
         except Exception:
@@ -337,6 +342,7 @@ async def check_api_server() -> CheckResult:
 
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(f"{api_url}/api/health")
             if resp.status_code == 200:
@@ -447,6 +453,7 @@ def check_core_modules() -> CheckResult:
 # Main Doctor Runner
 # =============================================================================
 
+
 async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
     """
     Run all diagnostic checks and display results.
@@ -489,7 +496,8 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
     )
 
     all_checks = sync_checks + [
-        r if isinstance(r, CheckResult)
+        r
+        if isinstance(r, CheckResult)
         else CheckResult(name="Check", status="fail", message=str(r))
         for r in async_results
     ]
@@ -511,11 +519,7 @@ async def run_doctor(console=None, workspace: str = ".") -> DoctorReport:
 
     # Summary
     _print("\n  " + "─" * 50)
-    summary = (
-        f"  {report.passed} passed, "
-        f"{report.warnings} warnings, "
-        f"{report.failures} failures"
-    )
+    summary = f"  {report.passed} passed, {report.warnings} warnings, {report.failures} failures"
     overall = "healthy" if report.healthy else "needs attention"
     _print(f"\n  Summary: {summary}", "bold")
     _print(

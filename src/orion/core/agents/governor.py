@@ -43,34 +43,37 @@ Autonomy tiers:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from orion.core.agents.builder import BuilderResult, extract_json
+from orion.core.agents.builder import BuilderResult
 from orion.core.agents.reviewer import ReviewerResult
 
 logger = logging.getLogger("orion.governor")
 
 # Hard boundary categories -- Governor NEVER allows these through autonomously.
 # These are structural, not configurable.
-HARD_BOUNDARIES = frozenset({
-    "financial_transaction",
-    "legal_commitment",
-    "ethical_violation",
-    "production_deploy",
-    "security_credential_exposure",
-    "user_data_deletion",
-})
+HARD_BOUNDARIES = frozenset(
+    {
+        "financial_transaction",
+        "legal_commitment",
+        "ethical_violation",
+        "production_deploy",
+        "security_credential_exposure",
+        "user_data_deletion",
+    }
+)
 
 
 @dataclass
 class GovernorResult:
     """Final outcome from Governor decision."""
-    outcome: str          # "ANSWER", "PLAN", "ACTION_INTENT"
-    response: str         # Human-readable response
-    actions: List[Dict[str, Any]] = field(default_factory=list)
+
+    outcome: str  # "ANSWER", "PLAN", "ACTION_INTENT"
+    response: str  # Human-readable response
+    actions: list[dict[str, Any]] = field(default_factory=list)
     explanation: str = ""
     reviewer_decision: str = ""
-    revision_notes: List[str] = field(default_factory=list)
+    revision_notes: list[str] = field(default_factory=list)
     proposal_source: str = "builder"  # "builder" or "reviewer_revised"
 
 
@@ -124,12 +127,16 @@ def decide(
             actions = revised.get("actions", actions)
             explanation = revised.get("explanation", explanation)
         proposal_source = "reviewer_revised"
-        logger.info(f"Governor: Using reviewer-revised proposal ({len(reviewer_result.revision_notes)} corrections)")
+        logger.info(
+            f"Governor: Using reviewer-revised proposal ({len(reviewer_result.revision_notes)} corrections)"
+        )
 
     # Build revision suffix
     revision_suffix = ""
     if decision == "REVISE_AND_APPROVE" and reviewer_result.revision_notes:
-        revision_suffix = f"\n\n📝 Reviewer corrections: {'; '.join(reviewer_result.revision_notes)}"
+        revision_suffix = (
+            f"\n\n📝 Reviewer corrections: {'; '.join(reviewer_result.revision_notes)}"
+        )
 
     # =========================================================================
     # ACTION_INTENT -- mode gating
@@ -140,10 +147,13 @@ def decide(
             display = explanation or response or "I can help with that!"
             return GovernorResult(
                 outcome="ANSWER",
-                response=display + "\n\n💡 _File actions are available in PRO mode. Use `/mode pro` to enable edits._",
+                response=display
+                + "\n\n💡 _File actions are available in PRO mode. Use `/mode pro` to enable edits._",
                 explanation="Safe mode: response shown, file actions suppressed.",
                 reviewer_decision=decision,
-                revision_notes=reviewer_result.revision_notes if decision == "REVISE_AND_APPROVE" else [],
+                revision_notes=reviewer_result.revision_notes
+                if decision == "REVISE_AND_APPROVE"
+                else [],
                 proposal_source=proposal_source,
             )
 
@@ -153,7 +163,9 @@ def decide(
             actions=actions,
             explanation=f"Builder proposed {len(actions)} action(s). Reviewer {decision.lower().replace('_', ' ')}.",
             reviewer_decision=decision,
-            revision_notes=reviewer_result.revision_notes if decision == "REVISE_AND_APPROVE" else [],
+            revision_notes=reviewer_result.revision_notes
+            if decision == "REVISE_AND_APPROVE"
+            else [],
             proposal_source=proposal_source,
         )
 
@@ -166,7 +178,9 @@ def decide(
             response=(response or "") + revision_suffix,
             explanation=f"Builder provided a plan. Reviewer {decision.lower().replace('_', ' ')}.",
             reviewer_decision=decision,
-            revision_notes=reviewer_result.revision_notes if decision == "REVISE_AND_APPROVE" else [],
+            revision_notes=reviewer_result.revision_notes
+            if decision == "REVISE_AND_APPROVE"
+            else [],
             proposal_source=proposal_source,
         )
 

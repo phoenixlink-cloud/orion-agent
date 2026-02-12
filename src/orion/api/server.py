@@ -23,20 +23,19 @@ Routes are organized into modules under orion.api.routes/.
 Run with: uvicorn orion.api.server:app --reload --port 8001
 """
 
-import time
 import asyncio as _aio
-import uuid as _uuid
 import logging
+import time
+import uuid as _uuid
 from dataclasses import dataclass as _dataclass
-from typing import Dict as _Dict
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from orion._version import __version__
-from orion.api._shared import _get_orion_log, _PROJECT_ROOT
+from orion.api._shared import _PROJECT_ROOT, _get_orion_log
 
 logger = logging.getLogger("orion.api.server")
 
@@ -64,8 +63,10 @@ app.add_middleware(
 # HTTP REQUEST LOGGING MIDDLEWARE
 # =============================================================================
 
+
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Log every HTTP request with method, path, status, and latency."""
+
     async def dispatch(self, request: Request, call_next):
         start = time.time()
         response = await call_next(request)
@@ -83,10 +84,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 )
         return response
 
+
 app.add_middleware(RequestLoggingMiddleware)
 
 # Rate limiting + optional auth (W7)
-from orion.api.middleware import RateLimitMiddleware, OptionalAuthMiddleware
+from orion.api.middleware import OptionalAuthMiddleware, RateLimitMiddleware
+
 app.add_middleware(RateLimitMiddleware, requests_per_minute=120, burst=20)
 app.add_middleware(OptionalAuthMiddleware)
 
@@ -95,12 +98,13 @@ app.add_middleware(OptionalAuthMiddleware)
 # LIFECYCLE -- startup and shutdown logging
 # =============================================================================
 
+
 @app.on_event("startup")
 async def _on_startup():
     log = _get_orion_log()
     if log:
-        log.server_start(host="0.0.0.0", port=8001, version=__version__,
-                         project_root=_PROJECT_ROOT)
+        log.server_start(host="0.0.0.0", port=8001, version=__version__, project_root=_PROJECT_ROOT)
+
 
 @app.on_event("shutdown")
 async def _on_shutdown():
@@ -117,9 +121,11 @@ async def _on_shutdown():
 # approves or denies via the UI modal.
 # =============================================================================
 
+
 @_dataclass
 class _PendingApproval:
     """A write operation waiting for human approval."""
+
     id: str
     prompt: str
     event: _aio.Event
@@ -127,8 +133,10 @@ class _PendingApproval:
     responded: bool = False
     created_at: float = 0.0
 
+
 # Global approval queue -- shared between PlatformService callback and REST endpoints
-_pending_approvals: _Dict[str, _PendingApproval] = {}
+_pending_approvals: dict[str, _PendingApproval] = {}
+
 
 async def _web_approval_callback(prompt: str) -> bool:
     """
@@ -160,12 +168,14 @@ async def _web_approval_callback(prompt: str) -> bool:
 
     return pending.approved
 
+
 # Wire PlatformService with the web approval callback at startup
 @app.on_event("startup")
 async def _wire_aegis_approval():
     """Wire AEGIS Invariant 6 approval callback into PlatformService."""
     try:
         from orion.integrations.platform_service import get_platform_service
+
         svc = get_platform_service()
         svc.set_approval_callback(_web_approval_callback)
         logger.info("AEGIS Invariant 6 active -- external writes require human approval via web UI")
@@ -189,11 +199,13 @@ async def get_pending_approvals():
     pending = []
     for p in _pending_approvals.values():
         if not p.responded:
-            pending.append({
-                "id": p.id,
-                "prompt": p.prompt,
-                "age_seconds": round(now - p.created_at, 1),
-            })
+            pending.append(
+                {
+                    "id": p.id,
+                    "prompt": p.prompt,
+                    "age_seconds": round(now - p.created_at, 1),
+                }
+            )
     return {"pending": pending, "count": len(pending)}
 
 
@@ -223,15 +235,15 @@ async def respond_to_approval(approval_id: str, response: AegisApprovalResponse)
 # INCLUDE ROUTE MODULES
 # =============================================================================
 
-from orion.api.routes.health import router as health_router
-from orion.api.routes.chat import router as chat_router
-from orion.api.routes.models import router as models_router
-from orion.api.routes.settings import router as settings_router
 from orion.api.routes.auth import router as auth_router
+from orion.api.routes.chat import router as chat_router
+from orion.api.routes.gdpr import router as gdpr_router
+from orion.api.routes.health import router as health_router
+from orion.api.routes.models import router as models_router
 from orion.api.routes.platforms import router as platforms_router
+from orion.api.routes.settings import router as settings_router
 from orion.api.routes.tools import router as tools_router
 from orion.api.routes.training import router as training_router
-from orion.api.routes.gdpr import router as gdpr_router
 
 app.include_router(health_router)
 app.include_router(chat_router)
@@ -250,4 +262,5 @@ app.include_router(gdpr_router)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="127.0.0.1", port=8001)

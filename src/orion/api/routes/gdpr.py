@@ -16,14 +16,16 @@
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- GDPR Compliance Routes."""
 
+import contextlib
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import APIRouter
 
 from orion.api._shared import (
-    SETTINGS_DIR, _load_user_settings, _get_secure_store,
+    SETTINGS_DIR,
+    _get_secure_store,
+    _load_user_settings,
 )
 
 router = APIRouter()
@@ -48,12 +50,14 @@ def _save_gdpr_consents(data: dict):
 
 def _append_audit_log(action: str, data_type: str, details: str = None):
     SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    entry = json.dumps({
-        "action": action,
-        "data_type": data_type,
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "details": details,
-    })
+    entry = json.dumps(
+        {
+            "action": action,
+            "data_type": data_type,
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "details": details,
+        }
+    )
     with open(GDPR_AUDIT_FILE, "a") as f:
         f.write(entry + "\n")
 
@@ -84,8 +88,7 @@ async def export_all_data():
     export = {
         "settings": _load_user_settings(),
         "api_keys_configured": [
-            p["provider"] for p in (await get_api_key_status())
-            if p["configured"]
+            p["provider"] for p in (await get_api_key_status()) if p["configured"]
         ],
         "oauth_state": _load_oauth_state(),
         "gdpr_consents": _load_gdpr_consents(),
@@ -111,10 +114,8 @@ async def delete_all_data():
     store = _get_secure_store()
     if store:
         for provider in store.list_providers():
-            try:
+            with contextlib.suppress(Exception):
                 store.delete_key(provider)
-            except Exception:
-                pass
 
     files_to_delete = [
         SETTINGS_FILE,

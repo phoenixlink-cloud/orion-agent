@@ -36,11 +36,10 @@ USAGE:
 """
 
 import json
-import time
 import logging
+import time
 import uuid
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 
@@ -50,6 +49,7 @@ logger = logging.getLogger("orion.learning.curriculum")
 # =============================================================================
 # DATA STRUCTURES
 # =============================================================================
+
 
 class TrainingStatus(Enum):
     NOT_STARTED = "not_started"
@@ -61,35 +61,38 @@ class TrainingStatus(Enum):
 @dataclass
 class TrainingPrompt:
     """A single training exercise within a curriculum."""
+
     id: str
     domain: str
     prompt: str
     source_context: str
     difficulty: str
-    expected_concepts: List[str] = field(default_factory=list)
-    metadata: Dict = field(default_factory=dict)
+    expected_concepts: list[str] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
 class TrainingResult:
     """Result of a single training cycle."""
+
     prompt_id: str
     domain: str
     cycle_number: int
     orion_response: str
     benchmark_response: str
     similarity_score: float
-    missing_concepts: List[str] = field(default_factory=list)
-    incorrect_claims: List[str] = field(default_factory=list)
+    missing_concepts: list[str] = field(default_factory=list)
+    incorrect_claims: list[str] = field(default_factory=list)
     quality_score: int = 3
     feedback_text: str = ""
-    patterns_created: List[str] = field(default_factory=list)
+    patterns_created: list[str] = field(default_factory=list)
     timestamp: float = 0.0
 
 
 @dataclass
 class CurriculumState:
     """Persistent state for a training curriculum."""
+
     domain: str
     status: str  # TrainingStatus value
     total_prompts: int
@@ -98,8 +101,8 @@ class CurriculumState:
     graduation_threshold: float
     best_score: float
     worst_score: float
-    score_history: List[float] = field(default_factory=list)
-    prompt_scores: Dict[str, List[float]] = field(default_factory=dict)
+    score_history: list[float] = field(default_factory=list)
+    prompt_scores: dict[str, list[float]] = field(default_factory=dict)
     created_at: float = 0.0
     updated_at: float = 0.0
 
@@ -107,6 +110,7 @@ class CurriculumState:
 # =============================================================================
 # CURRICULUM ENGINE
 # =============================================================================
+
 
 class CurriculumEngine:
     """
@@ -137,8 +141,8 @@ class CurriculumEngine:
         self._training_dir.mkdir(parents=True, exist_ok=True)
 
         # Cached curricula
-        self._curricula: Dict[str, Dict] = {}
-        self._states: Dict[str, CurriculumState] = {}
+        self._curricula: dict[str, dict] = {}
+        self._states: dict[str, CurriculumState] = {}
 
     # =========================================================================
     # PUBLIC API
@@ -167,15 +171,17 @@ class CurriculumEngine:
         # Parse prompts
         prompts = []
         for p in curriculum_data.get("prompts", []):
-            prompts.append(TrainingPrompt(
-                id=p["id"],
-                domain=domain,
-                prompt=p["prompt"],
-                source_context=p.get("source_context", ""),
-                difficulty=p.get("difficulty", "basic"),
-                expected_concepts=p.get("expected_concepts", []),
-                metadata=p.get("metadata", {}),
-            ))
+            prompts.append(
+                TrainingPrompt(
+                    id=p["id"],
+                    domain=domain,
+                    prompt=p["prompt"],
+                    source_context=p.get("source_context", ""),
+                    difficulty=p.get("difficulty", "basic"),
+                    expected_concepts=p.get("expected_concepts", []),
+                    metadata=p.get("metadata", {}),
+                )
+            )
 
         self._curricula[domain] = {
             "domain": domain,
@@ -223,13 +229,13 @@ class CurriculumEngine:
 
         logger.info(
             "Loaded curriculum: %s -- %d prompts, threshold %.0f%%",
-            domain, len(prompts), state.graduation_threshold * 100,
+            domain,
+            len(prompts),
+            state.graduation_threshold * 100,
         )
         return state
 
-    async def run_training_cycle(
-        self, domain: str, prompt_id: str = None
-    ) -> TrainingResult:
+    async def run_training_cycle(self, domain: str, prompt_id: str = None) -> TrainingResult:
         """
         Run a single training cycle for a domain.
 
@@ -269,9 +275,7 @@ class CurriculumEngine:
         state.updated_at = time.time()
 
         # Step 1: Build student context -- recall existing patterns
-        memory_context = self.memory_engine.recall_for_prompt(
-            prompt.prompt, domain=domain
-        )
+        memory_context = self.memory_engine.recall_for_prompt(prompt.prompt, domain=domain)
 
         # Step 1b: Build remediation context from previous failures
         remediation = self._build_remediation_context(prompt, state)
@@ -300,6 +304,7 @@ class CurriculumEngine:
         # Step 6: Update evolution tracking
         try:
             from orion.core.learning.evolution import get_evolution_engine
+
             evo = get_evolution_engine()
             evo.track_domain_training(domain, comparison.quality_score / 5.0, cycle_number)
         except Exception as e:
@@ -349,15 +354,16 @@ class CurriculumEngine:
 
         logger.info(
             "Training cycle: %s/%s (cycle %d) -- score %d/5, %.0f%% avg",
-            domain, prompt.id, cycle_number,
-            comparison.quality_score, state.current_avg_score * 100,
+            domain,
+            prompt.id,
+            cycle_number,
+            comparison.quality_score,
+            state.current_avg_score * 100,
         )
 
         return result
 
-    async def run_full_curriculum(
-        self, domain: str, max_cycles: int = 3
-    ) -> List[TrainingResult]:
+    async def run_full_curriculum(self, domain: str, max_cycles: int = 3) -> list[TrainingResult]:
         """
         Run the full curriculum automatically.
 
@@ -393,13 +399,13 @@ class CurriculumEngine:
 
         return results
 
-    def get_domain_status(self, domain: str) -> Optional[CurriculumState]:
+    def get_domain_status(self, domain: str) -> CurriculumState | None:
         """Get current state for a domain."""
         if domain in self._states:
             return self._states[domain]
         return self._load_state(domain)
 
-    def list_domains(self) -> List[CurriculumState]:
+    def list_domains(self) -> list[CurriculumState]:
         """List all trained domains and their status."""
         domains_file = self._training_dir / "domains.json"
         if not domains_file.exists():
@@ -460,8 +466,8 @@ class CurriculumEngine:
     # =========================================================================
 
     def _pick_next_prompt(
-        self, prompts: List[TrainingPrompt], state: CurriculumState
-    ) -> Optional[TrainingPrompt]:
+        self, prompts: list[TrainingPrompt], state: CurriculumState
+    ) -> TrainingPrompt | None:
         """Pick the next untrained or lowest-scoring prompt."""
         # First pass: find prompts never trained
         for prompt in prompts:
@@ -479,9 +485,7 @@ class CurriculumEngine:
 
         return min_prompt
 
-    def _build_remediation_context(
-        self, prompt: TrainingPrompt, state: CurriculumState
-    ) -> str:
+    def _build_remediation_context(self, prompt: TrainingPrompt, state: CurriculumState) -> str:
         """
         Build remediation context from previous training results for this prompt.
         Tells the student exactly which concepts it previously missed.
@@ -498,9 +502,7 @@ class CurriculumEngine:
 
         # Scan result files for this prompt (newest first)
         try:
-            result_files = sorted(
-                results_dir.glob(f"*_{prompt.id}.json"), reverse=True
-            )
+            result_files = sorted(results_dir.glob(f"*_{prompt.id}.json"), reverse=True)
             for rf in result_files[:3]:  # Look at last 3 attempts
                 try:
                     data = json.loads(rf.read_text(encoding="utf-8"))
@@ -534,7 +536,7 @@ class CurriculumEngine:
             )
 
         if incorrect_claims:
-            parts.append(f"\nAVOID these errors from previous attempts:")
+            parts.append("\nAVOID these errors from previous attempts:")
             for claim in incorrect_claims[:5]:
                 parts.append(f"  - {claim}")
 
@@ -609,9 +611,9 @@ class CurriculumEngine:
 
     def _record_patterns(
         self, prompt: TrainingPrompt, comparison, student: str, teacher: str
-    ) -> List[str]:
+    ) -> list[str]:
         """Record patterns in Tier 3 based on comparison results."""
-        from orion.core.learning.feedback import StructuredFeedback, LearningLoop
+        from orion.core.learning.feedback import LearningLoop, StructuredFeedback
 
         interaction_id = f"train_{prompt.domain}_{prompt.id}_{uuid.uuid4().hex[:8]}"
 
@@ -634,17 +636,16 @@ class CurriculumEngine:
 
         return created_ids
 
-    def _load_state(self, domain: str) -> Optional[CurriculumState]:
+    def _load_state(self, domain: str) -> CurriculumState | None:
         """Load curriculum state from disk."""
         state_file = self._training_dir / domain / "state.json"
         if not state_file.exists():
             return None
         try:
             data = json.loads(state_file.read_text(encoding="utf-8"))
-            return CurriculumState(**{
-                k: v for k, v in data.items()
-                if k in CurriculumState.__dataclass_fields__
-            })
+            return CurriculumState(
+                **{k: v for k, v in data.items() if k in CurriculumState.__dataclass_fields__}
+            )
         except Exception as e:
             logger.warning("Failed to load state for %s: %s", domain, e)
             return None
@@ -654,9 +655,7 @@ class CurriculumEngine:
         domain_dir = self._training_dir / state.domain
         domain_dir.mkdir(parents=True, exist_ok=True)
         state_file = domain_dir / "state.json"
-        state_file.write_text(
-            json.dumps(asdict(state), indent=2), encoding="utf-8"
-        )
+        state_file.write_text(json.dumps(asdict(state), indent=2), encoding="utf-8")
 
     def _save_result(self, result: TrainingResult):
         """Save a training result to disk."""
@@ -664,9 +663,7 @@ class CurriculumEngine:
         domain_dir.mkdir(parents=True, exist_ok=True)
         filename = f"cycle_{result.cycle_number:03d}_{result.prompt_id}.json"
         result_file = domain_dir / filename
-        result_file.write_text(
-            json.dumps(asdict(result), indent=2), encoding="utf-8"
-        )
+        result_file.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
 
     def _update_domains_index(self, domain: str, description: str):
         """Update the domains.json index file."""
@@ -687,12 +684,14 @@ class CurriculumEngine:
                     break
 
             if not found:
-                data["domains"].append({
-                    "domain": domain,
-                    "description": description,
-                    "created_at": time.time(),
-                    "updated_at": time.time(),
-                })
+                data["domains"].append(
+                    {
+                        "domain": domain,
+                        "description": description,
+                        "created_at": time.time(),
+                        "updated_at": time.time(),
+                    }
+                )
 
             domains_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except Exception as e:

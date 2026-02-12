@@ -17,25 +17,26 @@
 """Orion Agent -- Git, Doctor, Context Routes."""
 
 import os
-import glob
 from pathlib import Path
-from typing import Dict, List
 
 from fastapi import APIRouter, HTTPException
 
 from orion.api._shared import (
-    GitCommitRequest, GitUndoRequest, ContextFilesRequest,
+    ContextFilesRequest,
+    GitCommitRequest,
+    GitUndoRequest,
 )
 
 router = APIRouter()
 
 # In-memory context file store (per-session, like CLI)
-_context_files: Dict[str, List[str]] = {}
+_context_files: dict[str, list[str]] = {}
 
 
 # =============================================================================
 # GIT OPERATIONS (Phase 1A -- closing CLI-only gap)
 # =============================================================================
+
 
 @router.get("/api/git/diff")
 async def git_diff(workspace: str):
@@ -44,13 +45,12 @@ async def git_diff(workspace: str):
         raise HTTPException(status_code=400, detail="Invalid workspace path")
     try:
         import subprocess
+
         result = subprocess.run(
-            ["git", "diff", "--stat"],
-            cwd=workspace, capture_output=True, text=True, timeout=10
+            ["git", "diff", "--stat"], cwd=workspace, capture_output=True, text=True, timeout=10
         )
         diff_full = subprocess.run(
-            ["git", "diff"],
-            cwd=workspace, capture_output=True, text=True, timeout=10
+            ["git", "diff"], cwd=workspace, capture_output=True, text=True, timeout=10
         )
         return {
             "stat": result.stdout,
@@ -68,16 +68,23 @@ async def git_commit(request: GitCommitRequest):
         raise HTTPException(status_code=400, detail="Invalid workspace path")
     try:
         import subprocess
+
         subprocess.run(["git", "add", "-A"], cwd=request.workspace, check=True, timeout=10)
         result = subprocess.run(
             ["git", "commit", "-m", request.message],
-            cwd=request.workspace, capture_output=True, text=True, timeout=10
+            cwd=request.workspace,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             # Get commit hash
             hash_result = subprocess.run(
                 ["git", "rev-parse", "--short", "HEAD"],
-                cwd=request.workspace, capture_output=True, text=True, timeout=5
+                cwd=request.workspace,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             return {
                 "status": "success",
@@ -96,6 +103,7 @@ async def git_undo(request: GitUndoRequest):
         raise HTTPException(status_code=400, detail="Invalid workspace path")
     try:
         from orion.core.editing.safety import get_git_safety
+
         safety = get_git_safety(request.workspace)
 
         if request.subcommand == "all":
@@ -111,7 +119,7 @@ async def git_undo(request: GitUndoRequest):
                 return {
                     "status": "success" if result.success else "error",
                     "message": result.message,
-                    "files_restored": getattr(result, 'files_restored', 0),
+                    "files_restored": getattr(result, "files_restored", 0),
                 }
             return {"status": "nothing", "message": "No savepoints to undo"}
     except Exception as e:
@@ -122,11 +130,13 @@ async def git_undo(request: GitUndoRequest):
 # DOCTOR DIAGNOSTICS (Phase 1A -- closing CLI-only gap)
 # =============================================================================
 
+
 @router.get("/api/doctor")
 async def run_doctor_endpoint(workspace: str = ""):
     """Run system diagnostics (same as /doctor CLI command)."""
     try:
         from orion.cli.doctor import run_doctor
+
         report = await run_doctor(console=None, workspace=workspace or ".")
         results = report.checks
         passed = sum(1 for r in results if r.status == "pass")
@@ -157,6 +167,7 @@ async def run_doctor_endpoint(workspace: str = ""):
         checks = []
         # Python version
         import sys
+
         py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         checks.append({"name": "Python", "status": "pass", "message": py_ver})
         # Workspace
@@ -173,6 +184,7 @@ async def run_doctor_endpoint(workspace: str = ""):
 # CONTEXT FILES (Phase 1A -- closing CLI-only gap)
 # =============================================================================
 
+
 @router.get("/api/context/files")
 async def get_context_files(workspace: str):
     """Get current context files for a workspace."""
@@ -185,6 +197,7 @@ async def add_context_files(request: ContextFilesRequest):
     if not request.workspace or not Path(request.workspace).is_dir():
         raise HTTPException(status_code=400, detail="Invalid workspace path")
     import glob as _glob
+
     current = _context_files.setdefault(request.workspace, [])
     added = []
     for pattern in request.files:
@@ -215,11 +228,13 @@ async def remove_context_files(workspace: str, file: str = ""):
 # CONTEXT (repo map, quality)
 # =============================================================================
 
+
 @router.get("/api/context/map")
 async def get_repo_map(workspace: str, max_tokens: int = 2048):
     """Get repository map for a workspace."""
     try:
         from orion.core.context.repo_map import generate_repo_map
+
         return {"map": generate_repo_map(workspace, max_tokens)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -230,6 +245,7 @@ async def get_quality_report(workspace: str):
     """Get code quality report for a workspace."""
     try:
         from orion.core.context.quality import analyze_workspace
+
         report = analyze_workspace(workspace)
         return {
             "grade": report.grade,
@@ -248,6 +264,7 @@ async def get_context_stats(workspace: str):
     stats = {}
     try:
         from orion.core.context.repo_map import RepoMap
+
         rm = RepoMap(workspace)
         stats["repo_map"] = rm.get_stats()
         rm.close()
@@ -255,6 +272,7 @@ async def get_context_stats(workspace: str):
         stats["repo_map"] = {"error": "not available"}
     try:
         from orion.core.context.python_ast import get_python_context
+
         ctx = get_python_context(workspace)
         stats["python"] = ctx.get_stats()
     except Exception:

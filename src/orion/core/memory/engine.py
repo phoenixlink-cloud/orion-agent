@@ -52,25 +52,25 @@ APPROVAL GATE:
     - This creates a human-in-the-loop learning system
 """
 
-import json
-import time
 import hashlib
+import json
 import sqlite3
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
 
 from orion.core.memory.embeddings import EmbeddingStore
-
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class MemoryEntry:
     """A single memory entry that can exist in any tier."""
+
     id: str
     content: str
     tier: int  # 1=session, 2=project, 3=institutional
@@ -80,27 +80,28 @@ class MemoryEntry:
     last_accessed: str
     access_count: int = 0
     source: str = ""  # what created this memory
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MemoryEntry":
+    def from_dict(cls, data: dict[str, Any]) -> "MemoryEntry":
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
 @dataclass
 class ApprovalGateResult:
     """Result of a user approval gate interaction."""
+
     task_id: str
     task_description: str
     rating: int  # 1-5
     feedback: str
     approved: bool  # rating >= 4
     timestamp: str
-    actions_taken: List[str] = field(default_factory=list)
-    files_modified: List[str] = field(default_factory=list)
+    actions_taken: list[str] = field(default_factory=list)
+    files_modified: list[str] = field(default_factory=list)
     quality_score: float = 0.0
     promoted_to_tier3: bool = False
 
@@ -108,6 +109,7 @@ class ApprovalGateResult:
 @dataclass
 class EvolutionSnapshot:
     """Point-in-time snapshot of Orion's learning state."""
+
     timestamp: str
     total_interactions: int
     approval_rate: float
@@ -117,13 +119,14 @@ class EvolutionSnapshot:
     domains_mastered: int
     tier2_entries: int
     tier3_entries: int
-    top_strengths: List[str] = field(default_factory=list)
-    top_weaknesses: List[str] = field(default_factory=list)
+    top_strengths: list[str] = field(default_factory=list)
+    top_weaknesses: list[str] = field(default_factory=list)
 
 
 @dataclass
 class MemoryStats:
     """Statistics about the three-tier memory system."""
+
     tier1_entries: int
     tier2_entries: int
     tier3_entries: int
@@ -143,6 +146,7 @@ class MemoryStats:
 # =============================================================================
 # THREE-TIER MEMORY ENGINE
 # =============================================================================
+
 
 class MemoryEngine:
     """
@@ -172,7 +176,7 @@ class MemoryEngine:
         self.workspace_path = workspace_path
 
         # Tier 1: Session memory (RAM)
-        self._session: Dict[str, MemoryEntry] = {}
+        self._session: dict[str, MemoryEntry] = {}
         self._session_start = datetime.now(timezone.utc).isoformat()
 
         # Tier 2: Project memory (JSON file per project)
@@ -180,7 +184,7 @@ class MemoryEngine:
         if workspace_path:
             self._project_path = Path(workspace_path) / ".orion" / "memory_engine_project.json"
             self._project_path.parent.mkdir(parents=True, exist_ok=True)
-        self._project_cache: Dict[str, MemoryEntry] = {}
+        self._project_cache: dict[str, MemoryEntry] = {}
         self._load_project_memory()
 
         # Tier 3: Institutional memory (global SQLite)
@@ -202,7 +206,7 @@ class MemoryEngine:
         category: str = "insight",
         confidence: float = 0.6,
         source: str = "",
-        metadata: Dict[str, Any] = None,
+        metadata: dict[str, Any] = None,
     ) -> MemoryEntry:
         """
         Store a memory in the specified tier.
@@ -255,9 +259,9 @@ class MemoryEngine:
         query: str,
         max_results: int = 10,
         min_confidence: float = 0.3,
-        tiers: List[int] = None,
-        categories: List[str] = None,
-    ) -> List[MemoryEntry]:
+        tiers: list[int] = None,
+        categories: list[str] = None,
+    ) -> list[MemoryEntry]:
         """
         Recall memories relevant to a query, searching across tiers.
 
@@ -265,7 +269,7 @@ class MemoryEngine:
         results ranked by relevance and confidence.
         """
         tiers = tiers or [1, 2, 3]
-        results: List[Tuple[float, MemoryEntry]] = []
+        results: list[tuple[float, MemoryEntry]] = []
         query_lower = query.lower()
         query_words = set(query_lower.split())
 
@@ -305,7 +309,9 @@ class MemoryEngine:
 
         return final
 
-    def recall_for_prompt(self, query: str, max_tokens: int = 2000, domain: str = None, top_k: int = 10) -> str:
+    def recall_for_prompt(
+        self, query: str, max_tokens: int = 2000, domain: str = None, top_k: int = 10
+    ) -> str:
         """
         Recall memories formatted for LLM prompt injection.
         Uses embedding-based semantic search if available, falls back to keyword matching.
@@ -322,7 +328,9 @@ class MemoryEngine:
                     if entry:
                         tier3_entries.append(entry)
             # Also include session + project memories via keyword
-            keyword_memories = self.recall(query, max_results=top_k, min_confidence=0.5, tiers=[1, 2])
+            keyword_memories = self.recall(
+                query, max_results=top_k, min_confidence=0.5, tiers=[1, 2]
+            )
             # Merge, dedup by id
             seen_ids = {e.id for e in tier3_entries}
             memories = tier3_entries[:]
@@ -352,7 +360,9 @@ class MemoryEngine:
 
         for mem in memories:
             tier_label = {1: "Session", 2: "Project", 3: "Global"}[mem.tier]
-            conf_label = "HIGH" if mem.confidence >= 0.8 else "MED" if mem.confidence >= 0.5 else "LOW"
+            conf_label = (
+                "HIGH" if mem.confidence >= 0.8 else "MED" if mem.confidence >= 0.5 else "LOW"
+            )
             lines.append(f"- [{tier_label}/{conf_label}] {mem.content[:200]}")
 
         return "\n".join(lines)
@@ -367,8 +377,8 @@ class MemoryEngine:
         task_description: str,
         rating: int,
         feedback: str = "",
-        actions_taken: List[str] = None,
-        files_modified: List[str] = None,
+        actions_taken: list[str] = None,
+        files_modified: list[str] = None,
         quality_score: float = 0.0,
     ) -> ApprovalGateResult:
         """
@@ -455,9 +465,7 @@ class MemoryEngine:
     # PUBLIC API: PROMOTE (Tier 2 -> Tier 3)
     # =========================================================================
 
-    def promote_to_institutional(
-        self, entry_id: str, reason: str = ""
-    ) -> Optional[MemoryEntry]:
+    def promote_to_institutional(self, entry_id: str, reason: str = "") -> MemoryEntry | None:
         """
         Promote a Tier 2 (project) memory to Tier 3 (institutional).
 
@@ -481,7 +489,7 @@ class MemoryEngine:
 
         return promoted
 
-    def auto_promote(self) -> List[MemoryEntry]:
+    def auto_promote(self) -> list[MemoryEntry]:
         """
         Automatically promote high-confidence Tier 2 memories to Tier 3.
 
@@ -529,7 +537,9 @@ class MemoryEngine:
         cursor.execute("SELECT COUNT(*) FROM memories WHERE category = 'anti_pattern'")
         anti_patterns = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(DISTINCT json_extract(metadata, '$.task_type')) FROM memories WHERE json_extract(metadata, '$.task_type') IS NOT NULL")
+        cursor.execute(
+            "SELECT COUNT(DISTINCT json_extract(metadata, '$.task_type')) FROM memories WHERE json_extract(metadata, '$.task_type') IS NOT NULL"
+        )
         try:
             domains = cursor.fetchone()[0]
         except Exception:
@@ -554,17 +564,15 @@ class MemoryEngine:
             top_weaknesses=weaknesses,
         )
 
-    def get_evolution_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_evolution_history(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get recent evolution events (approval gate history)."""
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM evolution_log ORDER BY timestamp DESC LIMIT ?", (limit,)
-        )
+        cursor.execute("SELECT * FROM evolution_log ORDER BY timestamp DESC LIMIT ?", (limit,))
         rows = cursor.fetchall()
         cols = [d[0] for d in cursor.description]
         conn.close()
-        return [dict(zip(cols, row)) for row in rows]
+        return [dict(zip(cols, row, strict=False)) for row in rows]
 
     def get_stats(self) -> MemoryStats:
         """Get comprehensive memory statistics."""
@@ -597,7 +605,9 @@ class MemoryEngine:
         cursor.execute("SELECT COUNT(*) FROM memories WHERE source LIKE 'promoted%'")
         promotions = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(DISTINCT json_extract(metadata, '$.task_type')) FROM memories WHERE json_extract(metadata, '$.task_type') IS NOT NULL")
+        cursor.execute(
+            "SELECT COUNT(DISTINCT json_extract(metadata, '$.task_type')) FROM memories WHERE json_extract(metadata, '$.task_type') IS NOT NULL"
+        )
         try:
             domains = cursor.fetchone()[0]
         except Exception:
@@ -627,7 +637,7 @@ class MemoryEngine:
     # PUBLIC API: CONSOLIDATE
     # =========================================================================
 
-    def consolidate(self) -> Dict[str, int]:
+    def consolidate(self) -> dict[str, int]:
         """
         Consolidate memories: decay old low-confidence entries, merge duplicates.
 
@@ -749,7 +759,7 @@ class MemoryEngine:
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT OR REPLACE INTO memories 
+            """INSERT OR REPLACE INTO memories
             (id, content, tier, category, confidence, created_at, last_accessed, access_count, source, metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
@@ -769,8 +779,8 @@ class MemoryEngine:
         conn.close()
 
     def _search_tier3(
-        self, query_lower: str, min_confidence: float, categories: List[str] = None
-    ) -> List[MemoryEntry]:
+        self, query_lower: str, min_confidence: float, categories: list[str] = None
+    ) -> list[MemoryEntry]:
         """Search Tier 3 memories by keyword matching."""
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
@@ -791,7 +801,7 @@ class MemoryEngine:
 
         entries = []
         for row in rows:
-            data = dict(zip(cols, row))
+            data = dict(zip(cols, row, strict=False))
             data["metadata"] = json.loads(data.get("metadata", "{}"))
             entries.append(MemoryEntry.from_dict(data))
         return entries
@@ -809,8 +819,8 @@ class MemoryEngine:
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO evolution_log 
-            (task_id, task_description, rating, feedback, approved, timestamp, 
+            """INSERT INTO evolution_log
+            (task_id, task_description, rating, feedback, approved, timestamp,
              quality_score, actions_taken, files_modified, promoted)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
@@ -829,7 +839,7 @@ class MemoryEngine:
         conn.commit()
         conn.close()
 
-    def _analyze_trends(self, cursor) -> Tuple[List[str], List[str]]:
+    def _analyze_trends(self, cursor) -> tuple[list[str], list[str]]:
         """Analyze recent approval trends for strengths and weaknesses."""
         strengths = []
         weaknesses = []
@@ -886,9 +896,7 @@ class MemoryEngine:
     # INTERNAL: RELEVANCE SCORING
     # =========================================================================
 
-    def _relevance_score(
-        self, entry: MemoryEntry, query_lower: str, query_words: set
-    ) -> float:
+    def _relevance_score(self, entry: MemoryEntry, query_lower: str, query_words: set) -> float:
         """
         Score a memory's relevance to a query.
 
@@ -935,7 +943,7 @@ class MemoryEngine:
             return "devops"
         return "general"
 
-    def _get_tier3_entry(self, memory_id: str) -> Optional[MemoryEntry]:
+    def _get_tier3_entry(self, memory_id: str) -> MemoryEntry | None:
         """Retrieve a single Tier 3 entry by ID."""
         try:
             conn = sqlite3.connect(self._db_path)
@@ -947,7 +955,7 @@ class MemoryEngine:
                 return None
             cols = [d[0] for d in cursor.description]
             conn.close()
-            data = dict(zip(cols, row))
+            data = dict(zip(cols, row, strict=False))
             data["metadata"] = json.loads(data.get("metadata", "{}"))
             return MemoryEntry.from_dict(data)
         except Exception:
@@ -1015,7 +1023,11 @@ class MemoryEngine:
                     "pack_version": pack_version,
                     "domain": pattern.get("domain", "general"),
                     "content_hash": content_hash,
-                    **(pattern.get("metadata", {}) if isinstance(pattern.get("metadata"), dict) else {}),
+                    **(
+                        pattern.get("metadata", {})
+                        if isinstance(pattern.get("metadata"), dict)
+                        else {}
+                    ),
                 },
             )
             self._store_tier3(entry)
@@ -1026,7 +1038,7 @@ class MemoryEngine:
         return inserted
 
     @staticmethod
-    def _count_tiers(memories: List[MemoryEntry]) -> int:
+    def _count_tiers(memories: list[MemoryEntry]) -> int:
         return len(set(m.tier for m in memories))
 
 
@@ -1034,7 +1046,7 @@ class MemoryEngine:
 # FACTORY
 # =============================================================================
 
-_engine_instance: Optional[MemoryEngine] = None
+_engine_instance: MemoryEngine | None = None
 
 
 def get_memory_engine(workspace_path: str = None) -> MemoryEngine:

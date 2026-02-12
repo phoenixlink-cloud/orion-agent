@@ -22,16 +22,14 @@ Provides a central point for querying available capabilities
 and invoking integration features.
 """
 
+import contextlib
 import importlib
 import pkgutil
-import traceback
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from orion.integrations.base import (
     IntegrationBase,
-    IntegrationCapability,
     IntegrationStatus,
-    AuthType,
 )
 
 
@@ -44,9 +42,9 @@ class IntegrationRegistry:
     """
 
     def __init__(self):
-        self._integrations: Dict[str, IntegrationBase] = {}
-        self._capabilities: Dict[str, List[str]] = {}  # capability -> [integration_names]
-        self._errors: Dict[str, str] = {}
+        self._integrations: dict[str, IntegrationBase] = {}
+        self._capabilities: dict[str, list[str]] = {}  # capability -> [integration_names]
+        self._errors: dict[str, str] = {}
 
     def register(self, integration: IntegrationBase) -> bool:
         """
@@ -80,10 +78,8 @@ class IntegrationRegistry:
             return False
 
         integration = self._integrations[name]
-        try:
+        with contextlib.suppress(Exception):
             integration.teardown()
-        except Exception:
-            pass
 
         # Remove capability index entries
         for cap_name, providers in list(self._capabilities.items()):
@@ -107,7 +103,7 @@ class IntegrationRegistry:
         import orion.integrations as pkg
 
         count = 0
-        for importer, modname, ispkg in pkgutil.iter_modules(pkg.__path__):
+        for _importer, modname, ispkg in pkgutil.iter_modules(pkg.__path__):
             if modname.startswith("_") or modname in ("base", "registry", "health"):
                 continue
 
@@ -138,19 +134,19 @@ class IntegrationRegistry:
 
         return count
 
-    def get(self, name: str) -> Optional[IntegrationBase]:
+    def get(self, name: str) -> IntegrationBase | None:
         """Get an integration by name."""
         return self._integrations.get(name)
 
-    def list_integrations(self) -> List[str]:
+    def list_integrations(self) -> list[str]:
         """List all registered integration names."""
         return list(self._integrations.keys())
 
-    def list_all(self) -> List[Dict[str, Any]]:
+    def list_all(self) -> list[dict[str, Any]]:
         """List all registered integrations with their info."""
         return [i.to_dict() for i in self._integrations.values()]
 
-    def list_available(self) -> List[Dict[str, Any]]:
+    def list_available(self) -> list[dict[str, Any]]:
         """List only integrations that are currently available."""
         return [
             i.to_dict()
@@ -158,16 +154,16 @@ class IntegrationRegistry:
             if i.get_status() in (IntegrationStatus.AVAILABLE, IntegrationStatus.AUTHENTICATED)
         ]
 
-    def list_capabilities(self) -> Dict[str, List[str]]:
+    def list_capabilities(self) -> dict[str, list[str]]:
         """Return mapping of capability_name -> [integration_names]."""
         return dict(self._capabilities)
 
-    def find_by_capability(self, capability: str) -> List[IntegrationBase]:
+    def find_by_capability(self, capability: str) -> list[IntegrationBase]:
         """Find all integrations that provide a given capability."""
         names = self._capabilities.get(capability, [])
         return [self._integrations[n] for n in names if n in self._integrations]
 
-    def get_errors(self) -> Dict[str, str]:
+    def get_errors(self) -> dict[str, str]:
         """Return any errors encountered during registration/discovery."""
         return dict(self._errors)
 
@@ -176,7 +172,7 @@ class IntegrationRegistry:
         """Number of registered integrations."""
         return len(self._integrations)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Full registry state for API responses."""
         return {
             "integrations": self.list_all(),
@@ -190,7 +186,7 @@ class IntegrationRegistry:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_registry: Optional[IntegrationRegistry] = None
+_registry: IntegrationRegistry | None = None
 
 
 def get_registry() -> IntegrationRegistry:

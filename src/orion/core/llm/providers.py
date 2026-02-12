@@ -27,12 +27,11 @@ Supports: OpenAI, Anthropic, Google, Ollama, Cohere, AWS Bedrock,
 import asyncio
 import json
 import logging
-import time
-from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
+from collections.abc import AsyncGenerator, Callable
 
 import httpx
 
-from orion.core.llm.config import RoleConfig, PROVIDERS
+from orion.core.llm.config import RoleConfig
 
 logger = logging.getLogger("orion.llm.providers")
 
@@ -42,8 +41,15 @@ API_MAX_RETRIES = 3
 API_RETRY_DELAY_SECONDS = 2
 
 _RETRYABLE_KEYWORDS = [
-    "timeout", "connection", "rate limit", "503", "502", "500",
-    "temporarily unavailable", "overloaded", "retry",
+    "timeout",
+    "connection",
+    "rate limit",
+    "503",
+    "502",
+    "500",
+    "temporarily unavailable",
+    "overloaded",
+    "retry",
 ]
 
 # ── OpenAI-compatible providers ──────────────────────────────────────────
@@ -77,10 +83,12 @@ OLLAMA_TIMEOUT = 300
 
 # ── Key retrieval helper ─────────────────────────────────────────────────
 
-def _get_key(provider: str) -> Optional[str]:
+
+def _get_key(provider: str) -> str | None:
     """Retrieve API key from SecureStore (lazy import to avoid circular deps)."""
     try:
         from orion.security.store import SecureStore
+
         store = SecureStore()
         return store.get_key(provider)
     except Exception:
@@ -92,6 +100,7 @@ def _error_json(message: str) -> str:
 
 
 # ── Async retry wrapper ──────────────────────────────────────────────────
+
 
 async def retry_api_call(
     func: Callable,
@@ -113,14 +122,20 @@ async def retry_api_call(
             if not retryable or attempt >= max_retries - 1:
                 logger.error(
                     "[%s] API call failed after %d attempt(s): %s",
-                    component, attempt + 1, str(e)[:200],
+                    component,
+                    attempt + 1,
+                    str(e)[:200],
                 )
                 break
 
-            wait_time = delay_seconds * (2 ** attempt)
+            wait_time = delay_seconds * (2**attempt)
             logger.warning(
                 "[%s] Retrying in %.1fs (attempt %d/%d): %s",
-                component, wait_time, attempt + 1, max_retries, str(e)[:100],
+                component,
+                wait_time,
+                attempt + 1,
+                max_retries,
+                str(e)[:100],
             )
             await asyncio.sleep(wait_time)
 
@@ -128,6 +143,7 @@ async def retry_api_call(
 
 
 # ── Provider-specific callers ────────────────────────────────────────────
+
 
 async def _call_ollama(
     model: str,
@@ -232,7 +248,9 @@ async def _call_anthropic(
         "messages": [{"role": "user", "content": user_prompt}],
     }
     async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload)
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages", headers=headers, json=payload
+        )
         resp.raise_for_status()
         data = resp.json()
         return data["content"][0]["text"]
@@ -325,7 +343,9 @@ async def _call_aws_bedrock(
     region = _get_key("aws_bedrock_region") or "us-east-1"
 
     if not access_key or not secret_key:
-        return _error_json("AWS credentials not configured. Use /key set aws_access_key_id and aws_secret_access_key.")
+        return _error_json(
+            "AWS credentials not configured. Use /key set aws_access_key_id and aws_secret_access_key."
+        )
 
     def _sync_call():
         bedrock = boto3.client(
@@ -347,6 +367,7 @@ async def _call_aws_bedrock(
 
 # ── Ollama availability check ────────────────────────────────────────────
 
+
 async def is_ollama_available() -> bool:
     """Check if Ollama is running and available."""
     try:
@@ -358,6 +379,7 @@ async def is_ollama_available() -> bool:
 
 
 # ── Unified call_provider ────────────────────────────────────────────────
+
 
 async def call_provider(
     role_config: RoleConfig,
@@ -387,12 +409,16 @@ async def call_provider(
     provider = role_config.provider
     model = role_config.model
 
-    logger.info("[%s] Calling %s/%s (prompt=%d chars)", component, provider, model, len(user_prompt))
+    logger.info(
+        "[%s] Calling %s/%s (prompt=%d chars)", component, provider, model, len(user_prompt)
+    )
 
     # ── Ollama (local) ────────────────────────────────────────────────
     if provider == "ollama":
+
         async def _do():
             return await _call_ollama(model, system_prompt, user_prompt, max_tokens, temperature)
+
         return await retry_api_call(_do, component=component)
 
     # ── OpenAI ────────────────────────────────────────────────────────
@@ -402,7 +428,10 @@ async def call_provider(
             return _error_json("OpenAI API key not configured. Use /key set openai <key>.")
 
         async def _do():
-            return await _call_openai(model, system_prompt, user_prompt, api_key, max_tokens, temperature)
+            return await _call_openai(
+                model, system_prompt, user_prompt, api_key, max_tokens, temperature
+            )
+
         return await retry_api_call(_do, component=component)
 
     # ── Anthropic ─────────────────────────────────────────────────────
@@ -413,6 +442,7 @@ async def call_provider(
 
         async def _do():
             return await _call_anthropic(model, system_prompt, user_prompt, api_key, max_tokens)
+
         return await retry_api_call(_do, component=component)
 
     # ── Google Gemini ─────────────────────────────────────────────────
@@ -422,7 +452,10 @@ async def call_provider(
             return _error_json("Google API key not configured. Use /key set google <key>.")
 
         async def _do():
-            return await _call_google(model, system_prompt, user_prompt, api_key, max_tokens, temperature)
+            return await _call_google(
+                model, system_prompt, user_prompt, api_key, max_tokens, temperature
+            )
+
         return await retry_api_call(_do, component=component)
 
     # ── Cohere ────────────────────────────────────────────────────────
@@ -433,12 +466,17 @@ async def call_provider(
 
         async def _do():
             return await _call_cohere(model, system_prompt, user_prompt, api_key, max_tokens)
+
         return await retry_api_call(_do, component=component)
 
     # ── AWS Bedrock ───────────────────────────────────────────────────
     elif provider == "aws_bedrock":
+
         async def _do():
-            return await _call_aws_bedrock(model, system_prompt, user_prompt, max_tokens, temperature)
+            return await _call_aws_bedrock(
+                model, system_prompt, user_prompt, max_tokens, temperature
+            )
+
         return await retry_api_call(_do, component=component)
 
     # ── Azure OpenAI ──────────────────────────────────────────────────
@@ -447,12 +485,22 @@ async def call_provider(
         endpoint = _get_key("azure_openai_endpoint") or ""
         api_version = _get_key("azure_openai_api_version") or "2024-12-01-preview"
         if not api_key or not endpoint:
-            return _error_json("Azure OpenAI not configured. Use /key set azure_openai, azure_openai_endpoint.")
+            return _error_json(
+                "Azure OpenAI not configured. Use /key set azure_openai, azure_openai_endpoint."
+            )
 
         async def _do():
             return await _call_azure_openai(
-                model, system_prompt, user_prompt, api_key, endpoint, api_version, max_tokens, temperature,
+                model,
+                system_prompt,
+                user_prompt,
+                api_key,
+                endpoint,
+                api_version,
+                max_tokens,
+                temperature,
             )
+
         return await retry_api_call(_do, component=component)
 
     # ── OpenAI-compatible (Groq, OpenRouter, Mistral, Together) ───────
@@ -460,10 +508,15 @@ async def call_provider(
         cfg = _OPENAI_COMPATIBLE[provider]
         api_key = _get_key(cfg["key_name"])
         if not api_key:
-            return _error_json(f"{cfg['display']} API key not configured. Use /key set {cfg['key_name']} <key>.")
+            return _error_json(
+                f"{cfg['display']} API key not configured. Use /key set {cfg['key_name']} <key>."
+            )
 
         async def _do():
-            return await _call_openai(model, system_prompt, user_prompt, api_key, max_tokens, temperature, cfg["base_url"])
+            return await _call_openai(
+                model, system_prompt, user_prompt, api_key, max_tokens, temperature, cfg["base_url"]
+            )
+
         return await retry_api_call(_do, component=component)
 
     # ── Unknown ───────────────────────────────────────────────────────

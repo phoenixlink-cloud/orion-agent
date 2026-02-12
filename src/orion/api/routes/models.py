@@ -19,7 +19,9 @@
 from fastapi import APIRouter, HTTPException
 
 from orion.api._shared import (
-    ModelConfigRequest, PresetRequest, ProviderToggleRequest,
+    ModelConfigRequest,
+    PresetRequest,
+    ProviderToggleRequest,
 )
 
 router = APIRouter()
@@ -30,6 +32,7 @@ async def get_model_config_endpoint():
     """Get current flexible model configuration."""
     try:
         from orion.core.llm.config import get_model_config
+
         cfg = get_model_config()
         reviewer = cfg.get_reviewer()
         return {
@@ -58,9 +61,8 @@ async def get_model_config_endpoint():
 async def set_model_config_endpoint(request: ModelConfigRequest):
     """Update flexible model configuration."""
     try:
-        from orion.core.llm.config import (
-            get_model_config, save_model_config, RoleConfig
-        )
+        from orion.core.llm.config import RoleConfig, get_model_config, save_model_config
+
         cfg = get_model_config()
 
         if request.mode:
@@ -104,6 +106,7 @@ async def get_providers():
     """Get all supported providers and their models."""
     try:
         from orion.core.llm.config import PROVIDERS, is_provider_enabled
+
         result = {}
         for key, info in PROVIDERS.items():
             result[key] = {**info, "enabled": is_provider_enabled(key)}
@@ -117,6 +120,7 @@ async def get_presets():
     """Get all available model presets."""
     try:
         from orion.core.llm.config import PRESETS
+
         result = {}
         for name, cfg in PRESETS.items():
             reviewer = cfg.get_reviewer()
@@ -135,13 +139,14 @@ async def get_presets():
 async def apply_preset_endpoint(request: PresetRequest):
     """Apply a named model preset."""
     try:
-        from orion.core.llm.config import apply_preset, PRESETS
+        from orion.core.llm.config import PRESETS, apply_preset
+
         cfg = apply_preset(request.name)
         if cfg:
             return {"status": "success", "config": cfg.to_dict(), "summary": cfg.summary()}
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown preset: {request.name}. Available: {list(PRESETS.keys())}"
+            detail=f"Unknown preset: {request.name}. Available: {list(PRESETS.keys())}",
         )
     except HTTPException:
         raise
@@ -153,7 +158,8 @@ async def apply_preset_endpoint(request: PresetRequest):
 async def toggle_provider(request: ProviderToggleRequest):
     """Enable or disable an LLM provider."""
     try:
-        from orion.core.llm.config import set_provider_enabled, PROVIDERS
+        from orion.core.llm.config import PROVIDERS, set_provider_enabled
+
         if request.provider not in PROVIDERS:
             raise HTTPException(status_code=400, detail=f"Unknown provider: {request.provider}")
         set_provider_enabled(request.provider, request.enabled)

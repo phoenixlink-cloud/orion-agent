@@ -32,19 +32,19 @@ CHECKS:
 
 import ast
 import re
-import difflib
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
-
+from typing import Any
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class EditConfidence:
     """Confidence assessment for a single edit operation."""
+
     file_path: str
     operation: str  # CREATE, MODIFY, DELETE
     overall_score: float  # 0.0 to 1.0
@@ -54,38 +54,41 @@ class EditConfidence:
     indentation_consistent: bool
     diff_targets_found: bool
     content_length: int
-    issues: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    auto_fixes_applied: List[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    auto_fixes_applied: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ValidationResult:
     """Result of validating a batch of edits."""
+
     valid: bool
     total_edits: int
     passed: int
     failed: int
     avg_confidence: float
-    edit_confidences: List[EditConfidence] = field(default_factory=list)
-    blocking_issues: List[str] = field(default_factory=list)
-    recoverable_issues: List[str] = field(default_factory=list)
+    edit_confidences: list[EditConfidence] = field(default_factory=list)
+    blocking_issues: list[str] = field(default_factory=list)
+    recoverable_issues: list[str] = field(default_factory=list)
 
 
 @dataclass
 class EditMetrics:
     """Aggregate metrics for edit quality tracking."""
+
     total_edits_validated: int = 0
     total_passed: int = 0
     total_failed: int = 0
     total_auto_fixed: int = 0
     avg_confidence: float = 0.0
-    common_issues: Dict[str, int] = field(default_factory=dict)
+    common_issues: dict[str, int] = field(default_factory=dict)
 
 
 # =============================================================================
 # EDIT VALIDATOR
 # =============================================================================
+
 
 class EditValidator:
     """
@@ -106,7 +109,7 @@ class EditValidator:
     # PUBLIC API: VALIDATE BATCH
     # =========================================================================
 
-    def validate_edits(self, actions: List[Dict[str, Any]]) -> ValidationResult:
+    def validate_edits(self, actions: list[dict[str, Any]]) -> ValidationResult:
         """Validate a batch of edit actions from Table of Three."""
         confidences = []
         blocking = []
@@ -138,19 +141,20 @@ class EditValidator:
 
         return ValidationResult(
             valid=len(blocking) == 0,
-            total_edits=total, passed=passed, failed=failed,
+            total_edits=total,
+            passed=passed,
+            failed=failed,
             avg_confidence=round(avg, 3),
             edit_confidences=confidences,
-            blocking_issues=blocking, recoverable_issues=recoverable,
+            blocking_issues=blocking,
+            recoverable_issues=recoverable,
         )
 
     # =========================================================================
     # PUBLIC API: SCORE SINGLE EDIT
     # =========================================================================
 
-    def score_edit(
-        self, file_path: str, content: str, operation: str = "CREATE"
-    ) -> EditConfidence:
+    def score_edit(self, file_path: str, content: str, operation: str = "CREATE") -> EditConfidence:
         """Score confidence for a single edit operation."""
         issues = []
         warnings = []
@@ -194,27 +198,36 @@ class EditValidator:
                 issues.append("Search/replace targets not found in source file")
 
         score = self._compute_confidence(
-            syntax_valid, imports_valid, brackets_balanced,
-            indent_consistent, diff_targets, len(issues), len(warnings),
+            syntax_valid,
+            imports_valid,
+            brackets_balanced,
+            indent_consistent,
+            diff_targets,
+            len(issues),
+            len(warnings),
             len(content),
         )
 
         return EditConfidence(
-            file_path=file_path, operation=operation,
+            file_path=file_path,
+            operation=operation,
             overall_score=round(score, 3),
-            syntax_valid=syntax_valid, imports_valid=imports_valid,
+            syntax_valid=syntax_valid,
+            imports_valid=imports_valid,
             brackets_balanced=brackets_balanced,
             indentation_consistent=indent_consistent,
             diff_targets_found=diff_targets,
             content_length=len(content),
-            issues=issues, warnings=warnings, auto_fixes_applied=auto_fixes,
+            issues=issues,
+            warnings=warnings,
+            auto_fixes_applied=auto_fixes,
         )
 
     # =========================================================================
     # PUBLIC API: AUTO-RECOVER
     # =========================================================================
 
-    def auto_recover(self, file_path: str, content: str) -> Tuple[str, List[str]]:
+    def auto_recover(self, file_path: str, content: str) -> tuple[str, list[str]]:
         """Attempt automatic recovery from common LLM edit mistakes."""
         fixes = []
         result = content
@@ -262,14 +275,14 @@ class EditValidator:
     # INTERNAL: VALIDATION CHECKS
     # =========================================================================
 
-    def _check_python_syntax(self, content: str) -> Tuple[bool, str]:
+    def _check_python_syntax(self, content: str) -> tuple[bool, str]:
         try:
             ast.parse(content)
             return True, ""
         except SyntaxError as e:
             return False, f"Line {e.lineno}: {e.msg}"
 
-    def _check_imports(self, content: str) -> Tuple[bool, List[str]]:
+    def _check_imports(self, content: str) -> tuple[bool, list[str]]:
         issues = []
         try:
             tree = ast.parse(content)
@@ -320,7 +333,7 @@ class EditValidator:
 
         return len(stack) == 0
 
-    def _check_indentation(self, content: str) -> Tuple[bool, str]:
+    def _check_indentation(self, content: str) -> tuple[bool, str]:
         lines = content.split("\n")
         has_tabs = False
         has_spaces = False
@@ -338,7 +351,7 @@ class EditValidator:
             return False, "Mixed tabs and spaces"
         return True, ""
 
-    def _check_content_sanity(self, content: str, ext: str) -> List[str]:
+    def _check_content_sanity(self, content: str, ext: str) -> list[str]:
         issues = []
 
         if not content.strip():
@@ -382,19 +395,21 @@ class EditValidator:
         search_pattern = re.compile(r"<<<<<<< SEARCH\n(.+?)\n=======", re.DOTALL)
         matches = search_pattern.findall(content)
 
-        for search_text in matches:
-            if search_text.strip() not in source:
-                return False
-
-        return True
+        return all(search_text.strip() in source for search_text in matches)
 
     # =========================================================================
     # INTERNAL: CONFIDENCE COMPUTATION
     # =========================================================================
 
     def _compute_confidence(
-        self, syntax_valid, imports_valid, brackets_balanced,
-        indent_consistent, diff_targets, issue_count, warning_count,
+        self,
+        syntax_valid,
+        imports_valid,
+        brackets_balanced,
+        indent_consistent,
+        diff_targets,
+        issue_count,
+        warning_count,
         content_length,
     ) -> float:
         score = 1.0
@@ -428,7 +443,7 @@ class EditValidator:
     # INTERNAL: AUTO-RECOVERY FIXES
     # =========================================================================
 
-    def _fix_markdown_fences(self, content: str) -> Tuple[str, bool]:
+    def _fix_markdown_fences(self, content: str) -> tuple[str, bool]:
         if not content.startswith("```"):
             return content, False
         lines = content.split("\n")
@@ -438,19 +453,19 @@ class EditValidator:
             lines = lines[:-1]
         return "\n".join(lines), True
 
-    def _fix_trailing_whitespace(self, content: str) -> Tuple[str, bool]:
+    def _fix_trailing_whitespace(self, content: str) -> tuple[str, bool]:
         lines = content.split("\n")
         fixed_lines = [line.rstrip() for line in lines]
         fixed = "\n".join(fixed_lines)
         return fixed, fixed != content
 
-    def _fix_mixed_indentation(self, content: str) -> Tuple[str, bool]:
+    def _fix_mixed_indentation(self, content: str) -> tuple[str, bool]:
         if "\t" not in content:
             return content, False
         fixed = content.replace("\t", "    ")
         return fixed, True
 
-    def _fix_unclosed_strings(self, content: str) -> Tuple[str, bool]:
+    def _fix_unclosed_strings(self, content: str) -> tuple[str, bool]:
         lines = content.rstrip().split("\n")
         if not lines:
             return content, False
@@ -473,14 +488,17 @@ class EditValidator:
 
     def _is_blocking(self, issue: str) -> bool:
         blocking_keywords = [
-            "Syntax error", "Unbalanced brackets",
-            "Empty content", "targets not found",
-            "Path escape", "Absolute path", "Dangerous path",
+            "Syntax error",
+            "Unbalanced brackets",
+            "Empty content",
+            "targets not found",
+            "Path escape",
+            "Absolute path",
+            "Dangerous path",
         ]
         return any(kw in issue for kw in blocking_keywords)
 
-
-    def _check_path_safety(self, file_path: str) -> List[str]:
+    def _check_path_safety(self, file_path: str) -> list[str]:
         """Check file path for traversal attacks and workspace escapes."""
         issues = []
         if not file_path:
@@ -504,8 +522,16 @@ class EditValidator:
                 issues.append(f"Absolute path without workspace context: '{file_path}'")
 
         # Dangerous system paths
-        danger_prefixes = ["/etc/", "/var/", "/usr/", "/root/", "/bin/", "/sbin/",
-                           "C:/Windows", "C:/Program Files"]
+        danger_prefixes = [
+            "/etc/",
+            "/var/",
+            "/usr/",
+            "/root/",
+            "/bin/",
+            "/sbin/",
+            "C:/Windows",
+            "C:/Program Files",
+        ]
         for prefix in danger_prefixes:
             if normalized.lower().startswith(prefix.lower()):
                 issues.append(f"Dangerous path target: '{file_path}'")
@@ -517,6 +543,7 @@ class EditValidator:
 # =============================================================================
 # FACTORY
 # =============================================================================
+
 
 def get_edit_validator(workspace_path: str = None) -> EditValidator:
     """Factory function to create an EditValidator."""

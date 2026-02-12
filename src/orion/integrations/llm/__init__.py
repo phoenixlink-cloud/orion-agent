@@ -25,12 +25,12 @@ Usage:
 """
 
 from orion.core.llm.providers import (
+    API_MAX_RETRIES,
+    OLLAMA_BASE_URL,
+    OLLAMA_TIMEOUT,
     call_provider,
     is_ollama_available,
     retry_api_call,
-    OLLAMA_BASE_URL,
-    OLLAMA_TIMEOUT,
-    API_MAX_RETRIES,
 )
 
 __all__ = [

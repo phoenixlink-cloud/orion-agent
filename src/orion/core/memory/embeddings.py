@@ -30,12 +30,10 @@ USAGE:
     results = store.search("how to type annotate functions", top_k=5)
 """
 
-import json
-import time
-import sqlite3
 import logging
+import sqlite3
+import time
 from pathlib import Path
-from typing import List, Tuple, Optional
 
 logger = logging.getLogger("orion.memory.embeddings")
 
@@ -69,8 +67,9 @@ class EmbeddingStore:
     def _check_availability(self) -> bool:
         """Check if sentence-transformers is installed."""
         try:
-            from sentence_transformers import SentenceTransformer  # noqa: F401
             import numpy  # noqa: F401
+            from sentence_transformers import SentenceTransformer  # noqa: F401
+
             self._np = numpy
             return True
         except ImportError:
@@ -100,6 +99,7 @@ class EmbeddingStore:
         if self._model is None and self._available:
             try:
                 from sentence_transformers import SentenceTransformer
+
                 self._model = SentenceTransformer(self.DEFAULT_MODEL)
                 logger.info("Loaded embedding model: %s", self.DEFAULT_MODEL)
             except Exception as e:
@@ -146,7 +146,7 @@ class EmbeddingStore:
         except Exception as e:
             logger.warning("Failed to index memory %s: %s", memory_id, e)
 
-    def search(self, query: str, top_k: int = 10, domain: str = None) -> List[Tuple[str, float]]:
+    def search(self, query: str, top_k: int = 10, domain: str = None) -> list[tuple[str, float]]:
         """
         Search for the most semantically similar memory entries.
 
@@ -176,9 +176,7 @@ class EmbeddingStore:
                     (f'%"domain": "{domain}"%',),
                 ).fetchall()
             else:
-                rows = conn.execute(
-                    "SELECT memory_id, embedding FROM memory_embeddings"
-                ).fetchall()
+                rows = conn.execute("SELECT memory_id, embedding FROM memory_embeddings").fetchall()
 
             conn.close()
 
@@ -188,9 +186,7 @@ class EmbeddingStore:
             # Batch cosine similarity with numpy
             np = self._np
             ids = [r[0] for r in rows]
-            embeddings = np.array([
-                np.frombuffer(r[1], dtype=np.float32) for r in rows
-            ])
+            embeddings = np.array([np.frombuffer(r[1], dtype=np.float32) for r in rows])
 
             # Normalize for cosine similarity
             query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)

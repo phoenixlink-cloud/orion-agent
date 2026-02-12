@@ -32,50 +32,86 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
 class FileContext:
     """Context for a single file in the project."""
+
     path: str
     content_hash: str
     size: int
     language: str
     last_modified: str
-    summary: Optional[str] = None
+    summary: str | None = None
 
 
 @dataclass
 class ProjectDecision:
     """A decision made in this project."""
+
     action: str
     outcome: str
     quality: float
     timestamp: str
-    context: Optional[str] = None
+    context: str | None = None
 
 
 # ── Language detection map ────────────────────────────────────────────────
 
-_CODE_EXTENSIONS: Dict[str, str] = {
-    ".py": "python", ".js": "javascript", ".ts": "typescript",
-    ".jsx": "react", ".tsx": "react-typescript",
-    ".cs": "csharp", ".java": "java", ".go": "go", ".rs": "rust",
-    ".cpp": "cpp", ".c": "c", ".h": "c-header", ".hpp": "cpp-header",
-    ".rb": "ruby", ".php": "php", ".swift": "swift", ".kt": "kotlin",
-    ".sql": "sql", ".html": "html", ".css": "css", ".scss": "scss",
-    ".json": "json", ".yaml": "yaml", ".yml": "yaml", ".xml": "xml",
-    ".md": "markdown", ".txt": "text",
-    ".sh": "shell", ".bat": "batch", ".ps1": "powershell",
-    ".xaml": "xaml", ".csproj": "msbuild", ".sln": "solution",
+_CODE_EXTENSIONS: dict[str, str] = {
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".jsx": "react",
+    ".tsx": "react-typescript",
+    ".cs": "csharp",
+    ".java": "java",
+    ".go": "go",
+    ".rs": "rust",
+    ".cpp": "cpp",
+    ".c": "c",
+    ".h": "c-header",
+    ".hpp": "cpp-header",
+    ".rb": "ruby",
+    ".php": "php",
+    ".swift": "swift",
+    ".kt": "kotlin",
+    ".sql": "sql",
+    ".html": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".json": "json",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".xml": "xml",
+    ".md": "markdown",
+    ".txt": "text",
+    ".sh": "shell",
+    ".bat": "batch",
+    ".ps1": "powershell",
+    ".xaml": "xaml",
+    ".csproj": "msbuild",
+    ".sln": "solution",
 }
 
 _SKIP_DIRS = {
-    ".git", ".orion", "node_modules", "__pycache__",
-    ".venv", "venv", "env", ".env",
-    "bin", "obj", "dist", "build", ".next",
-    ".pytest_cache", ".mypy_cache",
+    ".git",
+    ".orion",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    ".env",
+    "bin",
+    "obj",
+    "dist",
+    "build",
+    ".next",
+    ".pytest_cache",
+    ".mypy_cache",
 }
 
 
@@ -94,10 +130,10 @@ class ProjectMemory:
         self.orion_dir = self.workspace_path / ".orion"
         self.memory_file = self.orion_dir / "project_memory.json"
 
-        self.files: Dict[str, FileContext] = {}
-        self.decisions: List[ProjectDecision] = []
-        self.project_patterns: List[str] = []
-        self.metadata: Dict[str, Any] = {}
+        self.files: dict[str, FileContext] = {}
+        self.decisions: list[ProjectDecision] = []
+        self.project_patterns: list[str] = []
+        self.metadata: dict[str, Any] = {}
 
         self._load()
 
@@ -106,14 +142,10 @@ class ProjectMemory:
     def _load(self):
         if self.memory_file.exists():
             try:
-                with open(self.memory_file, "r", encoding="utf-8") as f:
+                with open(self.memory_file, encoding="utf-8") as f:
                     data = json.load(f)
-                self.files = {
-                    p: FileContext(**fc) for p, fc in data.get("files", {}).items()
-                }
-                self.decisions = [
-                    ProjectDecision(**d) for d in data.get("decisions", [])
-                ]
+                self.files = {p: FileContext(**fc) for p, fc in data.get("files", {}).items()}
+                self.decisions = [ProjectDecision(**d) for d in data.get("decisions", [])]
                 self.project_patterns = data.get("project_patterns", [])
                 self.metadata = data.get("metadata", {})
             except Exception:
@@ -135,15 +167,23 @@ class ProjectMemory:
         data = {
             "files": {
                 p: {
-                    "path": fc.path, "content_hash": fc.content_hash,
-                    "size": fc.size, "language": fc.language,
-                    "last_modified": fc.last_modified, "summary": fc.summary,
+                    "path": fc.path,
+                    "content_hash": fc.content_hash,
+                    "size": fc.size,
+                    "language": fc.language,
+                    "last_modified": fc.last_modified,
+                    "summary": fc.summary,
                 }
                 for p, fc in self.files.items()
             },
             "decisions": [
-                {"action": d.action, "outcome": d.outcome, "quality": d.quality,
-                 "timestamp": d.timestamp, "context": d.context}
+                {
+                    "action": d.action,
+                    "outcome": d.outcome,
+                    "quality": d.quality,
+                    "timestamp": d.timestamp,
+                    "context": d.context,
+                }
                 for d in self.decisions
             ],
             "project_patterns": self.project_patterns,
@@ -156,7 +196,7 @@ class ProjectMemory:
 
     def update_from_workspace(self):
         """Scan workspace and update file index."""
-        new_files: Dict[str, FileContext] = {}
+        new_files: dict[str, FileContext] = {}
 
         for root, dirs, files in os.walk(self.workspace_path):
             dirs[:] = [d for d in dirs if d not in _SKIP_DIRS]
@@ -190,21 +230,33 @@ class ProjectMemory:
 
     # ── Decision tracking ────────────────────────────────────────────────
 
-    def record_decision(self, action: str, outcome: str, quality: float, context: Optional[str] = None):
+    def record_decision(
+        self, action: str, outcome: str, quality: float, context: str | None = None
+    ):
         """Record a decision made in this project."""
-        self.decisions.append(ProjectDecision(
-            action=action, outcome=outcome, quality=quality,
-            timestamp=datetime.now(timezone.utc).isoformat(), context=context,
-        ))
+        self.decisions.append(
+            ProjectDecision(
+                action=action,
+                outcome=outcome,
+                quality=quality,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                context=context,
+            )
+        )
         if len(self.decisions) > 100:
             self.decisions = self.decisions[-100:]
         self._save()
 
-    def get_relevant_decisions(self, task: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_relevant_decisions(self, task: str, limit: int = 10) -> list[dict[str, Any]]:
         """Get past decisions relevant to current task."""
         recent = self.decisions[-limit:]
         return [
-            {"action": d.action, "outcome": d.outcome, "quality": d.quality, "timestamp": d.timestamp}
+            {
+                "action": d.action,
+                "outcome": d.outcome,
+                "quality": d.quality,
+                "timestamp": d.timestamp,
+            }
             for d in recent
         ]
 
@@ -215,7 +267,7 @@ class ProjectMemory:
         lines = [f"## Project: {self.workspace_path.name}"]
         lines.append(f"Files: {len(self.files)}")
 
-        by_language: Dict[str, List[str]] = {}
+        by_language: dict[str, list[str]] = {}
         for path, fc in self.files.items():
             by_language.setdefault(fc.language, []).append(path)
 
@@ -237,10 +289,10 @@ class ProjectMemory:
 
     # ── Query helpers ────────────────────────────────────────────────────
 
-    def get_file_list(self) -> List[str]:
+    def get_file_list(self) -> list[str]:
         return list(self.files.keys())
 
-    def get_file_context(self, path: str) -> Optional[FileContext]:
+    def get_file_context(self, path: str) -> FileContext | None:
         return self.files.get(path)
 
     def add_project_pattern(self, pattern: str):
@@ -248,8 +300,8 @@ class ProjectMemory:
             self.project_patterns.append(pattern)
             self._save()
 
-    def get_statistics(self) -> Dict[str, Any]:
-        by_language: Dict[str, int] = {}
+    def get_statistics(self) -> dict[str, Any]:
+        by_language: dict[str, int] = {}
         total_size = 0
         for fc in self.files.values():
             by_language[fc.language] = by_language.get(fc.language, 0) + 1

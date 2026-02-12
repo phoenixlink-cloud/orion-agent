@@ -1,10 +1,16 @@
 """Unit tests for WorkspaceSandbox -- local mode (no Docker dependency)."""
 
 import os
-import pytest
 import tempfile
+
+import pytest
+
 from orion.security.workspace_sandbox import (
-    WorkspaceSandbox, SandboxMode, SandboxSession, SandboxDiff, PromoteResult,
+    PromoteResult,
+    SandboxDiff,
+    SandboxMode,
+    SandboxSession,
+    WorkspaceSandbox,
 )
 
 
@@ -169,7 +175,9 @@ class TestLocalCodeExecution:
     def test_python_can_read_sandbox_files(self, local_sandbox, test_workspace):
         session = local_sandbox.create_session(test_workspace)
         result = local_sandbox.run_code(
-            session, "print(open('main.py').read())", "python",
+            session,
+            "print(open('main.py').read())",
+            "python",
         )
         assert result["success"] is True
         assert "hello world" in result["stdout"]
@@ -178,7 +186,10 @@ class TestLocalCodeExecution:
     def test_timeout_returns_error(self, local_sandbox, test_workspace):
         session = local_sandbox.create_session(test_workspace)
         result = local_sandbox.run_code(
-            session, "import time; time.sleep(10)", "python", timeout=1,
+            session,
+            "import time; time.sleep(10)",
+            "python",
+            timeout=1,
         )
         assert result["success"] is False
         assert "Timed out" in result.get("error", "")

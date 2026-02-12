@@ -25,8 +25,6 @@ The persona is NOT a suggestion. It is load-bearing architecture.
 """
 
 from pathlib import Path
-from typing import Optional
-
 
 # =============================================================================
 # CORE PERSONA -- Compiled from ORION_PERSONA.md
@@ -77,6 +75,7 @@ QUALITY_STANDARD = """QUALITY STANDARD:
 # =============================================================================
 # PROMPT FRAGMENTS -- Pre-built for each agent role
 # =============================================================================
+
 
 def get_builder_persona() -> str:
     """Persona fragment for the Builder agent's system prompt."""
@@ -153,7 +152,7 @@ def get_persona_summary() -> str:
 # FULL PERSONA DOCUMENT (loaded from .md if available)
 # =============================================================================
 
-_persona_doc_cache: Optional[str] = None
+_persona_doc_cache: str | None = None
 
 
 def get_full_persona_document() -> str:

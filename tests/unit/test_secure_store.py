@@ -7,9 +7,9 @@ credential CRUD operations, audit logging, and key migration.
 
 import json
 import time
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+
+import pytest
 
 
 @pytest.fixture
@@ -25,9 +25,11 @@ def secure_store(tmp_store_dir):
     """Create a SecureStore instance with temp directory, keyring disabled."""
     # Reset singleton
     import orion.security.store as store_mod
+
     store_mod._instance = None
 
     from orion.security.store import SecureStore
+
     store = SecureStore(store_dir=tmp_store_dir)
     # Disable keyring to avoid system-wide side effects in tests
     store._keyring._available = False
@@ -42,9 +44,11 @@ class TestSecureStoreInit:
         assert not store_dir.exists()
 
         import orion.security.store as store_mod
+
         store_mod._instance = None
         from orion.security.store import SecureStore
-        store = SecureStore(store_dir=store_dir)
+
+        SecureStore(store_dir=store_dir)
         assert store_dir.exists()
 
     def test_backend_name_not_none(self, secure_store):
@@ -55,6 +59,7 @@ class TestSecureStoreInit:
         # Should be True if cryptography is installed
         try:
             import cryptography
+
             assert secure_store.is_available
         except ImportError:
             # Without cryptography and keyring, may be False
@@ -108,6 +113,7 @@ class TestCredentialCRUD:
             pytest.skip("No secure backend available")
 
         import uuid
+
         unique_key = f"check_{uuid.uuid4().hex[:8]}"
         assert not secure_store.has_key(unique_key)
         secure_store.set_key(unique_key, "value")
@@ -144,10 +150,14 @@ class TestMigration:
 
         # Create a fake plaintext keys file
         plaintext_path = tmp_store_dir.parent / "api_keys.json"
-        plaintext_path.write_text(json.dumps({
-            "openai": "sk-test-12345678",
-            "anthropic": "sk-ant-test-12345678",
-        }))
+        plaintext_path.write_text(
+            json.dumps(
+                {
+                    "openai": "sk-test-12345678",
+                    "anthropic": "sk-ant-test-12345678",
+                }
+            )
+        )
 
         migrated = secure_store.migrate_plaintext_keys(plaintext_path)
         assert "openai" in migrated
@@ -272,9 +282,11 @@ class TestSingleton:
 
     def test_get_secure_store_returns_same_instance(self, tmp_store_dir):
         import orion.security.store as store_mod
+
         store_mod._instance = None
 
         from orion.security.store import get_secure_store
+
         store1 = get_secure_store(tmp_store_dir)
         store2 = get_secure_store(tmp_store_dir)
         assert store1 is store2

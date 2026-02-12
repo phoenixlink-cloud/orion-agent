@@ -35,11 +35,11 @@ Usage by agents:
     caps = service.available_capabilities()
 """
 
-import os
-import asyncio
 import inspect
 import logging
-from typing import Optional, Dict, Any, List, Callable, Union
+import os
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger("orion.integrations.platform_service")
 
@@ -57,28 +57,29 @@ class PlatformService:
 
     # Per-platform rate limits (requests per minute)
     _PLATFORM_RATE_LIMITS = {
-        "github": 80,      # GitHub: 5000/hr ≈ 83/min
-        "slack": 50,       # Slack: ~50/min for most tiers
-        "notion": 30,      # Notion: 3 req/sec avg
-        "jira": 60,        # Jira Cloud: varies
-        "linear": 50,      # Linear: 50/min
-        "discord": 50,     # Discord: varies
+        "github": 80,  # GitHub: 5000/hr ≈ 83/min
+        "slack": 50,  # Slack: ~50/min for most tiers
+        "notion": 30,  # Notion: 3 req/sec avg
+        "jira": 60,  # Jira Cloud: varies
+        "linear": 50,  # Linear: 50/min
+        "discord": 50,  # Discord: varies
     }
     _DEFAULT_RATE_LIMIT = 60  # Default: 60 req/min
 
     def __init__(self):
         self._store = None
         self._registry = None
-        self._rate_limiters: Dict[str, Any] = {}
+        self._rate_limiters: dict[str, Any] = {}
         # AEGIS Invariant 6: Human approval callback for write operations.
         # If not set, ALL write operations are BLOCKED by default.
         # This is a security invariant -- Orion cannot bypass this.
-        self._approval_callback: Optional[Callable[[str], bool]] = None
+        self._approval_callback: Callable[[str], bool] | None = None
 
     def _get_rate_limiter(self, platform_id: str):
         """Get or create a rate limiter for a platform."""
         if platform_id not in self._rate_limiters:
             from orion.core.production.metrics import RateLimiter
+
             limit = self._PLATFORM_RATE_LIMITS.get(platform_id, self._DEFAULT_RATE_LIMIT)
             self._rate_limiters[platform_id] = RateLimiter(max_requests=limit, window_seconds=60.0)
         return self._rate_limiters[platform_id]
@@ -88,6 +89,7 @@ class PlatformService:
         if self._store is None:
             try:
                 from orion.security.store import get_secure_store
+
                 self._store = get_secure_store()
             except Exception:
                 pass
@@ -97,6 +99,7 @@ class PlatformService:
     def registry(self):
         if self._registry is None:
             from orion.integrations.platforms import get_platform_registry
+
             self._registry = get_platform_registry()
         return self._registry
 
@@ -104,7 +107,7 @@ class PlatformService:
     # TOKEN / KEY RETRIEVAL
     # =========================================================================
 
-    def get_token(self, platform_id: str) -> Optional[str]:
+    def get_token(self, platform_id: str) -> str | None:
         """
         Get the auth token/key for a platform.
 
@@ -162,11 +165,11 @@ class PlatformService:
         caps = self.registry.list_capabilities()
         return capability in caps
 
-    def available_capabilities(self) -> Dict[str, List[str]]:
+    def available_capabilities(self) -> dict[str, list[str]]:
         """List all capabilities available from connected platforms."""
         return self.registry.list_capabilities()
 
-    def get_provider_for(self, capability: str) -> Optional[str]:
+    def get_provider_for(self, capability: str) -> str | None:
         """Get the best platform ID that provides a capability."""
         platform = self.registry.get_platform_for_capability(capability)
         return platform.id if platform else None
@@ -206,11 +209,11 @@ class PlatformService:
         platform_id: str,
         method: str,
         url: str,
-        json_data: Optional[Dict] = None,
-        params: Optional[Dict] = None,
-        headers: Optional[Dict] = None,
+        json_data: dict | None = None,
+        params: dict | None = None,
+        headers: dict | None = None,
         description: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Make an authenticated API call to a platform.
 
@@ -233,9 +236,7 @@ class PlatformService:
         # AEGIS INVARIANT 6: External Access Control (HARDCODED)
         # This gate CANNOT be removed, disabled, or bypassed.
         # =====================================================================
-        from orion.core.governance.aegis import (
-            check_external_access, ExternalAccessRequest
-        )
+        from orion.core.governance.aegis import ExternalAccessRequest, check_external_access
 
         access_request = ExternalAccessRequest(
             platform_id=platform_id,
@@ -269,9 +270,7 @@ class PlatformService:
             else:
                 approved = self._approval_callback(aegis_result.approval_prompt)
             if not approved:
-                logger.info(
-                    f"AEGIS-6 DENIED by human: {method.upper()} {url}"
-                )
+                logger.info(f"AEGIS-6 DENIED by human: {method.upper()} {url}")
                 return {
                     "ok": False,
                     "status": 0,
@@ -362,69 +361,113 @@ class PlatformService:
     # GITHUB HELPERS
     # =========================================================================
 
-    async def github_list_repos(self, per_page: int = 30) -> Dict:
+    async def github_list_repos(self, per_page: int = 30) -> dict:
         """List the authenticated user's repos."""
-        return await self.api_call("github", "GET", "https://api.github.com/user/repos", params={"per_page": per_page, "sort": "updated"})
+        return await self.api_call(
+            "github",
+            "GET",
+            "https://api.github.com/user/repos",
+            params={"per_page": per_page, "sort": "updated"},
+        )
 
-    async def github_search_code(self, query: str) -> Dict:
+    async def github_search_code(self, query: str) -> dict:
         """Search code across GitHub."""
-        return await self.api_call("github", "GET", "https://api.github.com/search/code", params={"q": query})
+        return await self.api_call(
+            "github", "GET", "https://api.github.com/search/code", params={"q": query}
+        )
 
-    async def github_create_issue(self, owner: str, repo: str, title: str, body: str = "", labels: List[str] = None) -> Dict:
+    async def github_create_issue(
+        self, owner: str, repo: str, title: str, body: str = "", labels: list[str] = None
+    ) -> dict:
         """Create a GitHub issue."""
         data = {"title": title, "body": body}
         if labels:
             data["labels"] = labels
-        return await self.api_call("github", "POST", f"https://api.github.com/repos/{owner}/{repo}/issues", json_data=data)
+        return await self.api_call(
+            "github", "POST", f"https://api.github.com/repos/{owner}/{repo}/issues", json_data=data
+        )
 
-    async def github_list_issues(self, owner: str, repo: str, state: str = "open") -> Dict:
+    async def github_list_issues(self, owner: str, repo: str, state: str = "open") -> dict:
         """List issues for a repo."""
-        return await self.api_call("github", "GET", f"https://api.github.com/repos/{owner}/{repo}/issues", params={"state": state})
+        return await self.api_call(
+            "github",
+            "GET",
+            f"https://api.github.com/repos/{owner}/{repo}/issues",
+            params={"state": state},
+        )
 
-    async def github_get_file(self, owner: str, repo: str, path: str, ref: str = "main") -> Dict:
+    async def github_get_file(self, owner: str, repo: str, path: str, ref: str = "main") -> dict:
         """Get file contents from a repo."""
-        return await self.api_call("github", "GET", f"https://api.github.com/repos/{owner}/{repo}/contents/{path}", params={"ref": ref})
+        return await self.api_call(
+            "github",
+            "GET",
+            f"https://api.github.com/repos/{owner}/{repo}/contents/{path}",
+            params={"ref": ref},
+        )
 
-    async def github_create_pr(self, owner: str, repo: str, title: str, body: str, head: str, base: str = "main") -> Dict:
+    async def github_create_pr(
+        self, owner: str, repo: str, title: str, body: str, head: str, base: str = "main"
+    ) -> dict:
         """Create a pull request."""
-        return await self.api_call("github", "POST", f"https://api.github.com/repos/{owner}/{repo}/pulls",
-                                   json_data={"title": title, "body": body, "head": head, "base": base})
+        return await self.api_call(
+            "github",
+            "POST",
+            f"https://api.github.com/repos/{owner}/{repo}/pulls",
+            json_data={"title": title, "body": body, "head": head, "base": base},
+        )
 
     # =========================================================================
     # GITLAB HELPERS
     # =========================================================================
 
-    async def gitlab_list_projects(self, per_page: int = 20) -> Dict:
+    async def gitlab_list_projects(self, per_page: int = 20) -> dict:
         """List the authenticated user's projects."""
-        return await self.api_call("gitlab", "GET", "https://gitlab.com/api/v4/projects", params={"membership": True, "per_page": per_page, "order_by": "updated_at"})
+        return await self.api_call(
+            "gitlab",
+            "GET",
+            "https://gitlab.com/api/v4/projects",
+            params={"membership": True, "per_page": per_page, "order_by": "updated_at"},
+        )
 
-    async def gitlab_create_issue(self, project_id: int, title: str, description: str = "") -> Dict:
+    async def gitlab_create_issue(self, project_id: int, title: str, description: str = "") -> dict:
         """Create a GitLab issue."""
-        return await self.api_call("gitlab", "POST", f"https://gitlab.com/api/v4/projects/{project_id}/issues",
-                                   json_data={"title": title, "description": description})
+        return await self.api_call(
+            "gitlab",
+            "POST",
+            f"https://gitlab.com/api/v4/projects/{project_id}/issues",
+            json_data={"title": title, "description": description},
+        )
 
     # =========================================================================
     # SLACK HELPERS
     # =========================================================================
 
-    async def slack_send_message(self, channel: str, text: str) -> Dict:
+    async def slack_send_message(self, channel: str, text: str) -> dict:
         """Send a message to a Slack channel."""
-        return await self.api_call("slack", "POST", "https://slack.com/api/chat.postMessage",
-                                   json_data={"channel": channel, "text": text})
+        return await self.api_call(
+            "slack",
+            "POST",
+            "https://slack.com/api/chat.postMessage",
+            json_data={"channel": channel, "text": text},
+        )
 
-    async def slack_list_channels(self) -> Dict:
+    async def slack_list_channels(self) -> dict:
         """List Slack channels."""
-        return await self.api_call("slack", "GET", "https://slack.com/api/conversations.list", params={"limit": 100})
+        return await self.api_call(
+            "slack", "GET", "https://slack.com/api/conversations.list", params={"limit": 100}
+        )
 
     # =========================================================================
     # NOTION HELPERS
     # =========================================================================
 
-    async def notion_search(self, query: str) -> Dict:
+    async def notion_search(self, query: str) -> dict:
         """Search Notion workspace."""
-        return await self.api_call("notion", "POST", "https://api.notion.com/v1/search", json_data={"query": query})
+        return await self.api_call(
+            "notion", "POST", "https://api.notion.com/v1/search", json_data={"query": query}
+        )
 
-    async def notion_get_page(self, page_id: str) -> Dict:
+    async def notion_get_page(self, page_id: str) -> dict:
         """Get a Notion page."""
         return await self.api_call("notion", "GET", f"https://api.notion.com/v1/pages/{page_id}")
 
@@ -432,7 +475,7 @@ class PlatformService:
     # GENERIC TOOL INTERFACE (for agent use)
     # =========================================================================
 
-    async def execute_capability(self, capability: str, **kwargs) -> Dict[str, Any]:
+    async def execute_capability(self, capability: str, **kwargs) -> dict[str, Any]:
         """
         Execute a capability by name.
 
@@ -451,7 +494,7 @@ class PlatformService:
             return {
                 "ok": False,
                 "error": f"No connected platform provides '{capability}'. "
-                         f"Connect a platform in Settings that supports this.",
+                f"Connect a platform in Settings that supports this.",
                 "platform": None,
             }
 
@@ -478,7 +521,7 @@ class PlatformService:
 # SINGLETON
 # =============================================================================
 
-_service: Optional[PlatformService] = None
+_service: PlatformService | None = None
 
 
 def get_platform_service() -> PlatformService:

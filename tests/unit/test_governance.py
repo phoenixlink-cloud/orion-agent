@@ -1,11 +1,13 @@
 """Tests for orion.core.governance.aegis -- AEGIS governance gate."""
 
-import pytest
 from dataclasses import dataclass, field
+
+import pytest
+
 from orion.core.governance.aegis import (
-    check_aegis_gate,
     AegisResult,
     _is_path_confined,
+    check_aegis_gate,
     validate_action_bundle,
 )
 
@@ -28,6 +30,7 @@ def _make_intent(**kwargs):
 # AegisResult
 # =========================================================================
 
+
 class TestAegisResult:
     def test_passed_is_truthy(self):
         r = AegisResult(passed=True, violations=[], warnings=[], action_type="deliberation")
@@ -41,6 +44,7 @@ class TestAegisResult:
 # =========================================================================
 # _is_path_confined
 # =========================================================================
+
 
 class TestIsPathConfined:
     # --- Original tests (still valid) ---
@@ -76,6 +80,7 @@ class TestIsPathConfined:
         """/workspace-evil is NOT inside /workspace."""
         evil_dir = str(tmp_path) + "-evil"
         import os
+
         os.makedirs(evil_dir, exist_ok=True)
         evil_file = os.path.join(evil_dir, "steal.py")
         assert _is_path_confined(evil_file, str(tmp_path)) is False
@@ -121,6 +126,7 @@ class TestIsPathConfined:
     def test_symlink_escape(self, tmp_path):
         """Symlink inside workspace pointing outside must be blocked."""
         import os
+
         target_outside = tmp_path.parent / "outside_target"
         target_outside.mkdir(exist_ok=True)
         secret = target_outside / "secret.txt"
@@ -157,6 +163,7 @@ class TestIsPathConfined:
 # check_aegis_gate -- INVARIANT 1: Workspace Confinement
 # =========================================================================
 
+
 class TestAegisInvariant1:
     def test_no_workspace_with_evidence_required(self):
         intent = _make_intent(requires_evidence=True)
@@ -181,6 +188,7 @@ class TestAegisInvariant1:
 # check_aegis_gate -- INVARIANT 2: Mode Enforcement
 # =========================================================================
 
+
 class TestAegisInvariant2:
     def test_action_in_safe_mode_blocked(self, tmp_path):
         intent = _make_intent(requires_action=True)
@@ -202,6 +210,7 @@ class TestAegisInvariant2:
 # =========================================================================
 # check_aegis_gate -- INVARIANT 3: Action Scope
 # =========================================================================
+
 
 class TestAegisInvariant3:
     def test_path_escape_blocked(self, tmp_path):
@@ -228,6 +237,7 @@ class TestAegisInvariant3:
 # =========================================================================
 # check_aegis_gate -- INVARIANT 5: Command Execution
 # =========================================================================
+
 
 class TestAegisInvariant5:
     def test_run_in_safe_mode_blocked(self, tmp_path):
@@ -261,6 +271,7 @@ class TestAegisInvariant5:
 # =========================================================================
 # validate_action_bundle
 # =========================================================================
+
 
 class TestValidateActionBundle:
     def test_empty_actions(self, tmp_path):

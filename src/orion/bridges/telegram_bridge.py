@@ -32,10 +32,7 @@ Setup:
     5. You're connected -- start chatting with Orion
 """
 
-import asyncio
-from typing import Optional
-
-from orion.bridges.base import MessagingBridge, BridgeConfig, BridgeMessage
+from orion.bridges.base import BridgeConfig, BridgeMessage, MessagingBridge
 
 
 class TelegramBridge(MessagingBridge):
@@ -48,15 +45,20 @@ class TelegramBridge(MessagingBridge):
     async def start(self):
         """Start the Telegram bot with long polling."""
         try:
-            from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+            from telegram import Update
             from telegram.ext import (
-                Application, MessageHandler, CallbackQueryHandler,
-                filters, ContextTypes,
+                Application,
+                CallbackQueryHandler,
+                ContextTypes,
+                MessageHandler,
+                filters,
             )
         except ImportError:
             if self._log:
-                self._log.error("Bridge", "python-telegram-bot not installed. "
-                                "Run: pip install python-telegram-bot")
+                self._log.error(
+                    "Bridge",
+                    "python-telegram-bot not installed. Run: pip install python-telegram-bot",
+                )
             return
 
         if not self.config.token:
@@ -98,6 +100,7 @@ class TelegramBridge(MessagingBridge):
 
                     try:
                         import httpx
+
                         async with httpx.AsyncClient() as client:
                             await client.post(
                                 f"http://localhost:8001/api/aegis/respond/{approval_id}",
@@ -146,22 +149,21 @@ class TelegramBridge(MessagingBridge):
         # Telegram max message length is 4096
         if len(text) > 4096:
             # Split into chunks
-            chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
+            chunks = [text[i : i + 4000] for i in range(0, len(text), 4000)]
             for chunk in chunks:
                 await self._app.bot.send_message(
                     chat_id=int(chat_id),
                     text=chunk,
-                    parse_mode=kwargs.get("parse_mode", None),
+                    parse_mode=kwargs.get("parse_mode"),
                 )
         else:
             await self._app.bot.send_message(
                 chat_id=int(chat_id),
                 text=text,
-                parse_mode=kwargs.get("parse_mode", None),
+                parse_mode=kwargs.get("parse_mode"),
             )
 
-    async def send_approval_prompt(self, chat_id: str, prompt: str,
-                                   approval_id: str) -> None:
+    async def send_approval_prompt(self, chat_id: str, prompt: str, approval_id: str) -> None:
         """Send an AEGIS approval request with inline keyboard buttons."""
         if not self._app or not self._app.bot:
             return
@@ -169,12 +171,16 @@ class TelegramBridge(MessagingBridge):
         try:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-            keyboard = InlineKeyboardMarkup([
+            keyboard = InlineKeyboardMarkup(
                 [
-                    InlineKeyboardButton("✅ Approve", callback_data=f"aegis_approve:{approval_id}"),
-                    InlineKeyboardButton("❌ Deny", callback_data=f"aegis_deny:{approval_id}"),
+                    [
+                        InlineKeyboardButton(
+                            "✅ Approve", callback_data=f"aegis_approve:{approval_id}"
+                        ),
+                        InlineKeyboardButton("❌ Deny", callback_data=f"aegis_deny:{approval_id}"),
+                    ]
                 ]
-            ])
+            )
 
             await self._app.bot.send_message(
                 chat_id=int(chat_id),
@@ -182,6 +188,9 @@ class TelegramBridge(MessagingBridge):
                 reply_markup=keyboard,
                 parse_mode="Markdown",
             )
-        except Exception as e:
+        except Exception:
             # Fallback without buttons
-            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")
+            await self.send(
+                chat_id,
+                f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)",
+            )

@@ -30,17 +30,16 @@ Design principles:
   - Graceful degradation: keyring -> encrypted file -> clear error
 """
 
-import os
-import json
-import time
-import hashlib
 import base64
+import hashlib
+import json
 import logging
+import os
 import platform
 import threading
+import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Dict, List
-from dataclasses import dataclass, field
 
 logger = logging.getLogger("orion.security.store")
 
@@ -48,9 +47,11 @@ logger = logging.getLogger("orion.security.store")
 # Data Classes
 # =============================================================================
 
+
 @dataclass
 class CredentialEntry:
     """A stored credential with metadata."""
+
     provider: str
     created_at: float
     updated_at: float
@@ -60,8 +61,9 @@ class CredentialEntry:
 @dataclass
 class AuditEvent:
     """Credential access audit log entry."""
+
     timestamp: float
-    action: str   # "set", "get", "delete", "rotate"
+    action: str  # "set", "get", "delete", "rotate"
     provider: str
     backend: str
     success: bool
@@ -71,6 +73,7 @@ class AuditEvent:
 # =============================================================================
 # Encryption Backend (Fernet -- AES-128-CBC + HMAC-SHA256 via PBKDF2)
 # =============================================================================
+
 
 class _FernetBackend:
     """
@@ -91,8 +94,8 @@ class _FernetBackend:
     def _init_fernet(self):
         try:
             from cryptography.fernet import Fernet
-            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
             from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
             # Ensure salt exists (generated once per install)
             if not self._salt_path.exists():
@@ -147,10 +150,8 @@ class _FernetBackend:
         elif system == "Windows":
             try:
                 import winreg
-                key = winreg.OpenKey(
-                    winreg.HKEY_LOCAL_MACHINE,
-                    r"SOFTWARE\Microsoft\Cryptography"
-                )
+
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography")
                 guid, _ = winreg.QueryValueEx(key, "MachineGuid")
                 parts.append(guid)
                 winreg.CloseKey(key)
@@ -159,9 +160,12 @@ class _FernetBackend:
         elif system == "Darwin":
             try:
                 import subprocess
+
                 result = subprocess.run(
                     ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
-                    capture_output=True, text=True, timeout=5
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 for line in result.stdout.split("\n"):
                     if "IOPlatformUUID" in line:
@@ -173,7 +177,7 @@ class _FernetBackend:
         seed_str = "|".join(parts)
         return hashlib.sha256(seed_str.encode()).digest()
 
-    def _load_vault(self) -> Dict[str, str]:
+    def _load_vault(self) -> dict[str, str]:
         """Load and decrypt the vault file."""
         if not self._vault_path.exists():
             return {}
@@ -185,14 +189,14 @@ class _FernetBackend:
             logger.error(f"Failed to decrypt vault: {e}")
             return {}
 
-    def _save_vault(self, data: Dict[str, str]):
+    def _save_vault(self, data: dict[str, str]):
         """Encrypt and save the vault file."""
         self._store_dir.mkdir(parents=True, exist_ok=True)
         plaintext = json.dumps(data).encode()
         encrypted = self._fernet.encrypt(plaintext)
         self._vault_path.write_bytes(encrypted)
 
-    def get(self, provider: str) -> Optional[str]:
+    def get(self, provider: str) -> str | None:
         vault = self._load_vault()
         return vault.get(provider)
 
@@ -209,13 +213,14 @@ class _FernetBackend:
             return True
         return False
 
-    def list_providers(self) -> List[str]:
+    def list_providers(self) -> list[str]:
         return list(self._load_vault().keys())
 
 
 # =============================================================================
 # Keyring Backend
 # =============================================================================
+
 
 class _KeyringBackend:
     """
@@ -237,6 +242,7 @@ class _KeyringBackend:
     def _init_keyring(self):
         try:
             import keyring as kr
+
             # Verify keyring is functional (not a null backend)
             backend_name = str(kr.get_keyring())
             if "fail" in backend_name.lower() or "null" in backend_name.lower():
@@ -254,7 +260,7 @@ class _KeyringBackend:
     def available(self) -> bool:
         return self._available
 
-    def get(self, provider: str) -> Optional[str]:
+    def get(self, provider: str) -> str | None:
         try:
             return self._keyring.get_password(self.SERVICE_NAME, provider)
         except Exception as e:
@@ -281,6 +287,7 @@ class _KeyringBackend:
 # Secure Store (Public API)
 # =============================================================================
 
+
 class SecureStore:
     """
     Layered credential store with audit logging.
@@ -297,7 +304,7 @@ class SecureStore:
         store.delete_key("openai")
     """
 
-    def __init__(self, store_dir: Optional[Path] = None):
+    def __init__(self, store_dir: Path | None = None):
         self._store_dir = store_dir or (Path.home() / ".orion" / "security")
         self._store_dir.mkdir(parents=True, exist_ok=True)
 
@@ -310,7 +317,7 @@ class SecureStore:
         self._fernet = _FernetBackend(self._store_dir)
 
         # Load metadata (provider -> backend mapping, timestamps)
-        self._meta: Dict[str, CredentialEntry] = self._load_meta()
+        self._meta: dict[str, CredentialEntry] = self._load_meta()
 
     @property
     def backend_name(self) -> str:
@@ -326,7 +333,7 @@ class SecureStore:
         """Whether any secure backend is available."""
         return self._keyring.available or self._fernet.available
 
-    def get_key(self, provider: str) -> Optional[str]:
+    def get_key(self, provider: str) -> str | None:
         """Retrieve a stored credential by provider name."""
         with self._lock:
             # Try the backend recorded in metadata first
@@ -402,15 +409,13 @@ class SecureStore:
             backend_used = "none"
 
             # Try all backends to ensure complete removal
-            if self._keyring.available:
-                if self._keyring.delete(provider):
-                    deleted = True
-                    backend_used = "keyring"
+            if self._keyring.available and self._keyring.delete(provider):
+                deleted = True
+                backend_used = "keyring"
 
-            if self._fernet.available:
-                if self._fernet.delete(provider):
-                    deleted = True
-                    backend_used = "encrypted_file"
+            if self._fernet.available and self._fernet.delete(provider):
+                deleted = True
+                backend_used = "encrypted_file"
 
             if provider in self._meta:
                 del self._meta[provider]
@@ -419,7 +424,7 @@ class SecureStore:
             self._audit("delete", provider, backend_used, deleted)
             return deleted
 
-    def list_providers(self) -> List[str]:
+    def list_providers(self) -> list[str]:
         """List all providers that have stored credentials."""
         providers = set(self._meta.keys())
 
@@ -433,7 +438,7 @@ class SecureStore:
         """Check if a credential exists for the given provider."""
         return provider in self._meta or self.get_key(provider) is not None
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get store status for diagnostics."""
         return {
             "available": self.is_available,
@@ -458,7 +463,7 @@ class SecureStore:
         self._audit("rotate", provider, backend, True)
         return backend
 
-    def migrate_plaintext_keys(self, plaintext_path: Optional[Path] = None) -> Dict[str, str]:
+    def migrate_plaintext_keys(self, plaintext_path: Path | None = None) -> dict[str, str]:
         """
         Migrate plaintext API keys from legacy storage into secure store.
 
@@ -509,21 +514,19 @@ class SecureStore:
         if self._fernet.available:
             yield "encrypted_file", self._fernet
 
-    def _get_from_backend(self, backend_name: str, provider: str) -> Optional[str]:
+    def _get_from_backend(self, backend_name: str, provider: str) -> str | None:
         if backend_name == "keyring" and self._keyring.available:
             return self._keyring.get(provider)
         elif backend_name == "encrypted_file" and self._fernet.available:
             return self._fernet.get(provider)
         return None
 
-    def _load_meta(self) -> Dict[str, CredentialEntry]:
+    def _load_meta(self) -> dict[str, CredentialEntry]:
         if not self._meta_path.exists():
             return {}
         try:
             data = json.loads(self._meta_path.read_text())
-            return {
-                k: CredentialEntry(**v) for k, v in data.items()
-            }
+            return {k: CredentialEntry(**v) for k, v in data.items()}
         except Exception:
             return {}
 
@@ -539,10 +542,10 @@ class SecureStore:
         }
         self._meta_path.write_text(json.dumps(data, indent=2))
 
-    def _audit(self, action: str, provider: str, backend: str,
-               success: bool, detail: str = ""):
+    def _audit(self, action: str, provider: str, backend: str, success: bool, detail: str = ""):
         """Append to audit log with caller tracking."""
         import inspect
+
         # Walk the stack to find the first caller outside this module
         caller = "unknown"
         try:
@@ -564,15 +567,20 @@ class SecureStore:
         )
         try:
             with open(self._audit_path, "a") as f:
-                f.write(json.dumps({
-                    "ts": event.timestamp,
-                    "action": event.action,
-                    "provider": event.provider,
-                    "backend": event.backend,
-                    "success": event.success,
-                    "detail": event.detail,
-                    "caller": caller,
-                }) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "ts": event.timestamp,
+                            "action": event.action,
+                            "provider": event.provider,
+                            "backend": event.backend,
+                            "success": event.success,
+                            "detail": event.detail,
+                            "caller": caller,
+                        }
+                    )
+                    + "\n"
+                )
         except Exception:
             pass  # Audit logging is best-effort
 
@@ -581,11 +589,11 @@ class SecureStore:
 # Singleton Access
 # =============================================================================
 
-_instance: Optional[SecureStore] = None
+_instance: SecureStore | None = None
 _instance_lock = threading.Lock()
 
 
-def get_secure_store(store_dir: Optional[Path] = None) -> SecureStore:
+def get_secure_store(store_dir: Path | None = None) -> SecureStore:
     """
     Get the singleton SecureStore instance.
 

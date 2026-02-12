@@ -36,9 +36,6 @@ Main entry point workflow:
 """
 
 import os
-import sys
-import asyncio
-from typing import Optional, List
 
 from orion._version import __version__
 
@@ -70,7 +67,7 @@ class OrionConsole:
     def print_response(self, text: str):
         print(f"\n{text}\n")
 
-    def print_status(self, workspace: Optional[str], mode: str):
+    def print_status(self, workspace: str | None, mode: str):
         print(f"  Workspace: {workspace or '(not set)'}")
         print(f"  Mode: {mode.upper()}")
 
@@ -137,7 +134,7 @@ class OrionConsole:
         for i, action in enumerate(actions):
             op = action.get("operation", "?")
             path = action.get("path", "?")
-            print(f"    {i+1}. {op} {path}")
+            print(f"    {i + 1}. {op} {path}")
 
     def get_approval(self) -> bool:
         resp = input("\n  Approve? [y/N]: ").strip().lower()
@@ -157,8 +154,10 @@ class OrionConsole:
         print("\n  Interrupted.")
 
     def print_aegis_block(self, result):
-        violations = getattr(result, 'violations', [])
-        print(f"  [AEGIS] Blocked: {', '.join(violations) if violations else 'governance violation'}")
+        violations = getattr(result, "violations", [])
+        print(
+            f"  [AEGIS] Blocked: {', '.join(violations) if violations else 'governance violation'}"
+        )
 
     def print_mode_required(self, required_mode: str, action: str):
         print(f"  {action} requires {required_mode.upper()} mode. Use /mode {required_mode}")
@@ -192,16 +191,17 @@ def start_repl():
     console = OrionConsole()
 
     # State
-    workspace_path: Optional[str] = None
+    workspace_path: str | None = None
     mode: str = os.environ.get("ORION_DEFAULT_MODE", "safe")
-    context_files: List[str] = []
-    change_history: List[dict] = []
+    context_files: list[str] = []
+    change_history: list[dict] = []
     router_instance = None  # Persist across requests
 
     # Initialize Logger
     log = None
     try:
         from orion.core.logging import get_logger
+
         log = get_logger()
     except Exception:
         pass
@@ -210,6 +210,7 @@ def start_repl():
     memory_engine = None
     try:
         from orion.core.memory.engine import get_memory_engine
+
         memory_engine = get_memory_engine(workspace_path)
         memory_engine.start_session()
     except Exception:
@@ -224,6 +225,7 @@ def start_repl():
     # =========================================================================
     try:
         from orion.integrations.platform_service import get_platform_service
+
         _platform_svc = get_platform_service()
         _platform_svc.set_approval_callback(console.aegis_approval_prompt)
         console.print_info("AEGIS Invariant 6 active -- external writes require your approval")
@@ -242,24 +244,38 @@ def start_repl():
             # Handle slash commands
             if user_input.startswith("/train"):
                 import asyncio
+
                 from orion.cli.commands_training import handle_train_command
+
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         import concurrent.futures
+
                         with concurrent.futures.ThreadPoolExecutor() as pool:
-                            pool.submit(asyncio.run, handle_train_command(user_input, router_instance, memory_engine, console)).result()
+                            pool.submit(
+                                asyncio.run,
+                                handle_train_command(
+                                    user_input, router_instance, memory_engine, console
+                                ),
+                            ).result()
                     else:
-                        loop.run_until_complete(handle_train_command(user_input, router_instance, memory_engine, console))
+                        loop.run_until_complete(
+                            handle_train_command(
+                                user_input, router_instance, memory_engine, console
+                            )
+                        )
                 except RuntimeError:
-                    asyncio.run(handle_train_command(user_input, router_instance, memory_engine, console))
+                    asyncio.run(
+                        handle_train_command(user_input, router_instance, memory_engine, console)
+                    )
                 continue
 
             if user_input.startswith("/"):
                 from orion.cli.commands import handle_command
+
                 result = handle_command(
-                    user_input, console, workspace_path, mode,
-                    context_files, change_history
+                    user_input, console, workspace_path, mode, context_files, change_history
                 )
                 if result == "QUIT":
                     break
@@ -283,6 +299,7 @@ def start_repl():
                 try:
                     memory_engine.end_session()
                     from orion.core.memory.engine import get_memory_engine
+
                     memory_engine = get_memory_engine(workspace_path)
                     memory_engine.start_session()
                     router_instance = None  # Force Router rebuild
@@ -292,10 +309,12 @@ def start_repl():
             # Step 1: Intent Classification
             try:
                 from orion.core.agents.router import classify_intent
+
                 intent = classify_intent(user_input)
             except Exception:
                 # Fallback intent
-                from dataclasses import dataclass, field as dc_field
+                from dataclasses import dataclass
+                from dataclasses import field as dc_field
 
                 @dataclass
                 class _FallbackIntent:
@@ -311,11 +330,12 @@ def start_repl():
             # Step 2: AEGIS Gate (pre-check)
             try:
                 from orion.core.governance.aegis import check_aegis_gate
+
                 aegis_result = check_aegis_gate(
                     intent=intent,
                     mode=mode,
                     workspace_path=workspace_path,
-                    action_type="deliberation"
+                    action_type="deliberation",
                 )
                 if not aegis_result.passed:
                     console.print_aegis_block(aegis_result)
@@ -326,6 +346,7 @@ def start_repl():
             # Step 3: Route through RequestRouter (persistent)
             try:
                 from orion.core.agents.router import RequestRouter
+
                 if router_instance is None:
                     router_instance = RequestRouter(
                         workspace_path or ".",
@@ -343,9 +364,7 @@ def start_repl():
                     if not router_instance.stream_output:
                         console.print_response(response_text)
                     if result.get("files_modified"):
-                        console.print_info(
-                            f"Files modified: {', '.join(result['files_modified'])}"
-                        )
+                        console.print_info(f"Files modified: {', '.join(result['files_modified'])}")
 
                     # Record interaction in memory
                     if router_instance:
@@ -355,10 +374,13 @@ def start_repl():
                     if log:
                         exec_ms = result.get("execution_time_ms", 0)
                         scout = result.get("scout_report", {})
-                        log.route(route_name, user_input, 
-                                  complexity=scout.get("complexity", 0),
-                                  risk=scout.get("risk", ""),
-                                  latency_ms=exec_ms)
+                        log.route(
+                            route_name,
+                            user_input,
+                            complexity=scout.get("complexity", 0),
+                            risk=scout.get("risk", ""),
+                            latency_ms=exec_ms,
+                        )
 
                     # Optional feedback (user can press Enter to skip)
                     try:
@@ -366,6 +388,7 @@ def start_repl():
                         if feedback and feedback.isdigit() and 1 <= int(feedback) <= 5:
                             rating = int(feedback)
                             import uuid
+
                             task_id = str(uuid.uuid4())[:8]
                             if memory_engine:
                                 memory_engine.record_approval(
@@ -378,11 +401,16 @@ def start_repl():
                                 if rating >= 4:
                                     console.print_info("Positive pattern recorded")
                                 elif rating <= 2:
-                                    console.print_info("Anti-pattern recorded \u2014 Orion will learn from this")
+                                    console.print_info(
+                                        "Anti-pattern recorded \u2014 Orion will learn from this"
+                                    )
                             if log:
-                                log.approval(task_id=task_id, rating=rating,
-                                             task_type=route_name,
-                                             promoted=(rating >= 4 or rating <= 2))
+                                log.approval(
+                                    task_id=task_id,
+                                    rating=rating,
+                                    task_type=route_name,
+                                    promoted=(rating >= 4 or rating <= 2),
+                                )
                     except (EOFError, KeyboardInterrupt):
                         pass
                 else:
@@ -413,9 +441,9 @@ def start_repl():
                 f"{stats.tier2_entries} project, {stats.tier3_entries} global"
             )
             if log:
-                log.session_end(tier1=stats.tier1_entries,
-                                tier2=stats.tier2_entries,
-                                tier3=stats.tier3_entries)
+                log.session_end(
+                    tier1=stats.tier1_entries, tier2=stats.tier2_entries, tier3=stats.tier3_entries
+                )
         except Exception:
             pass
 

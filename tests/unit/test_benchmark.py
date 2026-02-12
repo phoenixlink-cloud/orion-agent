@@ -6,10 +6,11 @@ LLM-as-judge evaluation, score mapping, and fallback behavior.
 """
 
 import json
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from orion.core.learning.benchmark import BenchmarkEngine, ComparisonResult
+import pytest
+
+from orion.core.learning.benchmark import BenchmarkEngine
 
 
 class TestConceptCoverage:
@@ -23,9 +24,9 @@ class TestConceptCoverage:
             mock_store.return_value = MagicMock(available=False)
             present, missing = engine._check_concept_coverage(
                 student="PEP 8 style guide recommends meaningful variable names. "
-                        "The DRY principle means don't repeat yourself. "
-                        "Single responsibility keeps functions focused. "
-                        "Type hints improve code quality.",
+                "The DRY principle means don't repeat yourself. "
+                "Single responsibility keeps functions focused. "
+                "Type hints improve code quality.",
                 expected_concepts=[
                     "PEP 8 style guide",
                     "meaningful variable names",
@@ -44,7 +45,7 @@ class TestConceptCoverage:
             mock_store.return_value = MagicMock(available=False)
             present, missing = engine._check_concept_coverage(
                 student="PEP 8 style guide recommends meaningful variable names. "
-                        "Type hints help catch errors.",
+                "Type hints help catch errors.",
                 expected_concepts=[
                     "PEP 8 style guide",
                     "meaningful variable names",
@@ -136,15 +137,17 @@ class TestJudgeParsing:
 
     def test_parse_valid_json(self):
         engine = BenchmarkEngine()
-        response = json.dumps({
-            "quality_score": 4,
-            "concepts_present": ["a", "b"],
-            "concepts_missing": ["c"],
-            "incorrect_claims": [],
-            "strengths": ["good structure"],
-            "weaknesses": ["missing detail"],
-            "feedback": "Good overall.",
-        })
+        response = json.dumps(
+            {
+                "quality_score": 4,
+                "concepts_present": ["a", "b"],
+                "concepts_missing": ["c"],
+                "incorrect_claims": [],
+                "strengths": ["good structure"],
+                "weaknesses": ["missing detail"],
+                "feedback": "Good overall.",
+            }
+        )
         result = engine._parse_judge_response(response)
         assert result["quality_score"] == 4
         assert len(result["concepts_present"]) == 2
@@ -181,7 +184,13 @@ class TestCompare:
         with patch.object(engine, "_llm_judge", new_callable=AsyncMock) as mock_judge:
             mock_judge.return_value = {
                 "quality_score": 5,
-                "concepts_present": ["PEP 8 style guide", "meaningful variable names", "DRY principle", "single responsibility", "type hints"],
+                "concepts_present": [
+                    "PEP 8 style guide",
+                    "meaningful variable names",
+                    "DRY principle",
+                    "single responsibility",
+                    "type hints",
+                ],
                 "concepts_missing": [],
                 "incorrect_claims": [],
                 "strengths": ["Comprehensive coverage"],
@@ -192,9 +201,15 @@ class TestCompare:
                 mock_store.return_value = MagicMock(available=False)
 
                 result = await engine.compare(
-                    student=text, teacher=text,
-                    expected_concepts=["PEP 8 style guide", "meaningful variable names",
-                                       "DRY principle", "single responsibility", "type hints"],
+                    student=text,
+                    teacher=text,
+                    expected_concepts=[
+                        "PEP 8 style guide",
+                        "meaningful variable names",
+                        "DRY principle",
+                        "single responsibility",
+                        "type hints",
+                    ],
                 )
                 assert result.quality_score >= 4
                 assert result.similarity_score == 1.0

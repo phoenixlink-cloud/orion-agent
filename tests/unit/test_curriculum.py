@@ -6,21 +6,18 @@ state persistence, error handling, and multi-cycle improvement.
 """
 
 import json
-import time
 from pathlib import Path
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from orion.core.memory.engine import MemoryEngine
+from orion.core.learning.benchmark import BenchmarkEngine, ComparisonResult
 from orion.core.learning.curriculum import (
     CurriculumEngine,
-    CurriculumState,
-    TrainingPrompt,
     TrainingResult,
     TrainingStatus,
 )
-from orion.core.learning.benchmark import BenchmarkEngine, ComparisonResult
+from orion.core.memory.engine import MemoryEngine
 
 
 @pytest.fixture
@@ -45,14 +42,22 @@ def curriculum_file(tmp_workspace):
                 "prompt": "What are the key principles of writing clean Python code?",
                 "source_context": "",
                 "difficulty": "basic",
-                "expected_concepts": ["PEP 8 style guide", "meaningful variable names", "DRY principle"],
+                "expected_concepts": [
+                    "PEP 8 style guide",
+                    "meaningful variable names",
+                    "DRY principle",
+                ],
             },
             {
                 "id": "demo_002",
                 "prompt": "Explain Python's error handling best practices",
                 "source_context": "",
                 "difficulty": "basic",
-                "expected_concepts": ["specific exception types", "try-except-finally", "avoid bare except"],
+                "expected_concepts": [
+                    "specific exception types",
+                    "try-except-finally",
+                    "avoid bare except",
+                ],
             },
         ],
     }
@@ -122,7 +127,7 @@ class TestLoadCurriculum:
         fake_home = tmp_path / "home"
         monkeypatch.setattr(Path, "home", staticmethod(lambda: fake_home))
 
-        state = curriculum_engine.load_curriculum("demo_python", curriculum_file)
+        curriculum_engine.load_curriculum("demo_python", curriculum_file)
 
         # Verify state file exists
         state_file = fake_home / ".orion" / "training" / "demo_python" / "state.json"
@@ -158,17 +163,18 @@ class TestTrainingCycle:
         curriculum_engine.load_curriculum("demo_python", curriculum_file)
 
         # Mock student and teacher generation
-        with patch.object(
-            curriculum_engine, "_generate_student_response", new_callable=AsyncMock
-        ) as mock_student, \
-        patch.object(
-            curriculum_engine, "_generate_teacher_response", new_callable=AsyncMock
-        ) as mock_teacher, \
-        patch.object(
-            curriculum_engine.benchmark_engine, "compare", new_callable=AsyncMock
-        ) as mock_compare, \
-        patch("orion.core.learning.evolution.get_evolution_engine") as mock_evo:
-
+        with (
+            patch.object(
+                curriculum_engine, "_generate_student_response", new_callable=AsyncMock
+            ) as mock_student,
+            patch.object(
+                curriculum_engine, "_generate_teacher_response", new_callable=AsyncMock
+            ) as mock_teacher,
+            patch.object(
+                curriculum_engine.benchmark_engine, "compare", new_callable=AsyncMock
+            ) as mock_compare,
+            patch("orion.core.learning.evolution.get_evolution_engine") as mock_evo,
+        ):
             mock_student.return_value = "PEP 8 is important. Use good names."
             mock_teacher.return_value = "PEP 8 style guide defines coding standards. Use meaningful variable names. Follow DRY principle."
             mock_compare.return_value = ComparisonResult(
@@ -269,17 +275,18 @@ class TestMultipleCycles:
         scores = [2, 3, 4]  # Improving scores
 
         for i, score in enumerate(scores):
-            with patch.object(
-                curriculum_engine, "_generate_student_response", new_callable=AsyncMock
-            ) as mock_s, \
-            patch.object(
-                curriculum_engine, "_generate_teacher_response", new_callable=AsyncMock
-            ) as mock_t, \
-            patch.object(
-                curriculum_engine.benchmark_engine, "compare", new_callable=AsyncMock
-            ) as mock_c, \
-            patch("orion.core.learning.evolution.get_evolution_engine") as mock_evo:
-
+            with (
+                patch.object(
+                    curriculum_engine, "_generate_student_response", new_callable=AsyncMock
+                ) as mock_s,
+                patch.object(
+                    curriculum_engine, "_generate_teacher_response", new_callable=AsyncMock
+                ) as mock_t,
+                patch.object(
+                    curriculum_engine.benchmark_engine, "compare", new_callable=AsyncMock
+                ) as mock_c,
+                patch("orion.core.learning.evolution.get_evolution_engine") as mock_evo,
+            ):
                 mock_s.return_value = f"Student response cycle {i}"
                 mock_t.return_value = f"Teacher response cycle {i}"
                 mock_c.return_value = ComparisonResult(

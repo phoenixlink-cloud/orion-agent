@@ -32,7 +32,6 @@ USAGE:
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 logger = logging.getLogger("orion.learning.benchmark")
 
@@ -40,15 +39,16 @@ logger = logging.getLogger("orion.learning.benchmark")
 @dataclass
 class ComparisonResult:
     """Result of comparing student vs teacher response."""
-    similarity_score: float        # 0.0-1.0 overall
-    concept_coverage: float        # 0.0-1.0 what % of expected concepts were present
-    concepts_present: List[str] = field(default_factory=list)
-    concepts_missing: List[str] = field(default_factory=list)
-    incorrect_claims: List[str] = field(default_factory=list)
-    quality_score: int = 3         # 1-5 derived score
-    strengths: List[str] = field(default_factory=list)
-    weaknesses: List[str] = field(default_factory=list)
-    feedback_text: str = ""        # Human-readable gap analysis
+
+    similarity_score: float  # 0.0-1.0 overall
+    concept_coverage: float  # 0.0-1.0 what % of expected concepts were present
+    concepts_present: list[str] = field(default_factory=list)
+    concepts_missing: list[str] = field(default_factory=list)
+    incorrect_claims: list[str] = field(default_factory=list)
+    quality_score: int = 3  # 1-5 derived score
+    strengths: list[str] = field(default_factory=list)
+    weaknesses: list[str] = field(default_factory=list)
+    feedback_text: str = ""  # Human-readable gap analysis
 
 
 class BenchmarkEngine:
@@ -73,6 +73,7 @@ class BenchmarkEngine:
         """Lazy-load embedding store."""
         if self._embedding_store is None:
             from orion.core.memory.embeddings import EmbeddingStore
+
             self._embedding_store = EmbeddingStore()
         return self._embedding_store
 
@@ -80,7 +81,7 @@ class BenchmarkEngine:
         self,
         student: str,
         teacher: str,
-        expected_concepts: List[str],
+        expected_concepts: list[str],
         prompt: str = "",
     ) -> ComparisonResult:
         """
@@ -100,17 +101,14 @@ class BenchmarkEngine:
             student, expected_concepts
         )
         concept_coverage = (
-            len(concepts_present) / len(expected_concepts)
-            if expected_concepts else 1.0
+            len(concepts_present) / len(expected_concepts) if expected_concepts else 1.0
         )
 
         # 2. Semantic similarity
         similarity_score = self._compute_similarity(student, teacher)
 
         # 3. LLM-as-judge
-        judge_result = await self._llm_judge(
-            student, teacher, expected_concepts, prompt
-        )
+        judge_result = await self._llm_judge(student, teacher, expected_concepts, prompt)
 
         # 4. Combine scores
         # Map concept_coverage to 1-5
@@ -137,9 +135,7 @@ class BenchmarkEngine:
             feedback_text=judge_result.get("feedback", ""),
         )
 
-    def _check_concept_coverage(
-        self, student: str, expected_concepts: List[str]
-    ) -> tuple:
+    def _check_concept_coverage(self, student: str, expected_concepts: list[str]) -> tuple:
         """
         Check which expected concepts are present in the student response.
         Uses embedding similarity if available, falls back to keyword matching.
@@ -154,7 +150,7 @@ class BenchmarkEngine:
         for concept in expected_concepts:
             if store.available:
                 # Embedding-based: check similarity of concept against student sentences
-                sentences = [s.strip() for s in student.split('.') if s.strip()]
+                sentences = [s.strip() for s in student.split(".") if s.strip()]
                 max_sim = 0.0
                 for sentence in sentences:
                     sim = store.similarity(concept, sentence)
@@ -199,7 +195,7 @@ class BenchmarkEngine:
         self,
         student: str,
         teacher: str,
-        expected_concepts: List[str],
+        expected_concepts: list[str],
         prompt: str,
     ) -> dict:
         """
@@ -277,9 +273,7 @@ class BenchmarkEngine:
         logger.warning("Could not parse judge response as JSON")
         return {"quality_score": 3, "feedback": "Could not parse judge evaluation"}
 
-    def _fallback_judge(
-        self, student: str, teacher: str, expected_concepts: List[str]
-    ) -> dict:
+    def _fallback_judge(self, student: str, teacher: str, expected_concepts: list[str]) -> dict:
         """Fallback scoring when LLM judge is unavailable."""
         present, missing = self._check_concept_coverage(student, expected_concepts)
         coverage = len(present) / len(expected_concepts) if expected_concepts else 1.0
@@ -292,7 +286,9 @@ class BenchmarkEngine:
             "strengths": ["Response provided"] if len(student) > 50 else [],
             "weaknesses": [f"Missing {len(missing)} concepts"] if missing else [],
             "feedback": f"Covered {len(present)}/{len(expected_concepts)} concepts. "
-                       f"Missing: {', '.join(missing[:3])}" if missing else "All concepts covered.",
+            f"Missing: {', '.join(missing[:3])}"
+            if missing
+            else "All concepts covered.",
         }
 
     @staticmethod

@@ -16,20 +16,23 @@
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- Platform & Integration Routes."""
 
-import os
 import json
-import time
+import os
 import secrets
-from pathlib import Path
+import time
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException
 
 from orion.api._shared import (
-    PlatformConnectRequest, SETTINGS_DIR, _get_secure_store,
+    SETTINGS_DIR,
+    PlatformConnectRequest,
+    _get_secure_store,
 )
 from orion.api.routes.auth import (
-    OAUTH_PLATFORMS, _oauth_pending, _generate_pkce_pair,
+    OAUTH_PLATFORMS,
+    _generate_pkce_pair,
+    _oauth_pending,
 )
 
 router = APIRouter()
@@ -39,11 +42,13 @@ router = APIRouter()
 # PLATFORMS (Comprehensive service registry)
 # =============================================================================
 
+
 @router.get("/api/platforms")
 async def list_platforms():
     """List ALL platforms Orion can connect to, grouped by category."""
     try:
-        from orion.integrations.platforms import get_platform_registry, CATEGORY_LABELS
+        from orion.integrations.platforms import CATEGORY_LABELS, get_platform_registry
+
         registry = get_platform_registry()
         by_category = registry.list_by_category()
         return {
@@ -61,6 +66,7 @@ async def list_connected_platforms():
     """List only connected platforms."""
     try:
         from orion.integrations.platforms import get_platform_registry
+
         registry = get_platform_registry()
         return {"platforms": registry.list_connected()}
     except Exception as e:
@@ -72,6 +78,7 @@ async def list_platform_capabilities():
     """List all available capabilities from connected platforms."""
     try:
         from orion.integrations.platforms import get_platform_registry
+
         registry = get_platform_registry()
         return {"capabilities": registry.list_capabilities()}
     except Exception as e:
@@ -82,6 +89,7 @@ async def list_platform_capabilities():
 async def get_platform(platform_id: str):
     """Get details for a specific platform."""
     from orion.integrations.platforms import get_platform_registry
+
     registry = get_platform_registry()
     platform = registry.get(platform_id)
     if not platform:
@@ -98,6 +106,7 @@ async def connect_platform(request: PlatformConnectRequest):
     For API key / token platforms: provide the key here.
     """
     from orion.integrations.platforms import get_platform_registry
+
     registry = get_platform_registry()
     platform = registry.get(request.platform_id)
     if not platform:
@@ -141,6 +150,7 @@ async def connect_platform(request: PlatformConnectRequest):
 async def disconnect_platform(request: PlatformConnectRequest):
     """Disconnect a platform by removing its credentials."""
     from orion.integrations.platforms import get_platform_registry
+
     registry = get_platform_registry()
     platform = registry.get(request.platform_id)
     if not platform:
@@ -172,10 +182,13 @@ async def oauth_connect_platform(platform_id: str):
     The OAuth callback handler closes the popup automatically.
     """
     from orion.integrations.platforms import get_platform_registry
+
     registry = get_platform_registry()
     platform = registry.get(platform_id)
     if not platform or not platform.oauth_provider:
-        raise HTTPException(status_code=400, detail=f"Platform '{platform_id}' doesn't support OAuth")
+        raise HTTPException(
+            status_code=400, detail=f"Platform '{platform_id}' doesn't support OAuth"
+        )
 
     provider = platform.oauth_provider
     if provider not in OAUTH_PLATFORMS:
@@ -262,11 +275,13 @@ async def oauth_connect_platform(platform_id: str):
 # INTEGRATIONS
 # =============================================================================
 
+
 @router.get("/api/integrations")
 async def list_integrations():
     """List all registered integrations."""
     try:
         from orion.integrations.registry import get_registry
+
         reg = get_registry()
         if reg.count == 0:
             reg.discover()
@@ -280,6 +295,7 @@ async def integration_health():
     """Run integration health checks."""
     try:
         from orion.integrations.health import IntegrationHealthChecker
+
         checker = IntegrationHealthChecker()
         return checker.get_dashboard()
     except Exception as e:
@@ -291,6 +307,7 @@ async def discover_integrations():
     """Run integration auto-discovery."""
     try:
         from orion.integrations.registry import get_registry
+
         reg = get_registry()
         count = reg.discover()
         return {"discovered": count, "total": reg.count}

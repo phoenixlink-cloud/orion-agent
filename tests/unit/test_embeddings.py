@@ -7,9 +7,7 @@ sentence-transformers is not installed.
 """
 
 import sqlite3
-import time
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -61,8 +59,9 @@ class TestEmbeddingStoreAvailability:
     def test_check_availability_true(self, tmp_db):
         """If sentence-transformers is installed, available should be True."""
         try:
-            import sentence_transformers  # noqa: F401
             import numpy  # noqa: F401
+            import sentence_transformers  # noqa: F401
+
             store = EmbeddingStore(db_path=tmp_db)
             assert store.available is True
         except ImportError:
@@ -70,7 +69,9 @@ class TestEmbeddingStoreAvailability:
 
     def test_check_availability_false(self, tmp_db):
         """If sentence-transformers import fails, available should be False."""
-        with patch("orion.core.memory.embeddings.EmbeddingStore._check_availability", return_value=False):
+        with patch(
+            "orion.core.memory.embeddings.EmbeddingStore._check_availability", return_value=False
+        ):
             store = EmbeddingStore(db_path=tmp_db)
             assert store.available is False
 
@@ -81,14 +82,15 @@ class TestEmbeddingStoreWithModel:
     @pytest.fixture(autouse=True)
     def check_st(self):
         try:
-            import sentence_transformers  # noqa: F401
             import numpy  # noqa: F401
+            import sentence_transformers  # noqa: F401
         except ImportError:
             pytest.skip("sentence-transformers not installed")
 
     def test_embed_text(self, tmp_db):
         """Generate embedding, verify shape and type."""
         import numpy as np
+
         store = EmbeddingStore(db_path=tmp_db)
         embedding = store.embed_text("Python type hints improve code quality")
         assert embedding is not None
@@ -103,11 +105,23 @@ class TestEmbeddingStoreWithModel:
         # Insert test memories into the memories table
         conn = sqlite3.connect(tmp_db)
         entries = [
-            ("mem_001", "Python type hints improve code readability and catch bugs early", '{"domain": "python"}'),
-            ("mem_002", "Docker containers provide isolated environments for applications", '{"domain": "devops"}'),
+            (
+                "mem_001",
+                "Python type hints improve code readability and catch bugs early",
+                '{"domain": "python"}',
+            ),
+            (
+                "mem_002",
+                "Docker containers provide isolated environments for applications",
+                '{"domain": "devops"}',
+            ),
             ("mem_003", "SQL databases use indexes for fast lookups", '{"domain": "databases"}'),
             ("mem_004", "Machine learning models need training data", '{"domain": "ml"}'),
-            ("mem_005", "Type annotations in Python help IDEs provide better autocomplete", '{"domain": "python"}'),
+            (
+                "mem_005",
+                "Type annotations in Python help IDEs provide better autocomplete",
+                '{"domain": "python"}',
+            ),
         ]
         for mid, content, meta in entries:
             conn.execute(

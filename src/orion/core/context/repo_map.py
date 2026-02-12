@@ -31,25 +31,26 @@ Architecture:
 Supports: Python, JavaScript, TypeScript, Go, Rust, Java, C#, C, C++, Ruby
 """
 
-import os
 import ast
 import hashlib
-import time as _time
-from pathlib import Path
-from typing import List, Dict, Optional, Set, Tuple, NamedTuple
+import os
 from collections import defaultdict
 from dataclasses import dataclass
+from pathlib import Path
+from typing import NamedTuple
 
 import networkx as nx
 
 try:
     from tree_sitter_language_pack import get_parser as _ts_get_parser
+
     TREE_SITTER_AVAILABLE = True
 except ImportError:
     TREE_SITTER_AVAILABLE = False
 
 try:
     import diskcache
+
     DISKCACHE_AVAILABLE = True
 except ImportError:
     DISKCACHE_AVAILABLE = False
@@ -59,8 +60,10 @@ except ImportError:
 # DATA TYPES
 # =============================================================================
 
+
 class Tag(NamedTuple):
     """A code tag (definition or reference)."""
+
     rel_fname: str
     fname: str
     line: int
@@ -71,10 +74,11 @@ class Tag(NamedTuple):
 @dataclass
 class FileEntry:
     """Cached metadata for a single file."""
+
     rel_path: str
     abs_path: str
     mtime: float
-    tags: List[Tag]
+    tags: list[Tag]
 
 
 # =============================================================================
@@ -82,43 +86,65 @@ class FileEntry:
 # =============================================================================
 
 LANGUAGE_MAP = {
-    '.py': 'python',
-    '.js': 'javascript',
-    '.ts': 'typescript',
-    '.jsx': 'javascript',
-    '.tsx': 'typescript',
-    '.go': 'go',
-    '.rs': 'rust',
-    '.rb': 'ruby',
-    '.java': 'java',
-    '.cs': 'c_sharp',
-    '.cpp': 'cpp',
-    '.c': 'c',
-    '.h': 'c',
-    '.hpp': 'cpp',
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".jsx": "javascript",
+    ".tsx": "typescript",
+    ".go": "go",
+    ".rs": "rust",
+    ".rb": "ruby",
+    ".java": "java",
+    ".cs": "c_sharp",
+    ".cpp": "cpp",
+    ".c": "c",
+    ".h": "c",
+    ".hpp": "cpp",
 }
 
 SKIP_DIRS = {
-    '.git', '.orion', 'node_modules', '__pycache__',
-    'venv', 'env', '.venv', 'dist', 'build',
-    '.pytest_cache', '.mypy_cache', '.next', '.tox',
-    'eggs', '.eggs', 'site-packages',
+    ".git",
+    ".orion",
+    "node_modules",
+    "__pycache__",
+    "venv",
+    "env",
+    ".venv",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".next",
+    ".tox",
+    "eggs",
+    ".eggs",
+    "site-packages",
 }
 
 # Tree-sitter node types that represent definitions
 DEF_NODE_TYPES = {
-    'function_definition', 'function_declaration',
-    'class_definition', 'class_declaration',
-    'method_definition', 'method_declaration',
-    'interface_declaration', 'enum_declaration',
-    'struct_item', 'impl_item', 'trait_item',
-    'function_item', 'type_alias',
+    "function_definition",
+    "function_declaration",
+    "class_definition",
+    "class_declaration",
+    "method_definition",
+    "method_declaration",
+    "interface_declaration",
+    "enum_declaration",
+    "struct_item",
+    "impl_item",
+    "trait_item",
+    "function_item",
+    "type_alias",
 }
 
 # Tree-sitter node types that represent identifiers (references)
 REF_NODE_TYPES = {
-    'identifier', 'type_identifier', 'field_identifier',
-    'property_identifier', 'shorthand_property_identifier',
+    "identifier",
+    "type_identifier",
+    "field_identifier",
+    "property_identifier",
+    "shorthand_property_identifier",
 }
 
 
@@ -126,36 +152,41 @@ REF_NODE_TYPES = {
 # TREE-SITTER TAG EXTRACTION
 # =============================================================================
 
-def _extract_tags_tree_sitter(fpath: Path, rel_path: str, lang: str) -> List[Tag]:
+
+def _extract_tags_tree_sitter(fpath: Path, rel_path: str, lang: str) -> list[Tag]:
     """Extract definition and reference tags using tree-sitter."""
     if not TREE_SITTER_AVAILABLE:
         return []
 
     tags = []
     try:
-        content = fpath.read_text(encoding='utf-8', errors='ignore')
-        content_bytes = content.encode('utf-8')
+        content = fpath.read_text(encoding="utf-8", errors="ignore")
+        content_bytes = content.encode("utf-8")
         parser = _ts_get_parser(lang)
         tree = parser.parse(content_bytes)
     except Exception:
         return []
 
     # Collect all definitions first (to filter refs later)
-    defs_in_file: Set[str] = set()
+    defs_in_file: set[str] = set()
 
     def _walk_defs(node):
         if node.type in DEF_NODE_TYPES:
             for child in node.children:
-                if child.type in ('identifier', 'name', 'type_identifier'):
-                    name = content_bytes[child.start_byte:child.end_byte].decode('utf-8', errors='replace')
-                    if name and len(name) > 1 and not name.startswith('_'):
-                        tags.append(Tag(
-                            rel_fname=rel_path,
-                            fname=str(fpath),
-                            line=child.start_point[0] + 1,
-                            name=name,
-                            kind='def',
-                        ))
+                if child.type in ("identifier", "name", "type_identifier"):
+                    name = content_bytes[child.start_byte : child.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
+                    if name and len(name) > 1 and not name.startswith("_"):
+                        tags.append(
+                            Tag(
+                                rel_fname=rel_path,
+                                fname=str(fpath),
+                                line=child.start_point[0] + 1,
+                                name=name,
+                                kind="def",
+                            )
+                        )
                         defs_in_file.add(name)
                     break
         for child in node.children:
@@ -164,22 +195,22 @@ def _extract_tags_tree_sitter(fpath: Path, rel_path: str, lang: str) -> List[Tag
     _walk_defs(tree.root_node)
 
     # Second pass: collect references (identifiers not defined in this file)
-    seen_refs: Set[str] = set()
+    seen_refs: set[str] = set()
 
     def _walk_refs(node):
         if node.type in REF_NODE_TYPES and node.parent and node.parent.type not in DEF_NODE_TYPES:
-            name = content_bytes[node.start_byte:node.end_byte].decode('utf-8', errors='replace')
-            if (name and len(name) > 1
-                    and not name.startswith('_')
-                    and name not in seen_refs):
+            name = content_bytes[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
+            if name and len(name) > 1 and not name.startswith("_") and name not in seen_refs:
                 seen_refs.add(name)
-                tags.append(Tag(
-                    rel_fname=rel_path,
-                    fname=str(fpath),
-                    line=node.start_point[0] + 1,
-                    name=name,
-                    kind='ref',
-                ))
+                tags.append(
+                    Tag(
+                        rel_fname=rel_path,
+                        fname=str(fpath),
+                        line=node.start_point[0] + 1,
+                        name=name,
+                        kind="ref",
+                    )
+                )
         for child in node.children:
             _walk_refs(child)
 
@@ -191,23 +222,22 @@ def _extract_tags_tree_sitter(fpath: Path, rel_path: str, lang: str) -> List[Tag
 # PYTHON AST FALLBACK (when tree-sitter unavailable for Python)
 # =============================================================================
 
-def _extract_tags_python_ast(fpath: Path, rel_path: str) -> List[Tag]:
+
+def _extract_tags_python_ast(fpath: Path, rel_path: str) -> list[Tag]:
     """Extract tags from Python using the built-in ast module."""
     tags = []
     try:
-        content = fpath.read_text(encoding='utf-8', errors='ignore')
+        content = fpath.read_text(encoding="utf-8", errors="ignore")
         tree = ast.parse(content)
     except Exception:
         return []
 
     for node in ast.walk(tree):
-        if isinstance(node, (ast.ClassDef,)):
-            tags.append(Tag(rel_path, str(fpath), node.lineno, node.name, 'def'))
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            tags.append(Tag(rel_path, str(fpath), node.lineno, node.name, 'def'))
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            tags.append(Tag(rel_path, str(fpath), node.lineno, node.name, "def"))
         elif isinstance(node, ast.Name):
-            if len(node.id) > 1 and not node.id.startswith('_'):
-                tags.append(Tag(rel_path, str(fpath), getattr(node, 'lineno', 0), node.id, 'ref'))
+            if len(node.id) > 1 and not node.id.startswith("_"):
+                tags.append(Tag(rel_path, str(fpath), getattr(node, "lineno", 0), node.id, "ref"))
     return tags
 
 
@@ -215,11 +245,12 @@ def _extract_tags_python_ast(fpath: Path, rel_path: str) -> List[Tag]:
 # PYTHON SIGNATURE EXTRACTION (for rich map output)
 # =============================================================================
 
-def _extract_python_signatures(fpath: Path) -> List[Tuple[int, str]]:
+
+def _extract_python_signatures(fpath: Path) -> list[tuple[int, str]]:
     """Extract (line, signature_string) pairs from a Python file."""
     sigs = []
     try:
-        content = fpath.read_text(encoding='utf-8', errors='ignore')
+        content = fpath.read_text(encoding="utf-8", errors="ignore")
         tree = ast.parse(content)
     except Exception:
         return []
@@ -272,6 +303,7 @@ def _ast_name(node) -> str:
 # DISK CACHE
 # =============================================================================
 
+
 class TagCache:
     """Persistent disk cache for file tags. Invalidates on mtime change."""
 
@@ -286,7 +318,7 @@ class TagCache:
             except Exception:
                 self._cache = None
 
-    def get(self, abs_path: str, mtime: float) -> Optional[List[Tag]]:
+    def get(self, abs_path: str, mtime: float) -> list[Tag] | None:
         if not self._cache:
             return None
         key = f"{abs_path}:{mtime}"
@@ -295,13 +327,13 @@ class TagCache:
             return [Tag(*t) for t in val]
         return None
 
-    def put(self, abs_path: str, mtime: float, tags: List[Tag]):
+    def put(self, abs_path: str, mtime: float, tags: list[Tag]):
         if not self._cache:
             return
         key = f"{abs_path}:{mtime}"
         self._cache.set(key, [tuple(t) for t in tags])
 
-    def get_bulk(self, fingerprint: str) -> Optional[List[Tag]]:
+    def get_bulk(self, fingerprint: str) -> list[Tag] | None:
         if not self._cache:
             return None
         key = f"bulk:{self._workspace_key}:{fingerprint}"
@@ -310,7 +342,7 @@ class TagCache:
             return [Tag(*t) for t in val]
         return None
 
-    def put_bulk(self, fingerprint: str, tags: List[Tag]):
+    def put_bulk(self, fingerprint: str, tags: list[Tag]):
         if not self._cache:
             return
         key = f"bulk:{self._workspace_key}:{fingerprint}"
@@ -325,6 +357,7 @@ class TagCache:
 # REPOMAP CLASS
 # =============================================================================
 
+
 class RepoMap:
     """
     Build an intelligent, ranked map of a code repository.
@@ -338,8 +371,8 @@ class RepoMap:
         self.workspace = Path(workspace_path).resolve()
         self.max_tokens = max_tokens
         self._tag_cache = TagCache(self.workspace)
-        self._all_tags: Optional[List[Tag]] = None
-        self._graph: Optional[nx.DiGraph] = None
+        self._all_tags: list[Tag] | None = None
+        self._graph: nx.DiGraph | None = None
 
     def close(self):
         self._tag_cache.close()
@@ -348,7 +381,7 @@ class RepoMap:
     # PUBLIC API
     # -----------------------------------------------------------------
 
-    def get_repo_map(self, chat_files: Optional[List[str]] = None) -> str:
+    def get_repo_map(self, chat_files: list[str] | None = None) -> str:
         all_tags = self._get_all_tags()
         if not all_tags:
             return self._fallback_map()
@@ -357,10 +390,11 @@ class RepoMap:
         ranked_files = self._rank_files(graph, chat_files or [])
         return self._fit_to_budget(all_tags, ranked_files)
 
-    def get_relevant_files(self, query: str, max_files: int = 10) -> List[str]:
+    def get_relevant_files(self, query: str, max_files: int = 10) -> list[str]:
         # Try deep Python context search first
         try:
             from orion.core.context.python_ast import get_python_context
+
             ctx = get_python_context(str(self.workspace))
             results = ctx.semantic_search(query, max_results=max_files)
             if results:
@@ -372,26 +406,26 @@ class RepoMap:
         all_tags = self._get_all_tags()
         query_terms = set(self._tokenize(query))
 
-        file_scores: Dict[str, float] = defaultdict(float)
+        file_scores: dict[str, float] = defaultdict(float)
         for tag in all_tags:
             tag_terms = set(self._tokenize(tag.name))
             overlap = len(query_terms & tag_terms)
             if overlap > 0:
-                weight = 3.0 if tag.kind == 'def' else 1.0
+                weight = 3.0 if tag.kind == "def" else 1.0
                 file_scores[tag.rel_fname] += overlap * weight
 
         try:
             ranks = self.get_file_rank()
             for fname in file_scores:
                 if fname in ranks:
-                    file_scores[fname] *= (1.0 + ranks[fname] * 10)
+                    file_scores[fname] *= 1.0 + ranks[fname] * 10
         except Exception:
             pass
 
         ranked = sorted(file_scores.items(), key=lambda x: -x[1])
         return [f for f, _ in ranked[:max_files]]
 
-    def get_file_rank(self, chat_files: Optional[List[str]] = None) -> Dict[str, float]:
+    def get_file_rank(self, chat_files: list[str] | None = None) -> dict[str, float]:
         all_tags = self._get_all_tags()
         graph = self._build_graph(all_tags)
         if not graph or not graph.nodes():
@@ -399,20 +433,17 @@ class RepoMap:
 
         personalization = None
         if chat_files:
-            personalization = {
-                f: (10.0 if f in chat_files else 0.1)
-                for f in graph.nodes()
-            }
+            personalization = {f: (10.0 if f in chat_files else 0.1) for f in graph.nodes()}
         try:
             return nx.pagerank(graph, personalization=personalization, alpha=0.85)
         except Exception:
             return {f: 1.0 for f in graph.nodes()}
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         tags = self._get_all_tags()
         files = set(t.rel_fname for t in tags)
-        defs = [t for t in tags if t.kind == 'def']
-        refs = [t for t in tags if t.kind == 'ref']
+        defs = [t for t in tags if t.kind == "def"]
+        refs = [t for t in tags if t.kind == "ref"]
         langs = set()
         for f in files:
             ext = os.path.splitext(f)[1].lower()
@@ -432,13 +463,13 @@ class RepoMap:
     # TAG EXTRACTION
     # -----------------------------------------------------------------
 
-    def _get_all_tags(self) -> List[Tag]:
+    def _get_all_tags(self) -> list[Tag]:
         if self._all_tags is not None:
             return self._all_tags
 
-        file_list: List[Tuple[Path, str, str, float]] = []
+        file_list: list[tuple[Path, str, str, float]] = []
         for root, dirs, files in os.walk(self.workspace):
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in SKIP_DIRS]
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS]
             for fname in files:
                 ext = os.path.splitext(fname)[1].lower()
                 if ext not in LANGUAGE_MAP:
@@ -473,13 +504,13 @@ class RepoMap:
         self._all_tags = tags
         return tags
 
-    def _parse_file(self, fpath: Path, rel_path: str, ext: str) -> List[Tag]:
+    def _parse_file(self, fpath: Path, rel_path: str, ext: str) -> list[Tag]:
         lang = LANGUAGE_MAP.get(ext)
         if TREE_SITTER_AVAILABLE and lang:
             tags = _extract_tags_tree_sitter(fpath, rel_path, lang)
             if tags:
                 return tags
-        if ext == '.py':
+        if ext == ".py":
             return _extract_tags_python_ast(fpath, rel_path)
         return []
 
@@ -487,38 +518,35 @@ class RepoMap:
     # GRAPH + PAGERANK
     # -----------------------------------------------------------------
 
-    def _build_graph(self, tags: List[Tag]) -> nx.DiGraph:
+    def _build_graph(self, tags: list[Tag]) -> nx.DiGraph:
         if self._graph is not None:
             return self._graph
 
         graph = nx.DiGraph()
-        definitions: Dict[str, Set[str]] = defaultdict(set)
+        definitions: dict[str, set[str]] = defaultdict(set)
         for tag in tags:
-            if tag.kind == 'def':
+            if tag.kind == "def":
                 definitions[tag.name].add(tag.rel_fname)
                 graph.add_node(tag.rel_fname)
 
         for tag in tags:
-            if tag.kind == 'ref' and tag.name in definitions:
+            if tag.kind == "ref" and tag.name in definitions:
                 for def_file in definitions[tag.name]:
                     if def_file != tag.rel_fname:
                         if graph.has_edge(tag.rel_fname, def_file):
-                            graph[tag.rel_fname][def_file]['weight'] += 1
+                            graph[tag.rel_fname][def_file]["weight"] += 1
                         else:
                             graph.add_edge(tag.rel_fname, def_file, weight=1)
 
         self._graph = graph
         return graph
 
-    def _rank_files(self, graph: nx.DiGraph, chat_files: List[str]) -> List[str]:
+    def _rank_files(self, graph: nx.DiGraph, chat_files: list[str]) -> list[str]:
         if not graph or not graph.nodes():
             return []
         personalization = None
         if chat_files:
-            personalization = {
-                f: (10.0 if f in chat_files else 0.1)
-                for f in graph.nodes()
-            }
+            personalization = {f: (10.0 if f in chat_files else 0.1) for f in graph.nodes()}
         try:
             ranks = nx.pagerank(graph, personalization=personalization, alpha=0.85)
             return sorted(ranks.keys(), key=lambda f: -ranks[f])
@@ -529,15 +557,15 @@ class RepoMap:
     # TOKEN BUDGET + OUTPUT FORMATTING
     # -----------------------------------------------------------------
 
-    def _fit_to_budget(self, tags: List[Tag], ranked_files: List[str]) -> str:
-        defs_by_file: Dict[str, List[Tag]] = defaultdict(list)
+    def _fit_to_budget(self, tags: list[Tag], ranked_files: list[str]) -> str:
+        defs_by_file: dict[str, list[Tag]] = defaultdict(list)
         for tag in tags:
-            if tag.kind == 'def':
+            if tag.kind == "def":
                 defs_by_file[tag.rel_fname].append(tag)
 
-        py_sigs: Dict[str, List[Tuple[int, str]]] = {}
+        py_sigs: dict[str, list[tuple[int, str]]] = {}
         for fname in ranked_files:
-            if fname.endswith('.py'):
+            if fname.endswith(".py"):
                 fpath = self.workspace / fname
                 if fpath.exists():
                     sigs = _extract_python_signatures(fpath)
@@ -577,16 +605,17 @@ class RepoMap:
         return int(len(text) / 3.5)
 
     @staticmethod
-    def _tokenize(text: str) -> List[str]:
+    def _tokenize(text: str) -> list[str]:
         import re
-        parts = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
-        return [t.lower() for t in re.split(r'[^a-zA-Z0-9]+', parts) if len(t) > 1]
+
+        parts = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+        return [t.lower() for t in re.split(r"[^a-zA-Z0-9]+", parts) if len(t) > 1]
 
     def _fallback_map(self) -> str:
         lines = ["# Repository Structure"]
         count = 0
         for root, dirs, files in os.walk(self.workspace):
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in SKIP_DIRS]
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS]
             level = len(Path(root).relative_to(self.workspace).parts)
             indent = "  " * level
             lines.append(f"{indent}{os.path.basename(root)}/")
@@ -603,6 +632,7 @@ class RepoMap:
 # CONVENIENCE / BACKWARD-COMPATIBLE API
 # =============================================================================
 
+
 def generate_repo_map(workspace_path: str, max_tokens: int = 2000) -> str:
     rm = RepoMap(workspace_path, max_tokens)
     result = rm.get_repo_map()
@@ -610,7 +640,7 @@ def generate_repo_map(workspace_path: str, max_tokens: int = 2000) -> str:
     return result
 
 
-def get_repo_map_for_prompt(workspace_path: str, context_files: Optional[List[str]] = None) -> str:
+def get_repo_map_for_prompt(workspace_path: str, context_files: list[str] | None = None) -> str:
     rm = RepoMap(workspace_path)
     repo_map = rm.get_repo_map(chat_files=context_files)
     rm.close()
@@ -624,7 +654,7 @@ def get_repo_map_for_prompt(workspace_path: str, context_files: Optional[List[st
     return "\n".join(result)
 
 
-def generate_file_dependency_map(workspace_path: str, created_files: List[str]) -> str:
+def generate_file_dependency_map(workspace_path: str, created_files: list[str]) -> str:
     rm = RepoMap(workspace_path)
     graph = rm._build_graph(rm._get_all_tags())
     rm.close()
@@ -647,15 +677,15 @@ def get_compact_file_summary(workspace_path: str, filename: str, max_lines: int 
         return f"{filename}: (not found)"
     fpath = Path(filepath)
     try:
-        content = fpath.read_text(encoding='utf-8', errors='ignore')
+        content = fpath.read_text(encoding="utf-8", errors="ignore")
         total_lines = len(content.splitlines())
-        if filename.endswith('.py'):
+        if filename.endswith(".py"):
             sigs = _extract_python_signatures(fpath)
             if sigs:
                 sig_lines = [s for _, s in sigs[:max_lines]]
                 return f"{filename} ({total_lines} lines):\n  " + "\n  ".join(sig_lines)
         lines = content.splitlines()
-        preview = '\n'.join(lines[:max_lines])
+        preview = "\n".join(lines[:max_lines])
         if total_lines > max_lines:
             preview += f"\n... ({total_lines - max_lines} more lines)"
         return f"{filename}:\n{preview}"

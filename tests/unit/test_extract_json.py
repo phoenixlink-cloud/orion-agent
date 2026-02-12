@@ -1,6 +1,5 @@
 """Unit tests for Builder's extract_json helper."""
 
-import pytest
 from orion.core.agents.builder import extract_json
 
 
@@ -24,7 +23,9 @@ class TestExtractJson:
         assert result["outcome"] == "ANSWER"
 
     def test_json_with_surrounding_text(self):
-        result = extract_json('Here is my answer:\n{"outcome": "ANSWER", "response": "test"}\nDone.')
+        result = extract_json(
+            'Here is my answer:\n{"outcome": "ANSWER", "response": "test"}\nDone.'
+        )
         assert result is not None
         assert result["outcome"] == "ANSWER"
 

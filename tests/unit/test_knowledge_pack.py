@@ -6,14 +6,12 @@ uninstall, and pack listing.
 """
 
 import json
-import hashlib
-import sqlite3
 from pathlib import Path
 
 import pytest
 
-from orion.core.memory.engine import MemoryEngine
 from orion.core.learning.knowledge_pack import KnowledgePackManager
+from orion.core.memory.engine import MemoryEngine
 
 
 @pytest.fixture
@@ -126,13 +124,19 @@ class TestImport:
         # Store and export first
         for p in sample_patterns:
             memory_engine.remember(
-                content=p["content"], tier=3, category=p["category"],
-                confidence=p["confidence"], source="test",
+                content=p["content"],
+                tier=3,
+                category=p["category"],
+                confidence=p["confidence"],
+                source="test",
                 metadata={"domain": p["domain"]},
             )
 
-        pack = pack_manager.export_pack(
-            domain="legal_sa", name="Test", version="1.0.0", description="test",
+        pack_manager.export_pack(
+            domain="legal_sa",
+            name="Test",
+            version="1.0.0",
+            description="test",
         )
 
         # Create a fresh engine to import into
@@ -148,13 +152,19 @@ class TestImport:
         """Import same pack twice, verify no duplicates with skip strategy."""
         for p in sample_patterns:
             memory_engine.remember(
-                content=p["content"], tier=3, category=p["category"],
-                confidence=p["confidence"], source="test",
+                content=p["content"],
+                tier=3,
+                category=p["category"],
+                confidence=p["confidence"],
+                source="test",
                 metadata={"domain": p["domain"]},
             )
 
-        pack = pack_manager.export_pack(
-            domain="legal_sa", name="Test", version="1.0.0", description="test",
+        pack_manager.export_pack(
+            domain="legal_sa",
+            name="Test",
+            version="1.0.0",
+            description="test",
         )
         pack_file = str(pack_manager.packs_dir / "legal_sa_1.0.0.orionpack")
 
@@ -163,19 +173,27 @@ class TestImport:
         # Second import -- should skip all
         result2 = pack_manager.import_pack(pack_file, merge_strategy="skip_existing")
         # Second import should skip more or equal patterns
-        assert result2.patterns_skipped >= result1.patterns_skipped or result2.patterns_imported == 0
+        assert (
+            result2.patterns_skipped >= result1.patterns_skipped or result2.patterns_imported == 0
+        )
 
     def test_import_overwrite(self, memory_engine, pack_manager, sample_patterns):
         """Import with overwrite strategy, verify replacement."""
         for p in sample_patterns:
             memory_engine.remember(
-                content=p["content"], tier=3, category=p["category"],
-                confidence=p["confidence"], source="test",
+                content=p["content"],
+                tier=3,
+                category=p["category"],
+                confidence=p["confidence"],
+                source="test",
                 metadata={"domain": p["domain"]},
             )
 
-        pack = pack_manager.export_pack(
-            domain="legal_sa", name="Test", version="1.0.0", description="test",
+        pack_manager.export_pack(
+            domain="legal_sa",
+            name="Test",
+            version="1.0.0",
+            description="test",
         )
         pack_file = str(pack_manager.packs_dir / "legal_sa_1.0.0.orionpack")
 
@@ -191,13 +209,19 @@ class TestVerify:
         """Verify checksum matches for untampered pack."""
         for p in sample_patterns:
             memory_engine.remember(
-                content=p["content"], tier=3, category=p["category"],
-                confidence=p["confidence"], source="test",
+                content=p["content"],
+                tier=3,
+                category=p["category"],
+                confidence=p["confidence"],
+                source="test",
                 metadata={"domain": p["domain"]},
             )
 
         pack_manager.export_pack(
-            domain="legal_sa", name="Test", version="1.0.0", description="test",
+            domain="legal_sa",
+            name="Test",
+            version="1.0.0",
+            description="test",
         )
         pack_file = str(pack_manager.packs_dir / "legal_sa_1.0.0.orionpack")
 
@@ -207,13 +231,19 @@ class TestVerify:
         """Tamper with pack, verify checksum fails."""
         for p in sample_patterns:
             memory_engine.remember(
-                content=p["content"], tier=3, category=p["category"],
-                confidence=p["confidence"], source="test",
+                content=p["content"],
+                tier=3,
+                category=p["category"],
+                confidence=p["confidence"],
+                source="test",
                 metadata={"domain": p["domain"]},
             )
 
         pack_manager.export_pack(
-            domain="legal_sa", name="Test", version="1.0.0", description="test",
+            domain="legal_sa",
+            name="Test",
+            version="1.0.0",
+            description="test",
         )
         pack_file = pack_manager.packs_dir / "legal_sa_1.0.0.orionpack"
 
@@ -256,13 +286,19 @@ class TestListPacks:
         """List available packs."""
         for p in sample_patterns:
             memory_engine.remember(
-                content=p["content"], tier=3, category=p["category"],
-                confidence=p["confidence"], source="test",
+                content=p["content"],
+                tier=3,
+                category=p["category"],
+                confidence=p["confidence"],
+                source="test",
                 metadata={"domain": p["domain"]},
             )
 
         pack_manager.export_pack(
-            domain="legal_sa", name="Test Legal", version="1.0.0", description="test",
+            domain="legal_sa",
+            name="Test Legal",
+            version="1.0.0",
+            description="test",
         )
 
         packs = pack_manager.list_packs()

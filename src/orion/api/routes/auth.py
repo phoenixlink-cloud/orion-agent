@@ -16,24 +16,26 @@
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- API Key & OAuth Routes."""
 
-import os
-import json
-import time
-import hashlib
 import base64
+import hashlib
+import json
+import logging
+import os
 import secrets
 import string
-import logging
-from pathlib import Path
-from typing import Dict
+import time
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from orion.api._shared import (
-    APIKeySetRequest, OAuthConfigureRequest, OAuthLoginRequest,
-    OAuthRevokeRequest, SETTINGS_DIR, _get_secure_store,
+    SETTINGS_DIR,
+    APIKeySetRequest,
+    OAuthConfigureRequest,
+    OAuthLoginRequest,
+    OAuthRevokeRequest,
+    _get_secure_store,
 )
 
 logger = logging.getLogger("orion.api.server")
@@ -86,12 +88,14 @@ async def get_api_key_status():
         else:
             source = "none"
 
-        result.append({
-            "provider": provider,
-            "configured": has_key,
-            "description": entry["description"],
-            "source": source,
-        })
+        result.append(
+            {
+                "provider": provider,
+                "configured": has_key,
+                "description": entry["description"],
+                "source": source,
+            }
+        )
     return result
 
 
@@ -268,15 +272,15 @@ OAUTH_PLATFORMS = {
 }
 
 # In-memory PKCE state storage (short-lived, per-session)
-_oauth_pending: Dict[str, Dict[str, str]] = {}
+_oauth_pending: dict[str, dict[str, str]] = {}
 
 
 def _generate_pkce_pair() -> tuple:
     """Generate PKCE code_verifier + code_challenge (S256)."""
     rand = secrets.SystemRandom()
-    code_verifier = ''.join(rand.choices(string.ascii_letters + string.digits, k=128))
-    code_sha256 = hashlib.sha256(code_verifier.encode('utf-8')).digest()
-    code_challenge = base64.urlsafe_b64encode(code_sha256).decode('utf-8').rstrip('=')
+    code_verifier = "".join(rand.choices(string.ascii_letters + string.digits, k=128))
+    code_sha256 = hashlib.sha256(code_verifier.encode("utf-8")).digest()
+    code_challenge = base64.urlsafe_b64encode(code_sha256).decode("utf-8").rstrip("=")
     return code_verifier, code_challenge
 
 
@@ -485,6 +489,7 @@ async def oauth_callback(
 
     # Exchange authorization code for tokens
     import httpx
+
     token_data = {
         "grant_type": "authorization_code",
         "code": code,
@@ -501,6 +506,7 @@ async def oauth_callback(
     # Notion uses Basic auth (base64 of client_id:client_secret) instead of POST body
     if provider == "notion" and client_secret:
         import base64 as b64
+
         basic_creds = b64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
         headers["Authorization"] = f"Basic {basic_creds}"
         token_data.pop("client_id", None)
@@ -533,9 +539,8 @@ async def oauth_callback(
 
     # Slack returns tokens nested under authed_user or bot
     if provider == "slack":
-        access_token = (
-            tokens.get("access_token")
-            or (tokens.get("authed_user") or {}).get("access_token")
+        access_token = tokens.get("access_token") or (tokens.get("authed_user") or {}).get(
+            "access_token"
         )
 
     # Notion returns access_token at top level but also workspace info
@@ -565,7 +570,7 @@ async def oauth_callback(
         f"""<html>
 <head><title>Orion -- OAuth Success</title></head>
 <body style="font-family: system-ui; text-align: center; padding: 40px;">
-  <h2 style="color: #22c55e;">✓ {OAUTH_PLATFORMS[provider]['name']} Connected</h2>
+  <h2 style="color: #22c55e;">✓ {OAUTH_PLATFORMS[provider]["name"]} Connected</h2>
   <p>You can close this window. The Settings page will update automatically.</p>
   <script>
     if (window.opener) {{
@@ -592,6 +597,7 @@ async def oauth_revoke(request: OAuthRevokeRequest):
     if access_token and platform.get("revoke_url"):
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as client:
                 await client.post(
                     platform["revoke_url"],
@@ -618,11 +624,13 @@ async def oauth_revoke(request: OAuthRevokeRequest):
 # ONE-CLICK OAUTH (uses oauth_manager module)
 # =============================================================================
 
+
 @router.get("/api/oauth/providers")
 async def list_oauth_providers():
     """List all OAuth providers with connection status and setup steps."""
     try:
         from orion.integrations.oauth_manager import get_provider_status
+
         return get_provider_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -638,8 +646,11 @@ async def oauth_connect(provider: str):
     """
     try:
         from orion.integrations.oauth_manager import (
-            PROVIDERS, get_client_id, get_client_secret,
-            github_device_flow_start, build_auth_url,
+            PROVIDERS,
+            build_auth_url,
+            get_client_id,
+            get_client_secret,
+            github_device_flow_start,
         )
 
         if provider not in PROVIDERS:
@@ -712,9 +723,9 @@ def _get_provider_setup_help(provider: str, prov: dict) -> list:
     url = setup_urls.get(provider, "")
     return [
         f"1. Go to {url}",
-        f"2. Create a new OAuth App for Orion",
-        f"3. Set the callback URL to: http://localhost:8001/api/oauth/callback",
-        f"4. Copy the Client ID (and Secret if needed) and paste below",
+        "2. Create a new OAuth App for Orion",
+        "3. Set the callback URL to: http://localhost:8001/api/oauth/callback",
+        "4. Copy the Client ID (and Secret if needed) and paste below",
     ]
 
 
@@ -723,8 +734,11 @@ async def oauth_device_poll(provider: str, device_code: str = ""):
     """Poll for GitHub Device Flow completion."""
     try:
         from orion.integrations.oauth_manager import (
-            PROVIDERS, get_client_id, github_device_flow_poll,
-            _load_oauth_tokens, _save_oauth_tokens,
+            PROVIDERS,
+            _load_oauth_tokens,
+            _save_oauth_tokens,
+            get_client_id,
+            github_device_flow_poll,
         )
 
         if provider not in PROVIDERS:
@@ -816,7 +830,9 @@ async def oauth_setup_client(provider: str, client_id: str = "", client_secret: 
     """Store OAuth client_id and client_secret for a provider."""
     try:
         from orion.integrations.oauth_manager import (
-            PROVIDERS, _load_client_configs, _save_client_configs,
+            PROVIDERS,
+            _load_client_configs,
+            _save_client_configs,
         )
 
         if provider not in PROVIDERS:

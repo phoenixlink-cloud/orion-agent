@@ -1,7 +1,8 @@
 """Unit tests for Scout intent classification and routing."""
 
 import pytest
-from orion.core.agents.scout import Scout, Route, ScoutReport
+
+from orion.core.agents.scout import Route, Scout, ScoutReport
 
 
 @pytest.fixture

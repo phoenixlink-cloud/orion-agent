@@ -30,22 +30,23 @@ WHAT THIS DOES:
 """
 
 import json
-import time
 import sqlite3
 import statistics
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
+import time
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
-
+from pathlib import Path
+from typing import Any
 
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class PerformanceMetrics:
     """Rolling performance metrics for a time window."""
+
     window_start: str
     window_end: str
     total_tasks: int
@@ -55,13 +56,14 @@ class PerformanceMetrics:
     approval_rate: float
     avg_quality_score: float
     avg_rating: float
-    task_type_breakdown: Dict[str, int] = field(default_factory=dict)
+    task_type_breakdown: dict[str, int] = field(default_factory=dict)
     quality_trend: str = "stable"  # improving, stable, declining
 
 
 @dataclass
 class StrengthWeakness:
     """An identified strength or weakness."""
+
     area: str
     score: float  # 0.0 to 1.0
     evidence_count: int
@@ -73,6 +75,7 @@ class StrengthWeakness:
 @dataclass
 class ImprovementRecommendation:
     """A self-generated improvement recommendation."""
+
     id: str
     priority: str  # critical, high, medium, low
     area: str
@@ -86,6 +89,7 @@ class ImprovementRecommendation:
 @dataclass
 class EvolutionMilestone:
     """A milestone in Orion's evolution."""
+
     timestamp: str
     milestone_type: str  # approval_rate, pattern_count, quality_score
     title: str
@@ -97,6 +101,7 @@ class EvolutionMilestone:
 # =============================================================================
 # EVOLUTION ENGINE
 # =============================================================================
+
 
 class EvolutionEngine:
     """
@@ -129,11 +134,11 @@ class EvolutionEngine:
         rating: int = 0,
         feedback: str = "",
         task_description: str = "",
-        files_modified: List[str] = None,
+        files_modified: list[str] = None,
         iteration_count: int = 1,
         model_used: str = "",
         workspace: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Record a task outcome for evolution tracking."""
         now = datetime.now(timezone.utc).isoformat()
         approved = rating >= 4 if rating > 0 else None
@@ -141,18 +146,28 @@ class EvolutionEngine:
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
 
-        cursor.execute("""
-            INSERT INTO outcomes 
-            (timestamp, task_type, quality_score, rating, feedback, 
+        cursor.execute(
+            """
+            INSERT INTO outcomes
+            (timestamp, task_type, quality_score, rating, feedback,
              task_description, files_modified, iteration_count, model_used,
              workspace, approved)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            now, task_type, quality_score, rating, feedback[:500],
-            task_description[:500], json.dumps(files_modified or []),
-            iteration_count, model_used, workspace,
-            1 if approved is True else (0 if approved is False else -1),
-        ))
+        """,
+            (
+                now,
+                task_type,
+                quality_score,
+                rating,
+                feedback[:500],
+                task_description[:500],
+                json.dumps(files_modified or []),
+                iteration_count,
+                model_used,
+                workspace,
+                1 if approved is True else (0 if approved is False else -1),
+            ),
+        )
 
         outcome_id = cursor.lastrowid
         conn.commit()
@@ -175,9 +190,7 @@ class EvolutionEngine:
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT COUNT(*) FROM outcomes WHERE timestamp >= ?", (cutoff,)
-        )
+        cursor.execute("SELECT COUNT(*) FROM outcomes WHERE timestamp >= ?", (cutoff,))
         total = cursor.fetchone()[0]
 
         if total == 0:
@@ -185,9 +198,13 @@ class EvolutionEngine:
             return PerformanceMetrics(
                 window_start=cutoff,
                 window_end=datetime.now(timezone.utc).isoformat(),
-                total_tasks=0, approved_count=0, rejected_count=0,
-                neutral_count=0, approval_rate=0.0,
-                avg_quality_score=0.0, avg_rating=0.0,
+                total_tasks=0,
+                approved_count=0,
+                rejected_count=0,
+                neutral_count=0,
+                approval_rate=0.0,
+                avg_quality_score=0.0,
+                avg_rating=0.0,
             )
 
         cursor.execute(
@@ -203,7 +220,8 @@ class EvolutionEngine:
         neutral = total - approved - rejected
 
         cursor.execute(
-            "SELECT AVG(quality_score) FROM outcomes WHERE timestamp >= ? AND quality_score > 0", (cutoff,)
+            "SELECT AVG(quality_score) FROM outcomes WHERE timestamp >= ? AND quality_score > 0",
+            (cutoff,),
         )
         avg_q = cursor.fetchone()[0] or 0.0
 
@@ -213,7 +231,8 @@ class EvolutionEngine:
         avg_r = cursor.fetchone()[0] or 0.0
 
         cursor.execute(
-            "SELECT task_type, COUNT(*) FROM outcomes WHERE timestamp >= ? GROUP BY task_type", (cutoff,)
+            "SELECT task_type, COUNT(*) FROM outcomes WHERE timestamp >= ? GROUP BY task_type",
+            (cutoff,),
         )
         breakdown = {row[0]: row[1] for row in cursor.fetchall()}
 
@@ -235,15 +254,13 @@ class EvolutionEngine:
             quality_trend=trend,
         )
 
-    def get_metrics_by_task_type(self, days: int = 30) -> Dict[str, PerformanceMetrics]:
+    def get_metrics_by_task_type(self, days: int = 30) -> dict[str, PerformanceMetrics]:
         """Get performance metrics broken down by task type."""
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT DISTINCT task_type FROM outcomes WHERE timestamp >= ?", (cutoff,)
-        )
+        cursor.execute("SELECT DISTINCT task_type FROM outcomes WHERE timestamp >= ?", (cutoff,))
         task_types = [row[0] for row in cursor.fetchall()]
         conn.close()
 
@@ -256,7 +273,7 @@ class EvolutionEngine:
     # PUBLIC API: STRENGTHS & WEAKNESSES
     # =========================================================================
 
-    def analyze_strengths_weaknesses(self, days: int = 60) -> List[StrengthWeakness]:
+    def analyze_strengths_weaknesses(self, days: int = 60) -> list[StrengthWeakness]:
         """Analyze recent performance to identify strengths and weaknesses."""
         cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         conn = sqlite3.connect(self._db_path)
@@ -264,18 +281,21 @@ class EvolutionEngine:
 
         results = []
 
-        cursor.execute("""
-            SELECT task_type, 
+        cursor.execute(
+            """
+            SELECT task_type,
                    COUNT(*) as cnt,
                    AVG(quality_score) as avg_q,
                    AVG(CASE WHEN rating > 0 THEN rating ELSE NULL END) as avg_r,
                    SUM(CASE WHEN approved = 1 THEN 1 ELSE 0 END) as approvals,
                    SUM(CASE WHEN approved = 0 THEN 1 ELSE 0 END) as rejections
-            FROM outcomes 
+            FROM outcomes
             WHERE timestamp >= ?
             GROUP BY task_type
             HAVING cnt >= 3
-        """, (cutoff,))
+        """,
+            (cutoff,),
+        )
 
         for row in cursor.fetchall():
             task_type, cnt, avg_q, avg_r, approvals, rejections = row
@@ -284,7 +304,7 @@ class EvolutionEngine:
             rated = approvals + rejections
             approval_rate = approvals / rated if rated > 0 else 0.5
 
-            score = (avg_q * 0.4 + (avg_r / 5.0 if avg_r else 0.5) * 0.3 + approval_rate * 0.3)
+            score = avg_q * 0.4 + (avg_r / 5.0 if avg_r else 0.5) * 0.3 + approval_rate * 0.3
             is_strength = score >= 0.7
 
             if is_strength:
@@ -294,29 +314,47 @@ class EvolutionEngine:
                 desc = f"Weak at {task_type} tasks: {approval_rate:.0%} approval rate, avg quality {avg_q:.2f}"
                 rec = f"Focus on improving {task_type} tasks -- review anti-patterns and user feedback"
 
-            results.append(StrengthWeakness(
-                area=task_type, score=round(score, 3), evidence_count=cnt,
-                description=desc, is_strength=is_strength, recommendation=rec,
-            ))
+            results.append(
+                StrengthWeakness(
+                    area=task_type,
+                    score=round(score, 3),
+                    evidence_count=cnt,
+                    description=desc,
+                    is_strength=is_strength,
+                    recommendation=rec,
+                )
+            )
 
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT AVG(iteration_count) FROM outcomes WHERE timestamp >= ?
-        """, (cutoff,))
+        """,
+            (cutoff,),
+        )
         avg_iterations = cursor.fetchone()[0] or 1.0
 
         if avg_iterations <= 1.2:
-            results.append(StrengthWeakness(
-                area="efficiency", score=0.9, evidence_count=0,
-                description=f"Highly efficient: avg {avg_iterations:.1f} iterations per task",
-                is_strength=True, recommendation="Quality gates are well calibrated",
-            ))
+            results.append(
+                StrengthWeakness(
+                    area="efficiency",
+                    score=0.9,
+                    evidence_count=0,
+                    description=f"Highly efficient: avg {avg_iterations:.1f} iterations per task",
+                    is_strength=True,
+                    recommendation="Quality gates are well calibrated",
+                )
+            )
         elif avg_iterations >= 2.5:
-            results.append(StrengthWeakness(
-                area="efficiency", score=0.3, evidence_count=0,
-                description=f"Inefficient: avg {avg_iterations:.1f} iterations per task",
-                is_strength=False,
-                recommendation="Quality threshold may be too high, or prompts need improvement",
-            ))
+            results.append(
+                StrengthWeakness(
+                    area="efficiency",
+                    score=0.3,
+                    evidence_count=0,
+                    description=f"Inefficient: avg {avg_iterations:.1f} iterations per task",
+                    is_strength=False,
+                    recommendation="Quality threshold may be too high, or prompts need improvement",
+                )
+            )
 
         conn.close()
         results.sort(key=lambda x: (x.is_strength, x.score))
@@ -326,65 +364,85 @@ class EvolutionEngine:
     # PUBLIC API: IMPROVEMENT RECOMMENDATIONS
     # =========================================================================
 
-    def get_recommendations(self, days: int = 30) -> List[ImprovementRecommendation]:
+    def get_recommendations(self, days: int = 30) -> list[ImprovementRecommendation]:
         """Generate self-improvement recommendations based on recent performance."""
         metrics = self.get_metrics(days)
         sw = self.analyze_strengths_weaknesses(days)
-        recs: List[ImprovementRecommendation] = []
+        recs: list[ImprovementRecommendation] = []
         now = datetime.now(timezone.utc).isoformat()
 
         if metrics.total_tasks >= 5 and metrics.approval_rate < 0.6:
-            recs.append(ImprovementRecommendation(
-                id="low_approval", priority="critical", area="approval_rate",
-                title="Low Approval Rate",
-                description=f"Only {metrics.approval_rate:.0%} of tasks approved in last {days} days",
-                evidence=f"{metrics.approved_count} approved / {metrics.rejected_count} rejected",
-                suggested_action="Review anti-patterns in memory. Focus on understanding user expectations better.",
-                created_at=now,
-            ))
+            recs.append(
+                ImprovementRecommendation(
+                    id="low_approval",
+                    priority="critical",
+                    area="approval_rate",
+                    title="Low Approval Rate",
+                    description=f"Only {metrics.approval_rate:.0%} of tasks approved in last {days} days",
+                    evidence=f"{metrics.approved_count} approved / {metrics.rejected_count} rejected",
+                    suggested_action="Review anti-patterns in memory. Focus on understanding user expectations better.",
+                    created_at=now,
+                )
+            )
 
         if metrics.quality_trend == "declining":
-            recs.append(ImprovementRecommendation(
-                id="quality_decline", priority="high", area="quality_score",
-                title="Quality Score Declining",
-                description="Quality scores are trending downward over the analysis window",
-                evidence=f"Current avg quality: {metrics.avg_quality_score:.2f}",
-                suggested_action="Check if recent model changes or prompt modifications are causing degradation.",
-                created_at=now,
-            ))
+            recs.append(
+                ImprovementRecommendation(
+                    id="quality_decline",
+                    priority="high",
+                    area="quality_score",
+                    title="Quality Score Declining",
+                    description="Quality scores are trending downward over the analysis window",
+                    evidence=f"Current avg quality: {metrics.avg_quality_score:.2f}",
+                    suggested_action="Check if recent model changes or prompt modifications are causing degradation.",
+                    created_at=now,
+                )
+            )
 
         for item in sw:
             if not item.is_strength and item.evidence_count >= 3:
-                recs.append(ImprovementRecommendation(
-                    id=f"weak_{item.area}",
-                    priority="high" if item.score < 0.4 else "medium",
-                    area=item.area, title=f"Weak Area: {item.area}",
-                    description=item.description,
-                    evidence=f"Score: {item.score:.2f} across {item.evidence_count} tasks",
-                    suggested_action=item.recommendation, created_at=now,
-                ))
+                recs.append(
+                    ImprovementRecommendation(
+                        id=f"weak_{item.area}",
+                        priority="high" if item.score < 0.4 else "medium",
+                        area=item.area,
+                        title=f"Weak Area: {item.area}",
+                        description=item.description,
+                        evidence=f"Score: {item.score:.2f} across {item.evidence_count} tasks",
+                        suggested_action=item.recommendation,
+                        created_at=now,
+                    )
+                )
 
         if metrics.total_tasks >= 10 and metrics.neutral_count > metrics.total_tasks * 0.7:
-            recs.append(ImprovementRecommendation(
-                id="low_feedback", priority="medium", area="feedback",
-                title="Not Enough User Feedback",
-                description=f"{metrics.neutral_count}/{metrics.total_tasks} tasks have no rating",
-                evidence="Without feedback, Orion cannot learn effectively",
-                suggested_action="Prompt users for ratings after task completion. More feedback = faster evolution.",
-                created_at=now,
-            ))
+            recs.append(
+                ImprovementRecommendation(
+                    id="low_feedback",
+                    priority="medium",
+                    area="feedback",
+                    title="Not Enough User Feedback",
+                    description=f"{metrics.neutral_count}/{metrics.total_tasks} tasks have no rating",
+                    evidence="Without feedback, Orion cannot learn effectively",
+                    suggested_action="Prompt users for ratings after task completion. More feedback = faster evolution.",
+                    created_at=now,
+                )
+            )
 
         strengths = [s for s in sw if s.is_strength and s.score >= 0.8]
         if strengths:
             areas = ", ".join(s.area for s in strengths[:3])
-            recs.append(ImprovementRecommendation(
-                id="celebrate_strengths", priority="low", area="strengths",
-                title="Recognized Strengths",
-                description=f"Orion excels at: {areas}",
-                evidence="High approval rates and quality scores in these areas",
-                suggested_action="Leverage these strengths. Consider applying similar approaches to weak areas.",
-                created_at=now,
-            ))
+            recs.append(
+                ImprovementRecommendation(
+                    id="celebrate_strengths",
+                    priority="low",
+                    area="strengths",
+                    title="Recognized Strengths",
+                    description=f"Orion excels at: {areas}",
+                    evidence="High approval rates and quality scores in these areas",
+                    suggested_action="Leverage these strengths. Consider applying similar approaches to weak areas.",
+                    created_at=now,
+                )
+            )
 
         priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         recs.sort(key=lambda r: priority_order.get(r.priority, 4))
@@ -394,28 +452,31 @@ class EvolutionEngine:
     # PUBLIC API: EVOLUTION TIMELINE
     # =========================================================================
 
-    def get_timeline(self, limit: int = 20) -> List[EvolutionMilestone]:
+    def get_timeline(self, limit: int = 20) -> list[EvolutionMilestone]:
         """Get Orion's evolution milestones as a timeline."""
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM milestones ORDER BY timestamp DESC LIMIT ?", (limit,)
-        )
+        cursor.execute("SELECT * FROM milestones ORDER BY timestamp DESC LIMIT ?", (limit,))
         rows = cursor.fetchall()
         cols = [d[0] for d in cursor.description]
         conn.close()
 
         milestones = []
         for row in rows:
-            data = dict(zip(cols, row))
-            milestones.append(EvolutionMilestone(
-                timestamp=data["timestamp"], milestone_type=data["milestone_type"],
-                title=data["title"], description=data["description"],
-                value=data["value"], previous_value=data["previous_value"],
-            ))
+            data = dict(zip(cols, row, strict=False))
+            milestones.append(
+                EvolutionMilestone(
+                    timestamp=data["timestamp"],
+                    milestone_type=data["milestone_type"],
+                    title=data["title"],
+                    description=data["description"],
+                    value=data["value"],
+                    previous_value=data["previous_value"],
+                )
+            )
         return milestones
 
-    def get_evolution_summary(self) -> Dict[str, Any]:
+    def get_evolution_summary(self) -> dict[str, Any]:
         """Get a comprehensive evolution summary for display."""
         metrics_7d = self.get_metrics(7)
         metrics_30d = self.get_metrics(30)
@@ -453,8 +514,7 @@ class EvolutionEngine:
                 for r in recs[:5]
             ],
             "milestones": [
-                {"title": m.title, "value": m.value, "timestamp": m.timestamp}
-                for m in timeline[:5]
+                {"title": m.title, "value": m.value, "timestamp": m.timestamp} for m in timeline[:5]
             ],
         }
 
@@ -484,7 +544,7 @@ class EvolutionEngine:
         conn.commit()
         conn.close()
 
-    def get_domain_progress(self, domain: str) -> Dict[str, Any]:
+    def get_domain_progress(self, domain: str) -> dict[str, Any]:
         """Get training progress for a domain."""
         conn = sqlite3.connect(self._db_path)
         cursor = conn.cursor()
@@ -534,7 +594,7 @@ class EvolutionEngine:
             "trend": self._calculate_domain_trend(scores),
         }
 
-    def _calculate_domain_trend(self, scores: List[float]) -> str:
+    def _calculate_domain_trend(self, scores: list[float]) -> str:
         """Determine if scores are improving, declining, or plateaued."""
         if len(scores) < 3:
             return "insufficient_data"
@@ -639,27 +699,32 @@ class EvolutionEngine:
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT COUNT(*) FROM outcomes WHERE timestamp >= ? AND task_type = ?", (cutoff, task_type)
+            "SELECT COUNT(*) FROM outcomes WHERE timestamp >= ? AND task_type = ?",
+            (cutoff, task_type),
         )
         total = cursor.fetchone()[0]
 
         cursor.execute(
-            "SELECT COUNT(*) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND approved = 1", (cutoff, task_type)
+            "SELECT COUNT(*) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND approved = 1",
+            (cutoff, task_type),
         )
         approved = cursor.fetchone()[0]
 
         cursor.execute(
-            "SELECT COUNT(*) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND approved = 0", (cutoff, task_type)
+            "SELECT COUNT(*) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND approved = 0",
+            (cutoff, task_type),
         )
         rejected = cursor.fetchone()[0]
 
         cursor.execute(
-            "SELECT AVG(quality_score) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND quality_score > 0", (cutoff, task_type)
+            "SELECT AVG(quality_score) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND quality_score > 0",
+            (cutoff, task_type),
         )
         avg_q = cursor.fetchone()[0] or 0.0
 
         cursor.execute(
-            "SELECT AVG(rating) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND rating > 0", (cutoff, task_type)
+            "SELECT AVG(rating) FROM outcomes WHERE timestamp >= ? AND task_type = ? AND rating > 0",
+            (cutoff, task_type),
         )
         avg_r = cursor.fetchone()[0] or 0.0
 
@@ -667,15 +732,19 @@ class EvolutionEngine:
 
         rated = approved + rejected
         return PerformanceMetrics(
-            window_start=cutoff, window_end=datetime.now(timezone.utc).isoformat(),
-            total_tasks=total, approved_count=approved, rejected_count=rejected,
+            window_start=cutoff,
+            window_end=datetime.now(timezone.utc).isoformat(),
+            total_tasks=total,
+            approved_count=approved,
+            rejected_count=rejected,
             neutral_count=total - approved - rejected,
             approval_rate=round(approved / rated if rated > 0 else 0.0, 3),
-            avg_quality_score=round(avg_q, 3), avg_rating=round(avg_r, 2),
+            avg_quality_score=round(avg_q, 3),
+            avg_rating=round(avg_r, 2),
             task_type_breakdown={task_type: total},
         )
 
-    def _check_milestones(self, conn) -> List[EvolutionMilestone]:
+    def _check_milestones(self, conn) -> list[EvolutionMilestone]:
         """Check if any new milestones have been reached."""
         cursor = conn.cursor()
         now = datetime.now(timezone.utc).isoformat()
@@ -688,10 +757,12 @@ class EvolutionEngine:
         for threshold in task_thresholds:
             if total == threshold:
                 m = EvolutionMilestone(
-                    timestamp=now, milestone_type="task_count",
+                    timestamp=now,
+                    milestone_type="task_count",
                     title=f"{threshold} Tasks Completed",
                     description=f"Orion has now processed {threshold} tasks",
-                    value=float(threshold), previous_value=float(threshold - 1),
+                    value=float(threshold),
+                    previous_value=float(threshold - 1),
                 )
                 self._store_milestone(cursor, m)
                 milestones.append(m)
@@ -711,20 +782,24 @@ class EvolutionEngine:
 
             if rate >= 0.8 and last_rate < 0.8:
                 m = EvolutionMilestone(
-                    timestamp=now, milestone_type="approval_rate",
+                    timestamp=now,
+                    milestone_type="approval_rate",
                     title="80% Approval Rate Reached!",
                     description=f"Approval rate has crossed 80% ({rate:.1%})",
-                    value=round(rate, 3), previous_value=round(last_rate, 3),
+                    value=round(rate, 3),
+                    previous_value=round(last_rate, 3),
                 )
                 self._store_milestone(cursor, m)
                 milestones.append(m)
 
             if rate >= 0.9 and last_rate < 0.9:
                 m = EvolutionMilestone(
-                    timestamp=now, milestone_type="approval_rate",
+                    timestamp=now,
+                    milestone_type="approval_rate",
                     title="90% Approval Rate Reached!",
                     description=f"Approval rate has crossed 90% ({rate:.1%})",
-                    value=round(rate, 3), previous_value=round(last_rate, 3),
+                    value=round(rate, 3),
+                    previous_value=round(last_rate, 3),
                 )
                 self._store_milestone(cursor, m)
                 milestones.append(m)
@@ -734,13 +809,20 @@ class EvolutionEngine:
 
     def _store_milestone(self, cursor, milestone: EvolutionMilestone):
         """Store a milestone in the database."""
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO milestones (timestamp, milestone_type, title, description, value, previous_value)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            milestone.timestamp, milestone.milestone_type, milestone.title,
-            milestone.description, milestone.value, milestone.previous_value,
-        ))
+        """,
+            (
+                milestone.timestamp,
+                milestone.milestone_type,
+                milestone.title,
+                milestone.description,
+                milestone.value,
+                milestone.previous_value,
+            ),
+        )
 
     def clear(self):
         """Clear all evolution data (use with extreme caution)."""
@@ -756,7 +838,7 @@ class EvolutionEngine:
 # FACTORY
 # =============================================================================
 
-_evolution_instance: Optional[EvolutionEngine] = None
+_evolution_instance: EvolutionEngine | None = None
 
 
 def get_evolution_engine() -> EvolutionEngine:

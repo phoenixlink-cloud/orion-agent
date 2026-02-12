@@ -27,17 +27,17 @@ Architecture:
     4. RESPONSE PARSING: Route to correct parser based on selected format
 """
 
-from enum import Enum
 from dataclasses import dataclass
-from typing import Optional, Dict, List, Tuple
-
+from enum import Enum
 
 # ---------------------------------------------------------------------------
 # EDIT FORMATS
 # ---------------------------------------------------------------------------
 
+
 class EditFormat(Enum):
     """Available edit output formats."""
+
     WHOLE_FILE = "whole_file"
     SEARCH_REPLACE = "search_replace"
     UNIFIED_DIFF = "unified_diff"
@@ -48,9 +48,11 @@ class EditFormat(Enum):
 # MODEL PROFILES
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ModelProfile:
     """Capabilities of a model family for edit format selection."""
+
     name: str
     preferred_format: EditFormat
     supports_diff: bool
@@ -63,77 +65,228 @@ class ModelProfile:
     whole_file_accuracy: float
 
 
-MODEL_PROFILES: Dict[str, ModelProfile] = {
+MODEL_PROFILES: dict[str, ModelProfile] = {
     # OpenAI GPT-5 Series
-    "gpt-5.2": ModelProfile("gpt-5.2", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.97, 0.98, 0.97),
-    "gpt-5.1": ModelProfile("gpt-5.1", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.96, 0.97, 0.96),
-    "gpt-5": ModelProfile("gpt-5", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.95, 0.97, 0.96),
-    "gpt-5-mini": ModelProfile("gpt-5-mini", EditFormat.SEARCH_REPLACE, True, True, True, False, 8192, 0.80, 0.92, 0.90),
-    "gpt-5-nano": ModelProfile("gpt-5-nano", EditFormat.SEARCH_REPLACE, False, True, True, False, 4096, 0.60, 0.88, 0.85),
+    "gpt-5.2": ModelProfile(
+        "gpt-5.2", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.97, 0.98, 0.97
+    ),
+    "gpt-5.1": ModelProfile(
+        "gpt-5.1", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.96, 0.97, 0.96
+    ),
+    "gpt-5": ModelProfile(
+        "gpt-5", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.95, 0.97, 0.96
+    ),
+    "gpt-5-mini": ModelProfile(
+        "gpt-5-mini", EditFormat.SEARCH_REPLACE, True, True, True, False, 8192, 0.80, 0.92, 0.90
+    ),
+    "gpt-5-nano": ModelProfile(
+        "gpt-5-nano", EditFormat.SEARCH_REPLACE, False, True, True, False, 4096, 0.60, 0.88, 0.85
+    ),
     # OpenAI GPT-4.1 Series
-    "gpt-4.1": ModelProfile("gpt-4.1", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.90, 0.96, 0.93),
-    "gpt-4.1-mini": ModelProfile("gpt-4.1-mini", EditFormat.SEARCH_REPLACE, True, True, True, False, 4096, 0.70, 0.90, 0.87),
-    "gpt-4.1-nano": ModelProfile("gpt-4.1-nano", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.50, 0.85, 0.82),
+    "gpt-4.1": ModelProfile(
+        "gpt-4.1", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.90, 0.96, 0.93
+    ),
+    "gpt-4.1-mini": ModelProfile(
+        "gpt-4.1-mini", EditFormat.SEARCH_REPLACE, True, True, True, False, 4096, 0.70, 0.90, 0.87
+    ),
+    "gpt-4.1-nano": ModelProfile(
+        "gpt-4.1-nano", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.50, 0.85, 0.82
+    ),
     # OpenAI o-Series (Reasoning)
     "o3": ModelProfile("o3", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.95, 0.97, 0.96),
-    "o3-pro": ModelProfile("o3-pro", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.96, 0.98, 0.97),
-    "o4-mini": ModelProfile("o4-mini", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.94, 0.92),
-    "o3-mini": ModelProfile("o3-mini", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.82, 0.92, 0.88),
+    "o3-pro": ModelProfile(
+        "o3-pro", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.96, 0.98, 0.97
+    ),
+    "o4-mini": ModelProfile(
+        "o4-mini", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.94, 0.92
+    ),
+    "o3-mini": ModelProfile(
+        "o3-mini", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.82, 0.92, 0.88
+    ),
     "o1": ModelProfile("o1", EditFormat.ARCHITECT, True, True, True, True, 8192, 0.90, 0.95, 0.95),
     # OpenAI GPT-4o Series (Legacy)
-    "gpt-4o": ModelProfile("gpt-4o", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.85, 0.95, 0.90),
-    "gpt-4o-mini": ModelProfile("gpt-4o-mini", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.50, 0.85, 0.80),
-    "gpt-4-turbo": ModelProfile("gpt-4-turbo", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.80, 0.92, 0.88),
+    "gpt-4o": ModelProfile(
+        "gpt-4o", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.85, 0.95, 0.90
+    ),
+    "gpt-4o-mini": ModelProfile(
+        "gpt-4o-mini", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.50, 0.85, 0.80
+    ),
+    "gpt-4-turbo": ModelProfile(
+        "gpt-4-turbo", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.80, 0.92, 0.88
+    ),
     # Anthropic Claude 4.5 Series
-    "claude-opus-4-5": ModelProfile("claude-opus-4-5", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.96, 0.97, 0.98),
-    "claude-sonnet-4-5": ModelProfile("claude-sonnet-4-5", EditFormat.WHOLE_FILE, True, True, True, True, 16384, 0.94, 0.96, 0.97),
-    "claude-haiku-4-5": ModelProfile("claude-haiku-4-5", EditFormat.SEARCH_REPLACE, True, True, True, False, 4096, 0.70, 0.88, 0.90),
+    "claude-opus-4-5": ModelProfile(
+        "claude-opus-4-5", EditFormat.ARCHITECT, True, True, True, True, 16384, 0.96, 0.97, 0.98
+    ),
+    "claude-sonnet-4-5": ModelProfile(
+        "claude-sonnet-4-5", EditFormat.WHOLE_FILE, True, True, True, True, 16384, 0.94, 0.96, 0.97
+    ),
+    "claude-haiku-4-5": ModelProfile(
+        "claude-haiku-4-5",
+        EditFormat.SEARCH_REPLACE,
+        True,
+        True,
+        True,
+        False,
+        4096,
+        0.70,
+        0.88,
+        0.90,
+    ),
     # Anthropic Claude 4 Series
-    "claude-opus-4": ModelProfile("claude-opus-4", EditFormat.WHOLE_FILE, True, True, True, True, 8192, 0.92, 0.95, 0.97),
-    "claude-sonnet-4": ModelProfile("claude-sonnet-4", EditFormat.WHOLE_FILE, True, True, True, True, 8192, 0.88, 0.93, 0.96),
+    "claude-opus-4": ModelProfile(
+        "claude-opus-4", EditFormat.WHOLE_FILE, True, True, True, True, 8192, 0.92, 0.95, 0.97
+    ),
+    "claude-sonnet-4": ModelProfile(
+        "claude-sonnet-4", EditFormat.WHOLE_FILE, True, True, True, True, 8192, 0.88, 0.93, 0.96
+    ),
     # Anthropic Claude 3.x Legacy
-    "claude-3-7-sonnet": ModelProfile("claude-3-7-sonnet", EditFormat.WHOLE_FILE, True, True, True, True, 4096, 0.85, 0.90, 0.95),
-    "claude-3-5-sonnet": ModelProfile("claude-3-5-sonnet", EditFormat.WHOLE_FILE, True, True, True, True, 4096, 0.80, 0.88, 0.95),
-    "claude-3-5-haiku": ModelProfile("claude-3-5-haiku", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.45, 0.82, 0.85),
-    "claude-3-opus": ModelProfile("claude-3-opus", EditFormat.WHOLE_FILE, True, True, True, True, 4096, 0.82, 0.90, 0.95),
+    "claude-3-7-sonnet": ModelProfile(
+        "claude-3-7-sonnet", EditFormat.WHOLE_FILE, True, True, True, True, 4096, 0.85, 0.90, 0.95
+    ),
+    "claude-3-5-sonnet": ModelProfile(
+        "claude-3-5-sonnet", EditFormat.WHOLE_FILE, True, True, True, True, 4096, 0.80, 0.88, 0.95
+    ),
+    "claude-3-5-haiku": ModelProfile(
+        "claude-3-5-haiku",
+        EditFormat.SEARCH_REPLACE,
+        False,
+        True,
+        True,
+        False,
+        2048,
+        0.45,
+        0.82,
+        0.85,
+    ),
+    "claude-3-opus": ModelProfile(
+        "claude-3-opus", EditFormat.WHOLE_FILE, True, True, True, True, 4096, 0.82, 0.90, 0.95
+    ),
     # Google Gemini 3
-    "gemini-3-pro": ModelProfile("gemini-3-pro", EditFormat.ARCHITECT, True, True, True, True, 8192, 0.90, 0.95, 0.93),
-    "gemini-3-flash": ModelProfile("gemini-3-flash", EditFormat.SEARCH_REPLACE, True, True, True, False, 4096, 0.75, 0.90, 0.88),
+    "gemini-3-pro": ModelProfile(
+        "gemini-3-pro", EditFormat.ARCHITECT, True, True, True, True, 8192, 0.90, 0.95, 0.93
+    ),
+    "gemini-3-flash": ModelProfile(
+        "gemini-3-flash", EditFormat.SEARCH_REPLACE, True, True, True, False, 4096, 0.75, 0.90, 0.88
+    ),
     # Google Gemini 2.5
-    "gemini-2.5-pro": ModelProfile("gemini-2.5-pro", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.85, 0.92, 0.90),
-    "gemini-2.5-flash": ModelProfile("gemini-2.5-flash", EditFormat.SEARCH_REPLACE, True, True, True, False, 2048, 0.65, 0.88, 0.85),
+    "gemini-2.5-pro": ModelProfile(
+        "gemini-2.5-pro", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.85, 0.92, 0.90
+    ),
+    "gemini-2.5-flash": ModelProfile(
+        "gemini-2.5-flash",
+        EditFormat.SEARCH_REPLACE,
+        True,
+        True,
+        True,
+        False,
+        2048,
+        0.65,
+        0.88,
+        0.85,
+    ),
     # Google Legacy
-    "gemini-pro": ModelProfile("gemini-pro", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.40, 0.80, 0.82),
-    "gemini-2.0-flash": ModelProfile("gemini-2.0-flash", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.45, 0.82, 0.80),
+    "gemini-pro": ModelProfile(
+        "gemini-pro", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.40, 0.80, 0.82
+    ),
+    "gemini-2.0-flash": ModelProfile(
+        "gemini-2.0-flash",
+        EditFormat.SEARCH_REPLACE,
+        False,
+        True,
+        True,
+        False,
+        2048,
+        0.45,
+        0.82,
+        0.80,
+    ),
     # Cohere Command
-    "command-a": ModelProfile("command-a", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.85, 0.92, 0.90),
-    "command-r-plus": ModelProfile("command-r-plus", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.78, 0.88, 0.85),
-    "command-r": ModelProfile("command-r", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.55, 0.80, 0.78),
-    "command-r7b": ModelProfile("command-r7b", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.40, 0.72, 0.70),
+    "command-a": ModelProfile(
+        "command-a", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.85, 0.92, 0.90
+    ),
+    "command-r-plus": ModelProfile(
+        "command-r-plus", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.78, 0.88, 0.85
+    ),
+    "command-r": ModelProfile(
+        "command-r", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.55, 0.80, 0.78
+    ),
+    "command-r7b": ModelProfile(
+        "command-r7b", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.40, 0.72, 0.70
+    ),
     # AWS Bedrock Nova
-    "nova-pro": ModelProfile("nova-pro", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.80, 0.88, 0.85),
-    "nova-lite": ModelProfile("nova-lite", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.50, 0.78, 0.75),
-    "nova-micro": ModelProfile("nova-micro", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.35, 0.70, 0.68),
+    "nova-pro": ModelProfile(
+        "nova-pro", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.80, 0.88, 0.85
+    ),
+    "nova-lite": ModelProfile(
+        "nova-lite", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.50, 0.78, 0.75
+    ),
+    "nova-micro": ModelProfile(
+        "nova-micro", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.35, 0.70, 0.68
+    ),
     # Mistral AI
-    "mistral-large": ModelProfile("mistral-large", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.93, 0.90),
-    "mistral-medium": ModelProfile("mistral-medium", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.82, 0.90, 0.88),
-    "mistral-small": ModelProfile("mistral-small", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.55, 0.82, 0.80),
-    "codestral": ModelProfile("codestral", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.90, 0.95, 0.92),
-    "devstral": ModelProfile("devstral", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.93, 0.90),
-    "magistral-medium": ModelProfile("magistral-medium", EditFormat.ARCHITECT, True, True, True, True, 8192, 0.90, 0.94, 0.92),
-    "magistral-small": ModelProfile("magistral-small", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.78, 0.88, 0.85),
+    "mistral-large": ModelProfile(
+        "mistral-large", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.93, 0.90
+    ),
+    "mistral-medium": ModelProfile(
+        "mistral-medium", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.82, 0.90, 0.88
+    ),
+    "mistral-small": ModelProfile(
+        "mistral-small", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.55, 0.82, 0.80
+    ),
+    "codestral": ModelProfile(
+        "codestral", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.90, 0.95, 0.92
+    ),
+    "devstral": ModelProfile(
+        "devstral", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.93, 0.90
+    ),
+    "magistral-medium": ModelProfile(
+        "magistral-medium", EditFormat.ARCHITECT, True, True, True, True, 8192, 0.90, 0.94, 0.92
+    ),
+    "magistral-small": ModelProfile(
+        "magistral-small", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.78, 0.88, 0.85
+    ),
     # Groq
-    "gpt-oss-120b": ModelProfile("gpt-oss-120b", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.94, 0.92),
-    "gpt-oss-20b": ModelProfile("gpt-oss-20b", EditFormat.SEARCH_REPLACE, False, True, True, False, 4096, 0.60, 0.85, 0.82),
-    "llama-3.3-70b": ModelProfile("llama-3.3-70b", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.82, 0.90, 0.88),
-    "llama-3.1-8b": ModelProfile("llama-3.1-8b", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.45, 0.78, 0.75),
-    "llama-4-maverick": ModelProfile("llama-4-maverick", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.80, 0.88, 0.86),
-    "llama-4-scout": ModelProfile("llama-4-scout", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.55, 0.82, 0.80),
+    "gpt-oss-120b": ModelProfile(
+        "gpt-oss-120b", EditFormat.SEARCH_REPLACE, True, True, True, True, 8192, 0.88, 0.94, 0.92
+    ),
+    "gpt-oss-20b": ModelProfile(
+        "gpt-oss-20b", EditFormat.SEARCH_REPLACE, False, True, True, False, 4096, 0.60, 0.85, 0.82
+    ),
+    "llama-3.3-70b": ModelProfile(
+        "llama-3.3-70b", EditFormat.SEARCH_REPLACE, True, True, True, True, 4096, 0.82, 0.90, 0.88
+    ),
+    "llama-3.1-8b": ModelProfile(
+        "llama-3.1-8b", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.45, 0.78, 0.75
+    ),
+    "llama-4-maverick": ModelProfile(
+        "llama-4-maverick",
+        EditFormat.SEARCH_REPLACE,
+        True,
+        True,
+        True,
+        True,
+        4096,
+        0.80,
+        0.88,
+        0.86,
+    ),
+    "llama-4-scout": ModelProfile(
+        "llama-4-scout", EditFormat.SEARCH_REPLACE, False, True, True, False, 2048, 0.55, 0.82, 0.80
+    ),
     # Local models (Ollama)
-    "ollama_default": ModelProfile("ollama_default", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.25, 0.65, 0.70),
-    "codellama": ModelProfile("codellama", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.30, 0.70, 0.75),
-    "deepseek-coder": ModelProfile("deepseek-coder", EditFormat.SEARCH_REPLACE, True, True, True, False, 2048, 0.65, 0.85, 0.80),
-    "qwen2.5-coder": ModelProfile("qwen2.5-coder", EditFormat.SEARCH_REPLACE, True, True, True, False, 2048, 0.60, 0.82, 0.78),
+    "ollama_default": ModelProfile(
+        "ollama_default", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.25, 0.65, 0.70
+    ),
+    "codellama": ModelProfile(
+        "codellama", EditFormat.WHOLE_FILE, False, True, True, False, 1024, 0.30, 0.70, 0.75
+    ),
+    "deepseek-coder": ModelProfile(
+        "deepseek-coder", EditFormat.SEARCH_REPLACE, True, True, True, False, 2048, 0.65, 0.85, 0.80
+    ),
+    "qwen2.5-coder": ModelProfile(
+        "qwen2.5-coder", EditFormat.SEARCH_REPLACE, True, True, True, False, 2048, 0.60, 0.82, 0.78
+    ),
 }
 
 DEFAULT_PROFILE = ModelProfile(
@@ -153,6 +306,7 @@ DEFAULT_PROFILE = ModelProfile(
 # ---------------------------------------------------------------------------
 # FORMAT SELECTION
 # ---------------------------------------------------------------------------
+
 
 def get_model_profile(model_name: str) -> ModelProfile:
     """
@@ -200,6 +354,7 @@ def get_model_profile(model_name: str) -> ModelProfile:
 @dataclass
 class FormatDecision:
     """The selected format and reasoning."""
+
     format: EditFormat
     model_profile: ModelProfile
     reasoning: str
@@ -216,7 +371,7 @@ def select_edit_format(
     Select the optimal edit format based on model, file size, and change scope.
     """
     profile = get_model_profile(model_name)
-    scores: Dict[EditFormat, float] = {}
+    scores: dict[EditFormat, float] = {}
 
     # -- WHOLE FILE --
     if profile.supports_whole_file:
@@ -268,8 +423,10 @@ def select_edit_format(
 
     if not scores:
         return FormatDecision(
-            format=EditFormat.WHOLE_FILE, model_profile=profile,
-            reasoning="Fallback: no formats scored", confidence=0.3,
+            format=EditFormat.WHOLE_FILE,
+            model_profile=profile,
+            reasoning="Fallback: no formats scored",
+            confidence=0.3,
         )
 
     best_format = max(scores, key=lambda f: scores[f])
@@ -280,11 +437,15 @@ def select_edit_format(
     if file_size_lines > 0:
         reasons.append(f"File: {file_size_lines} lines")
     reasons.append(f"Change: {change_size}")
-    reasons.append(f"Format scores: {', '.join(f'{f.value}={s:.0f}' for f, s in sorted(scores.items(), key=lambda x: -x[1]))}")
+    reasons.append(
+        f"Format scores: {', '.join(f'{f.value}={s:.0f}' for f, s in sorted(scores.items(), key=lambda x: -x[1]))}"
+    )
 
     return FormatDecision(
-        format=best_format, model_profile=profile,
-        reasoning="; ".join(reasons), confidence=confidence,
+        format=best_format,
+        model_profile=profile,
+        reasoning="; ".join(reasons),
+        confidence=confidence,
     )
 
 
@@ -351,7 +512,7 @@ Do NOT write code. Instead, specify:
 Be specific enough that another system can apply these changes mechanically.
 """
 
-FORMAT_INSTRUCTIONS: Dict[EditFormat, str] = {
+FORMAT_INSTRUCTIONS: dict[EditFormat, str] = {
     EditFormat.WHOLE_FILE: WHOLE_FILE_INSTRUCTIONS,
     EditFormat.SEARCH_REPLACE: SEARCH_REPLACE_INSTRUCTIONS,
     EditFormat.UNIFIED_DIFF: UNIFIED_DIFF_INSTRUCTIONS,
@@ -364,7 +525,7 @@ def get_format_instructions(decision: FormatDecision) -> str:
     return FORMAT_INSTRUCTIONS.get(decision.format, SEARCH_REPLACE_INSTRUCTIONS)
 
 
-def get_format_instructions_for_model(model_name: str, **kwargs) -> Tuple[EditFormat, str]:
+def get_format_instructions_for_model(model_name: str, **kwargs) -> tuple[EditFormat, str]:
     """
     Convenience: select format and return instructions in one call.
 
@@ -380,16 +541,16 @@ def get_format_instructions_for_model(model_name: str, **kwargs) -> Tuple[EditFo
 # FORMAT OVERRIDE (user preference)
 # ---------------------------------------------------------------------------
 
-_user_override: Optional[EditFormat] = None
+_user_override: EditFormat | None = None
 
 
-def set_format_override(fmt: Optional[EditFormat]):
+def set_format_override(fmt: EditFormat | None):
     """Allow user to force a specific edit format."""
     global _user_override
     _user_override = fmt
 
 
-def get_format_override() -> Optional[EditFormat]:
+def get_format_override() -> EditFormat | None:
     """Get the user's format override, if set."""
     return _user_override
 
@@ -399,7 +560,9 @@ def select_edit_format_with_override(model_name: str, **kwargs) -> FormatDecisio
     if _user_override is not None:
         profile = get_model_profile(model_name)
         return FormatDecision(
-            format=_user_override, model_profile=profile,
-            reasoning=f"User override: {_user_override.value}", confidence=1.0,
+            format=_user_override,
+            model_profile=profile,
+            reasoning=f"User override: {_user_override.value}",
+            confidence=1.0,
         )
     return select_edit_format(model_name, **kwargs)

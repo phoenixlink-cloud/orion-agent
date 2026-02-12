@@ -31,10 +31,9 @@ USAGE (from REPL):
     /train packs
 """
 
-import asyncio
+import contextlib
 import logging
 import time
-from typing import Optional
 
 logger = logging.getLogger("orion.cli.commands_training")
 
@@ -207,10 +206,8 @@ async def _handle_auto(args, workspace, memory_engine, console):
     # Parse --max-cycles
     for i, a in enumerate(args):
         if a == "--max-cycles" and i + 1 < len(args):
-            try:
+            with contextlib.suppress(ValueError):
                 max_cycles = int(args[i + 1])
-            except ValueError:
-                pass
 
     try:
         from orion.core.learning.benchmark import BenchmarkEngine
@@ -259,8 +256,8 @@ async def _handle_auto(args, workspace, memory_engine, console):
 async def _handle_status(args, workspace, memory_engine, console):
     """Handle /train status [domain]."""
     try:
-        from orion.core.learning.curriculum import CurriculumEngine
         from orion.core.learning.benchmark import BenchmarkEngine
+        from orion.core.learning.curriculum import CurriculumEngine
 
         benchmark = BenchmarkEngine()
         engine = CurriculumEngine(
@@ -288,7 +285,9 @@ async def _handle_status(args, workspace, memory_engine, console):
         else:
             states = engine.list_domains()
             if not states:
-                console.print("[yellow]No training domains found. Use /train load to start.[/yellow]")
+                console.print(
+                    "[yellow]No training domains found. Use /train load to start.[/yellow]"
+                )
                 return
 
             console.print("[bold]🎓 Training Status[/bold]")
@@ -313,9 +312,9 @@ async def _handle_export(args, workspace, memory_engine, console):
     version = args[1]
 
     try:
-        from orion.core.learning.knowledge_pack import KnowledgePackManager
-        from orion.core.learning.curriculum import CurriculumEngine
         from orion.core.learning.benchmark import BenchmarkEngine
+        from orion.core.learning.curriculum import CurriculumEngine
+        from orion.core.learning.knowledge_pack import KnowledgePackManager
 
         mgr = KnowledgePackManager(memory_engine)
 
@@ -355,7 +354,9 @@ async def _handle_export(args, workspace, memory_engine, console):
 async def _handle_import(args, memory_engine, console):
     """Handle /train import <pack_file> [--strategy ...]."""
     if len(args) < 1:
-        console.print("[red]Usage: /train import <pack_file> [--strategy skip_existing|overwrite|merge][/red]")
+        console.print(
+            "[red]Usage: /train import <pack_file> [--strategy skip_existing|overwrite|merge][/red]"
+        )
         return
 
     pack_file = args[0]
@@ -372,7 +373,9 @@ async def _handle_import(args, memory_engine, console):
 
         # Verify first
         if not mgr.verify_pack(pack_file):
-            console.print("[red]❌ Pack checksum verification failed -- file may be corrupted[/red]")
+            console.print(
+                "[red]❌ Pack checksum verification failed -- file may be corrupted[/red]"
+            )
             return
 
         result = mgr.import_pack(pack_file, merge_strategy=strategy)
@@ -414,9 +417,7 @@ async def _handle_packs(memory_engine, console):
         if available:
             console.print("   [bold]Available (local):[/bold]")
             for p in available:
-                is_installed = any(
-                    i["pack_id"] == p["pack_id"] for i in installed
-                )
+                is_installed = any(i["pack_id"] == p["pack_id"] for i in installed)
                 status = "installed" if is_installed else "not installed"
                 console.print(
                     f"   ├── {p['name']} v{p['version']} "

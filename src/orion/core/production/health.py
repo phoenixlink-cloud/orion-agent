@@ -24,20 +24,22 @@ Provides /health, /ready, /live endpoints.
 import os
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Dict, Any, Callable
+from typing import Any
 
 
 @dataclass
 class HealthStatus:
     """Health status response."""
+
     status: str  # "healthy", "degraded", "unhealthy"
     version: str
     uptime_seconds: float
-    checks: Dict[str, bool] = field(default_factory=dict)
-    details: Dict[str, Any] = field(default_factory=dict)
+    checks: dict[str, bool] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "version": self.version,
@@ -69,8 +71,8 @@ class HealthProbe:
         self.version = version
         self._start_time = time.time()
         self._ready = False
-        self._custom_checks: Dict[str, Callable] = {}
-        self._component_status: Dict[str, bool] = {}
+        self._custom_checks: dict[str, Callable] = {}
+        self._component_status: dict[str, bool] = {}
 
     def mark_ready(self):
         """Mark the service as ready to accept traffic."""
@@ -97,7 +99,11 @@ class HealthProbe:
         uptime = time.time() - self._start_time
 
         return HealthStatus(
-            status="healthy" if all_healthy and self._ready else "degraded" if self._ready else "unhealthy",
+            status="healthy"
+            if all_healthy and self._ready
+            else "degraded"
+            if self._ready
+            else "unhealthy",
             version=self.version,
             uptime_seconds=uptime,
             checks=checks,

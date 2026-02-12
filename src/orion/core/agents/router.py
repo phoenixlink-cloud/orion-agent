@@ -26,10 +26,14 @@ This is the main integration point for the new architecture.
 """
 
 import asyncio
+import logging
 import os
 import time
-from typing import Optional, Callable, Any, Dict, List
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from orion.core.governance.aegis import Intent  # noqa: F401 -- canonical source
 
@@ -37,7 +41,8 @@ from orion.core.governance.aegis import Intent  # noqa: F401 -- canonical source
 def classify_intent(user_input: str, workspace_path: str = ".") -> Intent:
     """Legacy intent classification - now uses Scout internally."""
     try:
-        from orion.core.agents.scout import Scout, Route
+        from orion.core.agents.scout import Route, Scout
+
         scout = Scout(workspace_path)
         report = scout.analyze(user_input)
 
@@ -63,10 +68,10 @@ class RequestRouter:
     def __init__(
         self,
         workspace_path: str,
-        confirm_callback: Optional[Callable[[str], bool]] = None,
+        confirm_callback: Callable[[str], bool] | None = None,
         stream_output: bool = True,
         model: str = "gpt-4o",
-        sandbox_enabled: Optional[bool] = None,
+        sandbox_enabled: bool | None = None,
         memory_engine=None,
     ):
         self.source_path = Path(workspace_path).resolve()
@@ -79,6 +84,7 @@ class RequestRouter:
         self._log = None
         try:
             from orion.core.logging import get_logger
+
             self._log = get_logger()
         except Exception:
             pass
@@ -103,12 +109,14 @@ class RequestRouter:
         self.scout = None
         try:
             from orion.core.context.repo_map import RepoMap
+
             self.repo_map = RepoMap(str(self.workspace_path))
         except Exception:
             pass
 
         try:
             from orion.core.agents.scout import Scout
+
             self.scout = Scout(str(self.workspace_path), self.repo_map)
         except Exception:
             pass
@@ -121,6 +129,7 @@ class RequestRouter:
         """Create a workspace sandbox session from the source repo."""
         try:
             from orion.security.workspace_sandbox import get_workspace_sandbox
+
             self._sandbox_mgr = get_workspace_sandbox()
             self._sandbox_session = self._sandbox_mgr.create_session(str(self.source_path))
             return Path(self._sandbox_session.sandbox_path)
@@ -133,17 +142,19 @@ class RequestRouter:
     def sandbox_active(self) -> bool:
         return self._sandbox_enabled and self._sandbox_session is not None
 
-    def get_sandbox_diff(self) -> Optional[dict]:
+    def get_sandbox_diff(self) -> dict | None:
         if not self.sandbox_active:
             return None
         diff = self._sandbox_mgr.get_diff(self._sandbox_session)
         return {
-            "added": diff.added, "modified": diff.modified,
-            "deleted": diff.deleted, "total_changes": diff.total_changes,
+            "added": diff.added,
+            "modified": diff.modified,
+            "deleted": diff.deleted,
+            "total_changes": diff.total_changes,
             "diff_text": diff.diff_text,
         }
 
-    def promote_changes(self, files: Optional[List[str]] = None, dry_run: bool = False) -> dict:
+    def promote_changes(self, files: list[str] | None = None, dry_run: bool = False) -> dict:
         if not self.sandbox_active:
             return {"error": "Sandbox not active"}
         result = self._sandbox_mgr.promote(self._sandbox_session, files=files, dry_run=dry_run)
@@ -161,12 +172,13 @@ class RequestRouter:
         self._sandbox_session = None
         return result
 
-    def get_sandbox_status(self) -> Optional[dict]:
+    def get_sandbox_status(self) -> dict | None:
         """Get sandbox status including capabilities."""
         if not self._sandbox_enabled:
             return {"enabled": False}
         try:
             from orion.security.workspace_sandbox import get_workspace_sandbox
+
             return get_workspace_sandbox().get_status()
         except Exception:
             return {"enabled": False}
@@ -176,6 +188,7 @@ class RequestRouter:
         if self._fast_path is None:
             try:
                 from orion.core.agents.fast_path import FastPath
+
                 self._fast_path = FastPath(str(self.workspace_path), self.model)
             except Exception:
                 self._fast_path = None
@@ -186,6 +199,7 @@ class RequestRouter:
         if self._council is None:
             try:
                 from orion.core.agents.table import run_table_of_three
+
                 self._council = run_table_of_three
             except ImportError:
                 self._council = None
@@ -193,7 +207,7 @@ class RequestRouter:
 
     def _default_confirm(self, message: str) -> bool:
         response = input(f"\n[!] {message}\nProceed? [y/N]: ")
-        return response.lower() in ('y', 'yes')
+        return response.lower() in ("y", "yes")
 
     async def handle_request(self, request: str) -> dict:
         """
@@ -206,15 +220,18 @@ class RequestRouter:
 
         if not self.scout:
             return {
-                "success": False, "route": "UNKNOWN",
+                "success": False,
+                "route": "UNKNOWN",
                 "response": "Scout not available",
-                "files_modified": [], "execution_time_ms": 0,
+                "files_modified": [],
+                "execution_time_ms": 0,
             }
 
         report = self.scout.analyze(request)
 
         try:
             from orion.core.agents.scout import Route
+
             if report.route == Route.FAST_PATH:
                 response = await self._handle_fast_path(request, report)
             elif report.route == Route.COUNCIL:
@@ -242,9 +259,11 @@ class RequestRouter:
         except Exception as e:
             execution_time = int((time.time() - start_time) * 1000)
             return {
-                "success": False, "route": report.route.name,
+                "success": False,
+                "route": report.route.name,
                 "response": f"Error: {str(e)}",
-                "files_modified": [], "execution_time_ms": execution_time,
+                "files_modified": [],
+                "execution_time_ms": execution_time,
                 "error": str(e),
             }
 
@@ -339,6 +358,7 @@ class RequestRouter:
             settings_file = Path.home() / ".orion" / "settings.json"
             if settings_file.exists():
                 import json
+
                 settings = json.loads(settings_file.read_text())
                 mode = settings.get("default_mode", "safe")
         except Exception:

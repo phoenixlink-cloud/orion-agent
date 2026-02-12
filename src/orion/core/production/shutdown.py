@@ -20,11 +20,11 @@ Orion Agent -- Graceful Shutdown (v7.4.0)
 Handles graceful shutdown with in-flight request tracking.
 """
 
-import time
 import signal
 import threading
-from typing import List, Optional, Callable
-from contextlib import contextmanager
+import time
+from collections.abc import Callable
+from contextlib import contextmanager, suppress
 
 from orion.core.production.health import HealthProbe
 
@@ -45,8 +45,8 @@ class GracefulShutdown:
         self._shutting_down = False
         self._in_flight = 0
         self._lock = threading.Lock()
-        self._cleanup_callbacks: List[Callable] = []
-        self._health_probe: Optional[HealthProbe] = None
+        self._cleanup_callbacks: list[Callable] = []
+        self._health_probe: HealthProbe | None = None
 
     def install_signal_handlers(self):
         """Install SIGTERM and SIGINT handlers."""
@@ -101,10 +101,8 @@ class GracefulShutdown:
             time.sleep(0.1)
 
         for callback in self._cleanup_callbacks:
-            try:
+            with suppress(Exception):
                 callback()
-            except Exception:
-                pass
 
     def shutdown(self):
         """Manually trigger shutdown (for testing or programmatic use)."""

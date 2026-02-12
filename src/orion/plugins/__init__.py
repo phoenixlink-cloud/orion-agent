@@ -23,17 +23,17 @@ resolve to the **same** classes, singletons, and factory functions.
 """
 
 from orion.plugins.api import (  # noqa: F401
-    HookType,
+    EventBus,
     HookContext,
     HookResult,
-    PluginCommand,
-    PluginSkill,
-    PluginManifest,
-    PluginBase,
-    EventBus,
-    ManifestPlugin,
+    HookType,
     IntegrationPluginWrapper,
+    ManifestPlugin,
+    PluginBase,
+    PluginCommand,
     PluginLoader,
+    PluginManifest,
+    PluginSkill,
     get_event_bus,
     get_plugin_loader,
 )

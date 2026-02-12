@@ -24,7 +24,7 @@ Migrated from Orion_MVP/core/learning.py (pattern logic).
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from orion.core.memory.institutional import InstitutionalMemory
 
@@ -55,11 +55,12 @@ def classify_request_type(request: str) -> str:
 
 # ── Pattern extraction ───────────────────────────────────────────────────
 
+
 def extract_success_pattern(
     request: str,
     response: str,
-    context: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Extract a success pattern from a positive interaction.
 
@@ -80,8 +81,8 @@ def extract_failure_pattern(
     request: str,
     response: str,
     feedback: str,
-    context: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Extract an anti-pattern from a failed interaction.
 
@@ -103,8 +104,8 @@ def extract_edit_pattern(
     request: str,
     original: str,
     edited: str,
-    context: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Extract a preference pattern from user edits.
 
@@ -124,11 +125,12 @@ def extract_edit_pattern(
 
 # ── Batch pattern analysis ───────────────────────────────────────────────
 
+
 def analyze_patterns(
     institutional: InstitutionalMemory,
     min_confidence: float = 0.7,
     min_severity: float = 0.6,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Analyze accumulated patterns and anti-patterns.
 
@@ -139,7 +141,7 @@ def analyze_patterns(
     anti_patterns = institutional.get_learned_anti_patterns(min_severity)
 
     # Group patterns by implicit request type
-    by_type: Dict[str, List[Dict]] = {}
+    by_type: dict[str, list[dict]] = {}
     for p in patterns:
         desc = p.description
         rtype = "general"
@@ -147,18 +149,24 @@ def analyze_patterns(
             if t in desc.lower():
                 rtype = t
                 break
-        by_type.setdefault(rtype, []).append({
-            "description": p.description,
-            "confidence": p.confidence,
-            "success_count": p.success_count,
-        })
+        by_type.setdefault(rtype, []).append(
+            {
+                "description": p.description,
+                "confidence": p.confidence,
+                "success_count": p.success_count,
+            }
+        )
 
     return {
         "total_patterns": len(patterns),
         "total_anti_patterns": len(anti_patterns),
         "patterns_by_type": by_type,
         "top_anti_patterns": [
-            {"description": ap.description, "severity": ap.severity, "occurrences": ap.occurrence_count}
+            {
+                "description": ap.description,
+                "severity": ap.severity,
+                "occurrences": ap.occurrence_count,
+            }
             for ap in anti_patterns[:5]
         ],
     }
@@ -177,7 +185,7 @@ def get_learnings_for_prompt(
     """
     wisdom = institutional.get_relevant_wisdom(request)
 
-    lines: List[str] = []
+    lines: list[str] = []
     patterns = wisdom.get("learned_patterns", [])
     anti_patterns = wisdom.get("learned_anti_patterns", [])
     prefs = wisdom.get("user_preferences", {})

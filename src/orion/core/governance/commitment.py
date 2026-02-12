@@ -29,15 +29,15 @@ EXECUTION AUTHORITY = how much autonomy Orion has during execution.
 """
 
 import logging
-from enum import Enum
 from dataclasses import dataclass, field
-from typing import Optional, Set
+from enum import Enum
 
 logger = logging.getLogger("orion.governance.commitment")
 
 
 class ExecutionAuthority(Enum):
     """Execution authority scope. Set ONCE at commitment time."""
+
     STEP_BY_STEP = "step_by_step"
     PLAN_BOUNDED = "plan_bounded"
     WORKSPACE_BOUNDED = "workspace_bounded"
@@ -52,14 +52,15 @@ class CommitmentState:
     - Orion must NOT return plans or approaches
     - Orion must move to ACTION GENERATION
     """
+
     committed: bool = False
     authority: ExecutionAuthority = ExecutionAuthority.STEP_BY_STEP
-    plan_path: Optional[str] = None
+    plan_path: str | None = None
     batch_count: int = 0
-    executed_actions: Set[str] = field(default_factory=set)
-    termination_reason: Optional[str] = None
+    executed_actions: set[str] = field(default_factory=set)
+    termination_reason: str | None = None
 
-    def commit(self, authority: ExecutionAuthority, plan_path: Optional[str] = None):
+    def commit(self, authority: ExecutionAuthority, plan_path: str | None = None):
         """Enter committed state. ONE-TIME transition per session."""
         if self.committed:
             return

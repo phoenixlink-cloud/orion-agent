@@ -23,7 +23,7 @@ Providers: DALL-E 3, Stability AI, SDXL, Midjourney (via proxy), etc.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.integrations.image")
 
@@ -36,7 +36,7 @@ class ImageProviderBase(ABC):
     def name(self) -> str: ...
 
     @property
-    def supported_sizes(self) -> List[str]:
+    def supported_sizes(self) -> list[str]:
         return ["1024x1024"]
 
     @abstractmethod
@@ -46,7 +46,7 @@ class ImageProviderBase(ABC):
         size: str = "1024x1024",
         n: int = 1,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Generate image(s) from a text prompt.
 
@@ -67,14 +67,17 @@ class DallEProvider(ImageProviderBase):
         return "dalle"
 
     @property
-    def supported_sizes(self) -> List[str]:
+    def supported_sizes(self) -> list[str]:
         return ["1024x1024", "1792x1024", "1024x1792"]
 
-    async def generate(self, prompt: str, size: str = "1024x1024", n: int = 1, **kwargs) -> Dict[str, Any]:
+    async def generate(
+        self, prompt: str, size: str = "1024x1024", n: int = 1, **kwargs
+    ) -> dict[str, Any]:
         import httpx
 
         try:
             from orion.security.store import SecureStore
+
             api_key = SecureStore().get_key("openai")
         except Exception:
             api_key = None
@@ -92,28 +95,34 @@ class DallEProvider(ImageProviderBase):
         }
 
         async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post("https://api.openai.com/v1/images/generations", headers=headers, json=payload)
+            resp = await client.post(
+                "https://api.openai.com/v1/images/generations", headers=headers, json=payload
+            )
             resp.raise_for_status()
             data = resp.json()
 
         images = [item.get("url", "") for item in data.get("data", [])]
-        return {"success": True, "images": images, "revised_prompt": data["data"][0].get("revised_prompt", "")}
+        return {
+            "success": True,
+            "images": images,
+            "revised_prompt": data["data"][0].get("revised_prompt", ""),
+        }
 
 
 # ── Provider registry ────────────────────────────────────────────────────
 
-_PROVIDERS: Dict[str, ImageProviderBase] = {}
+_PROVIDERS: dict[str, ImageProviderBase] = {}
 
 
 def register_image_provider(provider: ImageProviderBase):
     _PROVIDERS[provider.name] = provider
 
 
-def get_image_provider(name: str = "dalle") -> Optional[ImageProviderBase]:
+def get_image_provider(name: str = "dalle") -> ImageProviderBase | None:
     return _PROVIDERS.get(name)
 
 
-def list_image_providers() -> List[str]:
+def list_image_providers() -> list[str]:
     return list(_PROVIDERS.keys())
 
 

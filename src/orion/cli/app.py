@@ -26,6 +26,7 @@ Usage:
 """
 
 import sys
+
 from orion import __version__
 
 
@@ -36,6 +37,7 @@ def main():
         return
 
     from orion.cli.repl import start_repl
+
     start_repl()
 
 

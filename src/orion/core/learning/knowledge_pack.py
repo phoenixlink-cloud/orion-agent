@@ -29,15 +29,14 @@ USAGE:
     result = mgr.import_pack("legal_sa_1.0.0.orionpack")
 """
 
-import json
 import hashlib
+import json
 import logging
-import uuid
 import sqlite3
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional
-from pathlib import Path
+import uuid
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 logger = logging.getLogger("orion.learning.knowledge_pack")
 
@@ -47,6 +46,7 @@ FORMAT_VERSION = "1.0"
 @dataclass
 class KnowledgePack:
     """A portable, versioned snapshot of domain knowledge."""
+
     pack_id: str
     name: str
     domain: str
@@ -58,14 +58,15 @@ class KnowledgePack:
     graduation_score: float
     pattern_count: int
     anti_pattern_count: int
-    patterns: List[Dict] = field(default_factory=list)
-    metadata: Dict = field(default_factory=dict)
+    patterns: list[dict] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
     checksum: str = ""
 
 
 @dataclass
 class ImportResult:
     """Result of importing a knowledge pack."""
+
     patterns_imported: int
     patterns_skipped: int
     patterns_conflicted: int
@@ -94,7 +95,7 @@ class KnowledgePackManager:
         student_model: str = "",
         training_cycles: int = 0,
         graduation_score: float = 0.0,
-        source_materials: List[str] = None,
+        source_materials: list[str] = None,
     ) -> KnowledgePack:
         """
         Export domain patterns from Tier 3 as a portable knowledge pack.
@@ -174,14 +175,15 @@ class KnowledgePackManager:
         pack_file.write_text(json.dumps(pack_data, indent=2), encoding="utf-8")
         logger.info(
             "Exported knowledge pack: %s v%s (%d patterns) -> %s",
-            name, version, len(patterns), pack_file,
+            name,
+            version,
+            len(patterns),
+            pack_file,
         )
 
         return pack
 
-    def import_pack(
-        self, pack_path: str, merge_strategy: str = "skip_existing"
-    ) -> ImportResult:
+    def import_pack(self, pack_path: str, merge_strategy: str = "skip_existing") -> ImportResult:
         """
         Import a knowledge pack into Tier 3.
 
@@ -237,7 +239,11 @@ class KnowledgePackManager:
 
         logger.info(
             "Imported knowledge pack: %s v%s -- %d imported, %d skipped, %d conflicted",
-            domain, version, imported, skipped, conflicted,
+            domain,
+            version,
+            imported,
+            skipped,
+            conflicted,
         )
 
         return ImportResult(
@@ -248,7 +254,7 @@ class KnowledgePackManager:
             version=version,
         )
 
-    def list_packs(self) -> List[Dict]:
+    def list_packs(self) -> list[dict]:
         """
         List available .orionpack files (without loading full patterns).
 
@@ -259,22 +265,24 @@ class KnowledgePackManager:
         for f in self.packs_dir.glob("*.orionpack"):
             try:
                 data = json.loads(f.read_text(encoding="utf-8"))
-                packs.append({
-                    "file": str(f),
-                    "pack_id": data.get("pack_id", ""),
-                    "name": data.get("name", ""),
-                    "domain": data.get("domain", ""),
-                    "version": data.get("version", ""),
-                    "description": data.get("description", ""),
-                    "pattern_count": data.get("pattern_count", 0),
-                    "anti_pattern_count": data.get("anti_pattern_count", 0),
-                    "created_at": data.get("created_at", ""),
-                })
+                packs.append(
+                    {
+                        "file": str(f),
+                        "pack_id": data.get("pack_id", ""),
+                        "name": data.get("name", ""),
+                        "domain": data.get("domain", ""),
+                        "version": data.get("version", ""),
+                        "description": data.get("description", ""),
+                        "pattern_count": data.get("pattern_count", 0),
+                        "anti_pattern_count": data.get("anti_pattern_count", 0),
+                        "created_at": data.get("created_at", ""),
+                    }
+                )
             except Exception as e:
                 logger.warning("Could not read pack file %s: %s", f, e)
         return packs
 
-    def list_installed_packs(self) -> List[Dict]:
+    def list_installed_packs(self) -> list[dict]:
         """
         List knowledge packs that are currently installed in Tier 3.
         Queries for unique pack_id values in metadata.
@@ -364,7 +372,7 @@ class KnowledgePackManager:
     # INTERNAL HELPERS
     # =========================================================================
 
-    def _load_pack_file(self, pack_path: str) -> Optional[Dict]:
+    def _load_pack_file(self, pack_path: str) -> dict | None:
         """Load and parse a .orionpack file."""
         try:
             path = Path(pack_path)
@@ -379,7 +387,7 @@ class KnowledgePackManager:
             logger.warning("Failed to load pack file %s: %s", pack_path, e)
             return None
 
-    def _verify_checksum(self, pack_data: Dict) -> bool:
+    def _verify_checksum(self, pack_data: dict) -> bool:
         """Recompute checksum and compare against stored checksum."""
         stored = pack_data.get("checksum", "")
         # Recombine patterns + anti_patterns to match the original checksum
@@ -388,7 +396,7 @@ class KnowledgePackManager:
         computed = f"sha256:{hashlib.sha256(patterns_json.encode()).hexdigest()}"
         return stored == computed
 
-    def _query_domain_patterns(self, domain: str) -> List[Dict]:
+    def _query_domain_patterns(self, domain: str) -> list[dict]:
         """Query all Tier 3 entries for a specific domain."""
         try:
             db_path = self.memory_engine._db_path
@@ -407,15 +415,17 @@ class KnowledgePackManager:
                     meta = json.loads(meta_str) if meta_str else {}
                 except Exception:
                     meta = {}
-                patterns.append({
-                    "id": mid,
-                    "content": content,
-                    "category": category,
-                    "confidence": confidence,
-                    "domain": domain,
-                    "tags": meta.get("tags", []),
-                    "created_at": created_at,
-                })
+                patterns.append(
+                    {
+                        "id": mid,
+                        "content": content,
+                        "category": category,
+                        "confidence": confidence,
+                        "domain": domain,
+                        "tags": meta.get("tags", []),
+                        "created_at": created_at,
+                    }
+                )
             return patterns
 
         except Exception as e:
@@ -440,7 +450,7 @@ class KnowledgePackManager:
         """Check if an entry with this content hash exists."""
         return self.memory_engine._content_hash_exists(content_hash)
 
-    def _insert_pattern(self, pattern: Dict, pack_id: str, pack_version: str, domain: str):
+    def _insert_pattern(self, pattern: dict, pack_id: str, pack_version: str, domain: str):
         """Insert a single pattern from a knowledge pack into Tier 3."""
         self.memory_engine.load_knowledge_pack(
             patterns=[{**pattern, "domain": domain}],

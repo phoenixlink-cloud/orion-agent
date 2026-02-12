@@ -37,11 +37,11 @@ Architecture:
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Any
 
-from orion.core.agents.builder import BuilderResult, run_builder
-from orion.core.agents.reviewer import ReviewerResult, run_reviewer
-from orion.core.agents.governor import GovernorResult, decide as governor_decide
+from orion.core.agents.builder import run_builder
+from orion.core.agents.governor import decide as governor_decide
+from orion.core.agents.reviewer import run_reviewer
 
 logger = logging.getLogger("orion.table")
 
@@ -50,15 +50,17 @@ logger = logging.getLogger("orion.table")
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class TableResult:
     """Result from Table of Three deliberation."""
-    outcome: str          # "ANSWER", "PLAN", "ACTION_INTENT"
+
+    outcome: str  # "ANSWER", "PLAN", "ACTION_INTENT"
     response: str
-    actions: List[Dict[str, Any]] = field(default_factory=list)
+    actions: list[dict[str, Any]] = field(default_factory=list)
     explanation: str = ""
     reviewer_decision: str = ""
-    revision_notes: List[str] = field(default_factory=list)
+    revision_notes: list[str] = field(default_factory=list)
     proposal_source: str = "builder"
     builder_provider: str = ""
     reviewer_provider: str = ""
@@ -68,11 +70,12 @@ class TableResult:
 @dataclass
 class TableSession:
     """Tracks state across multi-chunk deliberation."""
+
     session_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    seen_files: List[str] = field(default_factory=list)
+    seen_files: list[str] = field(default_factory=list)
     evidence_chunks: int = 0
 
-    def mark_seen(self, files: List[str]):
+    def mark_seen(self, files: list[str]):
         for f in files:
             if f not in self.seen_files:
                 self.seen_files.append(f)
@@ -93,6 +96,7 @@ class TableSession:
 # =============================================================================
 # SINGLE ROUND
 # =============================================================================
+
 
 async def _run_single_round(
     user_input: str,
@@ -116,7 +120,9 @@ async def _run_single_round(
         session_header=session_header,
         execution_mode=execution_mode,
     )
-    logger.info(f"Table: Builder returned outcome={builder_result.outcome} ({builder_result.provider}/{builder_result.model})")
+    logger.info(
+        f"Table: Builder returned outcome={builder_result.outcome} ({builder_result.provider}/{builder_result.model})"
+    )
 
     # STEP 2: Reviewer evaluates
     logger.info("Table: Step 2 -- Reviewer evaluating")
@@ -127,7 +133,9 @@ async def _run_single_round(
         mode=mode,
         session_header=session_header,
     )
-    logger.info(f"Table: Reviewer decided={reviewer_result.decision} ({reviewer_result.provider}/{reviewer_result.model})")
+    logger.info(
+        f"Table: Reviewer decided={reviewer_result.decision} ({reviewer_result.provider}/{reviewer_result.model})"
+    )
 
     # STEP 3: Governor decides (deterministic)
     logger.info("Table: Step 3 -- Governor deciding")
@@ -155,13 +163,14 @@ async def _run_single_round(
 # MAIN ENTRY POINT
 # =============================================================================
 
+
 async def run_table_of_three(
     user_input: str,
     evidence_context: str = "",
     mode: str = "safe",
-    workspace_path: Optional[str] = None,
+    workspace_path: str | None = None,
     execution_mode: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Run the Table of Three deliberation.
 
@@ -186,6 +195,7 @@ async def run_table_of_three(
     if not evidence_context and workspace_path:
         try:
             from orion.core.context.repo_map import generate_repo_map
+
             evidence_context = generate_repo_map(workspace_path, max_tokens=4096)
         except Exception:
             evidence_context = "No evidence collected."

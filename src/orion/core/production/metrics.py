@@ -20,17 +20,16 @@ Orion Agent -- Metrics Collector & Rate Limiter (v7.4.0)
 Prometheus-compatible metrics export and token bucket rate limiter.
 """
 
-import time
 import threading
-from dataclasses import dataclass, field
-from typing import Dict, List
+import time
 from collections import defaultdict
 from contextlib import contextmanager
-
+from dataclasses import dataclass, field
 
 # =============================================================================
 # RATE LIMITER
 # =============================================================================
+
 
 class RateLimiter:
     """
@@ -77,9 +76,11 @@ class RateLimiter:
 # REQUEST METRICS
 # =============================================================================
 
+
 @dataclass
 class RequestMetrics:
     """Tracks request metrics for observability."""
+
     total_requests: int = 0
     successful_requests: int = 0
     failed_requests: int = 0
@@ -88,8 +89,8 @@ class RequestMetrics:
     p95_latency_ms: float = 0.0
     p99_latency_ms: float = 0.0
     requests_per_minute: float = 0.0
-    errors_by_type: Dict[str, int] = field(default_factory=dict)
-    latency_by_endpoint: Dict[str, float] = field(default_factory=dict)
+    errors_by_type: dict[str, int] = field(default_factory=dict)
+    latency_by_endpoint: dict[str, float] = field(default_factory=dict)
 
 
 class MetricsCollector:
@@ -104,9 +105,9 @@ class MetricsCollector:
         self._success = 0
         self._failed = 0
         self._in_flight = 0
-        self._latencies: List[float] = []
-        self._errors: Dict[str, int] = defaultdict(int)
-        self._endpoint_latencies: Dict[str, List[float]] = defaultdict(list)
+        self._latencies: list[float] = []
+        self._errors: dict[str, int] = defaultdict(int)
+        self._endpoint_latencies: dict[str, list[float]] = defaultdict(list)
         self._start_time = time.time()
         self._lock = threading.Lock()
 
@@ -149,8 +150,12 @@ class MetricsCollector:
                 failed_requests=self._failed,
                 in_flight=self._in_flight,
                 avg_latency_ms=round(sum(latencies) / n, 2) if n > 0 else 0.0,
-                p95_latency_ms=round(latencies[int(n * 0.95)] if n >= 20 else (latencies[-1] if n > 0 else 0), 2),
-                p99_latency_ms=round(latencies[int(n * 0.99)] if n >= 100 else (latencies[-1] if n > 0 else 0), 2),
+                p95_latency_ms=round(
+                    latencies[int(n * 0.95)] if n >= 20 else (latencies[-1] if n > 0 else 0), 2
+                ),
+                p99_latency_ms=round(
+                    latencies[int(n * 0.99)] if n >= 100 else (latencies[-1] if n > 0 else 0), 2
+                ),
                 requests_per_minute=round(self._total / elapsed_min, 2) if elapsed_min > 0 else 0.0,
                 errors_by_type=dict(self._errors),
                 latency_by_endpoint={
@@ -164,24 +169,24 @@ class MetricsCollector:
         """Export metrics in Prometheus exposition format."""
         m = self.get_metrics()
         lines = [
-            f'# HELP orion_requests_total Total requests',
-            f'# TYPE orion_requests_total counter',
-            f'orion_requests_total {m.total_requests}',
-            f'# HELP orion_requests_success Successful requests',
-            f'# TYPE orion_requests_success counter',
-            f'orion_requests_success {m.successful_requests}',
-            f'# HELP orion_requests_failed Failed requests',
-            f'# TYPE orion_requests_failed counter',
-            f'orion_requests_failed {m.failed_requests}',
-            f'# HELP orion_requests_in_flight Current in-flight requests',
-            f'# TYPE orion_requests_in_flight gauge',
-            f'orion_requests_in_flight {m.in_flight}',
-            f'# HELP orion_latency_avg_ms Average latency in ms',
-            f'# TYPE orion_latency_avg_ms gauge',
-            f'orion_latency_avg_ms {m.avg_latency_ms}',
-            f'# HELP orion_latency_p95_ms P95 latency in ms',
-            f'# TYPE orion_latency_p95_ms gauge',
-            f'orion_latency_p95_ms {m.p95_latency_ms}',
+            "# HELP orion_requests_total Total requests",
+            "# TYPE orion_requests_total counter",
+            f"orion_requests_total {m.total_requests}",
+            "# HELP orion_requests_success Successful requests",
+            "# TYPE orion_requests_success counter",
+            f"orion_requests_success {m.successful_requests}",
+            "# HELP orion_requests_failed Failed requests",
+            "# TYPE orion_requests_failed counter",
+            f"orion_requests_failed {m.failed_requests}",
+            "# HELP orion_requests_in_flight Current in-flight requests",
+            "# TYPE orion_requests_in_flight gauge",
+            f"orion_requests_in_flight {m.in_flight}",
+            "# HELP orion_latency_avg_ms Average latency in ms",
+            "# TYPE orion_latency_avg_ms gauge",
+            f"orion_latency_avg_ms {m.avg_latency_ms}",
+            "# HELP orion_latency_p95_ms P95 latency in ms",
+            "# TYPE orion_latency_p95_ms gauge",
+            f"orion_latency_p95_ms {m.p95_latency_ms}",
         ]
         return "\n".join(lines)
 

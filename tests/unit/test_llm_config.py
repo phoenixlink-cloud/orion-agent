@@ -1,11 +1,14 @@
 """Tests for orion.core.llm.config -- Flexible model configuration."""
 
-import json
-import pytest
 from unittest.mock import patch
+
 from orion.core.llm.config import (
-    ModelConfiguration, RoleConfig, PROVIDERS, PRESETS,
-    load_model_config, save_model_config, get_model_config, apply_preset,
+    PRESETS,
+    ModelConfiguration,
+    RoleConfig,
+    apply_preset,
+    load_model_config,
+    save_model_config,
 )
 
 

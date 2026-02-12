@@ -28,7 +28,7 @@ import logging
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.security.sandbox")
 
@@ -75,13 +75,13 @@ class SandboxManager:
         self._cpu_limit: str = "1.0"
         self._default_timeout: int = 30
         self._network_enabled: bool = False
-        self._history: List[Dict[str, Any]] = []
+        self._history: list[dict[str, Any]] = []
         self._load_config()
 
     def _load_config(self):
         if SANDBOX_CONFIG_PATH.exists():
             try:
-                with open(SANDBOX_CONFIG_PATH, "r") as f:
+                with open(SANDBOX_CONFIG_PATH) as f:
                     data = json.load(f)
                 self._memory_limit = data.get("memory_limit", self._memory_limit)
                 self._cpu_limit = data.get("cpu_limit", self._cpu_limit)
@@ -112,14 +112,19 @@ class SandboxManager:
 
     # ── Code execution ───────────────────────────────────────────────────
 
-    def run_code(self, code: str, language: str = "python", timeout: Optional[int] = None) -> Dict[str, Any]:
+    def run_code(
+        self, code: str, language: str = "python", timeout: int | None = None
+    ) -> dict[str, Any]:
         """Run code in an isolated Docker container."""
         if not code.strip():
             return {"success": False, "error": "No code provided"}
 
         lang = language.lower()
         if lang not in LANGUAGE_IMAGES:
-            return {"success": False, "error": f"Unsupported language: {language}. Supported: {sorted(set(LANGUAGE_IMAGES.keys()))}"}
+            return {
+                "success": False,
+                "error": f"Unsupported language: {language}. Supported: {sorted(set(LANGUAGE_IMAGES.keys()))}",
+            }
 
         if not self.is_docker_available():
             return {"success": False, "error": "Docker is not available. Install and start Docker."}
@@ -130,13 +135,20 @@ class SandboxManager:
         container_name = f"{self.CONTAINER_PREFIX}{int(time.time())}"
 
         docker_cmd = [
-            "docker", "run", "--rm",
-            "--name", container_name,
-            "--memory", self._memory_limit,
-            "--cpus", self._cpu_limit,
-            "--pids-limit", "64",
+            "docker",
+            "run",
+            "--rm",
+            "--name",
+            container_name,
+            "--memory",
+            self._memory_limit,
+            "--cpus",
+            self._cpu_limit,
+            "--pids-limit",
+            "64",
             "--read-only",
-            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+            "--tmpfs",
+            "/tmp:rw,noexec,nosuid,size=64m",
         ]
 
         if not self._network_enabled:
@@ -150,11 +162,15 @@ class SandboxManager:
             result = subprocess.run(docker_cmd, capture_output=True, text=True, timeout=timeout)
             execution_time = time.time() - start_time
 
-            self._history.append({
-                "language": lang, "code_length": len(code),
-                "exit_code": result.returncode, "execution_time": execution_time,
-                "timestamp": time.time(),
-            })
+            self._history.append(
+                {
+                    "language": lang,
+                    "code_length": len(code),
+                    "exit_code": result.returncode,
+                    "execution_time": execution_time,
+                    "timestamp": time.time(),
+                }
+            )
 
             return {
                 "success": result.returncode == 0,
@@ -167,7 +183,11 @@ class SandboxManager:
             }
         except subprocess.TimeoutExpired:
             subprocess.run(["docker", "kill", container_name], capture_output=True, timeout=5)
-            return {"success": False, "error": f"Execution timed out after {timeout}s", "language": lang}
+            return {
+                "success": False,
+                "error": f"Execution timed out after {timeout}s",
+                "language": lang,
+            }
         except FileNotFoundError:
             return {"success": False, "error": "Docker not found in PATH"}
         except Exception as e:
@@ -175,36 +195,57 @@ class SandboxManager:
 
     # ── Container management ─────────────────────────────────────────────
 
-    def list_containers(self) -> Dict[str, Any]:
+    def list_containers(self) -> dict[str, Any]:
         if not self.is_docker_available():
             return {"success": False, "error": "Docker not available"}
         try:
             result = subprocess.run(
-                ["docker", "ps", "--filter", f"name={self.CONTAINER_PREFIX}",
-                 "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}"],
-                capture_output=True, text=True, timeout=10,
+                [
+                    "docker",
+                    "ps",
+                    "--filter",
+                    f"name={self.CONTAINER_PREFIX}",
+                    "--format",
+                    "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             containers = []
             for line in result.stdout.strip().split("\n"):
                 if line:
                     parts = line.split("\t")
                     if len(parts) >= 4:
-                        containers.append({
-                            "id": parts[0], "name": parts[1],
-                            "status": parts[2], "image": parts[3],
-                        })
+                        containers.append(
+                            {
+                                "id": parts[0],
+                                "name": parts[1],
+                                "status": parts[2],
+                                "image": parts[3],
+                            }
+                        )
             return {"success": True, "containers": containers, "count": len(containers)}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def cleanup_containers(self) -> Dict[str, Any]:
+    def cleanup_containers(self) -> dict[str, Any]:
         if not self.is_docker_available():
             return {"success": False, "error": "Docker not available"}
         try:
             result = subprocess.run(
-                ["docker", "ps", "-a", "--filter", f"name={self.CONTAINER_PREFIX}",
-                 "--format", "{{.ID}}"],
-                capture_output=True, text=True, timeout=10,
+                [
+                    "docker",
+                    "ps",
+                    "-a",
+                    "--filter",
+                    f"name={self.CONTAINER_PREFIX}",
+                    "--format",
+                    "{{.ID}}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             ids = [c.strip() for c in result.stdout.strip().split("\n") if c.strip()]
             if not ids:
@@ -216,29 +257,29 @@ class SandboxManager:
 
     # ── Settings ─────────────────────────────────────────────────────────
 
-    def set_memory_limit(self, limit: str) -> Dict[str, Any]:
+    def set_memory_limit(self, limit: str) -> dict[str, Any]:
         self._memory_limit = limit
         self._save_config()
         return {"success": True, "memory_limit": limit}
 
-    def set_cpu_limit(self, limit: str) -> Dict[str, Any]:
+    def set_cpu_limit(self, limit: str) -> dict[str, Any]:
         self._cpu_limit = limit
         self._save_config()
         return {"success": True, "cpu_limit": limit}
 
-    def set_timeout(self, timeout: int) -> Dict[str, Any]:
+    def set_timeout(self, timeout: int) -> dict[str, Any]:
         self._default_timeout = timeout
         self._save_config()
         return {"success": True, "default_timeout": timeout}
 
-    def set_network(self, enabled: bool) -> Dict[str, Any]:
+    def set_network(self, enabled: bool) -> dict[str, Any]:
         self._network_enabled = enabled
         self._save_config()
         return {"success": True, "network_enabled": enabled}
 
     # ── Status ───────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "docker_available": self.is_docker_available(),
             "memory_limit": self._memory_limit,
@@ -249,13 +290,13 @@ class SandboxManager:
             "history_count": len(self._history),
         }
 
-    def get_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_history(self, limit: int = 10) -> list[dict[str, Any]]:
         return self._history[-limit:]
 
 
 # ── Singleton ────────────────────────────────────────────────────────────
 
-_sandbox_manager: Optional[SandboxManager] = None
+_sandbox_manager: SandboxManager | None = None
 
 
 def get_sandbox_manager() -> SandboxManager:

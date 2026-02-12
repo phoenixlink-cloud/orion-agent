@@ -24,12 +24,13 @@ capability reporting, and lifecycle management.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
 from enum import Enum
+from typing import Any
 
 
 class AuthType(Enum):
     """Authentication method required by an integration."""
+
     NONE = "none"
     API_KEY = "api_key"
     OAUTH = "oauth"
@@ -37,6 +38,7 @@ class AuthType(Enum):
 
 class IntegrationStatus(Enum):
     """Current status of an integration."""
+
     DISABLED = "disabled"
     AVAILABLE = "available"
     AUTHENTICATED = "authenticated"
@@ -46,6 +48,7 @@ class IntegrationStatus(Enum):
 @dataclass
 class IntegrationCapability:
     """A single capability that an integration provides."""
+
     name: str
     description: str
     category: str  # e.g. "image_gen", "voice", "docs", "storage"
@@ -55,14 +58,15 @@ class IntegrationCapability:
 @dataclass
 class IntegrationInfo:
     """Metadata about an integration for display/API purposes."""
+
     name: str
     display_name: str
     description: str
     version: str
     auth_type: AuthType
     status: IntegrationStatus
-    capabilities: List[str]
-    config: Dict[str, Any] = field(default_factory=dict)
+    capabilities: list[str]
+    config: dict[str, Any] = field(default_factory=dict)
 
 
 class IntegrationBase(ABC):
@@ -134,7 +138,7 @@ class IntegrationBase(ABC):
         ...
 
     @abstractmethod
-    def get_capabilities(self) -> List[IntegrationCapability]:
+    def get_capabilities(self) -> list[IntegrationCapability]:
         """Return list of capabilities this integration provides."""
         ...
 
@@ -159,7 +163,7 @@ class IntegrationBase(ABC):
             capabilities=[c.name for c in self.get_capabilities()],
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize integration info for API responses."""
         info = self.get_info()
         return {

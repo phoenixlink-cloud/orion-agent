@@ -21,15 +21,11 @@ Common utilities, settings persistence, and Pydantic models
 shared across all route modules.
 """
 
-import os
 import json
 import logging
 from pathlib import Path
-from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel
-
-from orion._version import __version__
 
 logger = logging.getLogger("orion.api.server")
 
@@ -50,6 +46,7 @@ def _get_orion_log():
     if _orion_log is None:
         try:
             from orion.core.logging import get_logger
+
             _orion_log = get_logger(project_dir=_PROJECT_ROOT)
         except Exception:
             pass
@@ -82,10 +79,12 @@ def _save_user_settings(settings: dict):
 # SECURE STORE
 # =============================================================================
 
+
 def _get_secure_store():
     """Get SecureStore singleton. Falls back to legacy plaintext if unavailable."""
     try:
         from orion.security.store import get_secure_store
+
         store = get_secure_store()
         if store.is_available:
             return store
@@ -97,6 +96,7 @@ def _get_secure_store():
 # =============================================================================
 # PYDANTIC MODELS
 # =============================================================================
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -111,14 +111,14 @@ class ModelModeRequest(BaseModel):
 class RoleConfigRequest(BaseModel):
     provider: str
     model: str
-    light_model: Optional[str] = ""
-    use_tiers: Optional[bool] = False
+    light_model: str | None = ""
+    use_tiers: bool | None = False
 
 
 class ModelConfigRequest(BaseModel):
-    mode: Optional[str] = None
-    builder: Optional[RoleConfigRequest] = None
-    reviewer: Optional[RoleConfigRequest] = None
+    mode: str | None = None
+    builder: RoleConfigRequest | None = None
+    reviewer: RoleConfigRequest | None = None
 
 
 class PresetRequest(BaseModel):
@@ -133,12 +133,12 @@ class APIKeySetRequest(BaseModel):
 class OAuthConfigureRequest(BaseModel):
     provider: str
     client_id: str
-    client_secret: Optional[str] = None
+    client_secret: str | None = None
 
 
 class OAuthLoginRequest(BaseModel):
     provider: str
-    redirect_uri: Optional[str] = None
+    redirect_uri: str | None = None
 
 
 class OAuthRevokeRequest(BaseModel):
@@ -158,47 +158,47 @@ class ProviderToggleRequest(BaseModel):
 
 class SettingsUpdate(BaseModel):
     # Core Features
-    enable_table_of_three: Optional[bool] = None
-    enable_file_tools: Optional[bool] = None
-    enable_passive_memory: Optional[bool] = None
-    enable_intelligent_orion: Optional[bool] = None
-    enable_streaming: Optional[bool] = None
+    enable_table_of_three: bool | None = None
+    enable_file_tools: bool | None = None
+    enable_passive_memory: bool | None = None
+    enable_intelligent_orion: bool | None = None
+    enable_streaming: bool | None = None
     # Intelligent Orion
-    quality_threshold: Optional[float] = None
-    max_refinement_iterations: Optional[int] = None
+    quality_threshold: float | None = None
+    max_refinement_iterations: int | None = None
     # Governance
-    default_mode: Optional[str] = None
-    aegis_strict_mode: Optional[bool] = None
+    default_mode: str | None = None
+    aegis_strict_mode: bool | None = None
     # Command Execution
-    enable_command_execution: Optional[bool] = None
-    command_timeout_seconds: Optional[int] = None
+    enable_command_execution: bool | None = None
+    command_timeout_seconds: int | None = None
     # Limits
-    max_evidence_files: Optional[int] = None
-    max_file_size_bytes: Optional[int] = None
-    max_evidence_retry: Optional[int] = None
+    max_evidence_files: int | None = None
+    max_file_size_bytes: int | None = None
+    max_evidence_retry: int | None = None
     # Web Access
-    enable_web_access: Optional[bool] = None
-    web_cache_ttl: Optional[int] = None
-    allowed_domains: Optional[str] = None
+    enable_web_access: bool | None = None
+    web_cache_ttl: int | None = None
+    allowed_domains: str | None = None
     # Image Generation
-    image_provider: Optional[str] = None
-    sdxl_enabled: Optional[bool] = None
-    sdxl_endpoint: Optional[str] = None
-    flux_enabled: Optional[bool] = None
-    dalle_enabled: Optional[bool] = None
-    dalle_model: Optional[str] = None
+    image_provider: str | None = None
+    sdxl_enabled: bool | None = None
+    sdxl_endpoint: str | None = None
+    flux_enabled: bool | None = None
+    dalle_enabled: bool | None = None
+    dalle_model: str | None = None
     # Models (legacy)
-    use_local_models: Optional[bool] = None
-    gpt_model: Optional[str] = None
-    claude_model: Optional[str] = None
-    ollama_base_url: Optional[str] = None
-    ollama_builder_model: Optional[str] = None
-    ollama_reviewer_model: Optional[str] = None
+    use_local_models: bool | None = None
+    gpt_model: str | None = None
+    claude_model: str | None = None
+    ollama_base_url: str | None = None
+    ollama_builder_model: str | None = None
+    ollama_reviewer_model: str | None = None
     # Paths
-    data_dir: Optional[str] = None
-    ledger_file: Optional[str] = None
+    data_dir: str | None = None
+    ledger_file: str | None = None
     # Workspace
-    workspace: Optional[str] = None
+    workspace: str | None = None
 
 
 class AegisApprovalResponse(BaseModel):
@@ -221,10 +221,10 @@ class ModeRequest(BaseModel):
 
 class ContextFilesRequest(BaseModel):
     workspace: str
-    files: List[str]
+    files: list[str]
 
 
 class PlatformConnectRequest(BaseModel):
     platform_id: str
-    token: Optional[str] = None
-    api_key: Optional[str] = None
+    token: str | None = None
+    api_key: str | None = None

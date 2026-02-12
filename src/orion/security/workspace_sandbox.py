@@ -40,18 +40,18 @@ Usage:
     sandbox.destroy_session(session.session_id)
 """
 
+import contextlib
 import hashlib
 import json
 import logging
 import os
 import shutil
 import subprocess
-import tempfile
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.security.workspace_sandbox")
 
@@ -64,8 +64,17 @@ SANDBOX_STATE_DIR = Path.home() / ".orion" / "sandbox_sessions"
 
 # Directories/files never copied into the sandbox
 COPY_EXCLUDE = {
-    ".git", "__pycache__", "node_modules", ".venv", "venv",
-    ".env", ".orion", ".tox", "dist", "build", "*.egg-info",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".venv",
+    "venv",
+    ".env",
+    ".orion",
+    ".tox",
+    "dist",
+    "build",
+    "*.egg-info",
 }
 
 # Max workspace size we'll copy (500 MB)
@@ -76,6 +85,7 @@ MAX_COPY_SIZE_BYTES = 500 * 1024 * 1024
 # Data types
 # ─────────────────────────────────────────────────────────────────────
 
+
 class SandboxMode(str, Enum):
     DOCKER = "docker"
     LOCAL = "local"
@@ -85,12 +95,13 @@ class SandboxMode(str, Enum):
 @dataclass
 class SandboxSession:
     """Represents an active sandbox session."""
+
     session_id: str
     sandbox_path: str
     source_path: str
-    mode: str               # "docker" or "local" (resolved mode, not "auto")
+    mode: str  # "docker" or "local" (resolved mode, not "auto")
     created_at: float = field(default_factory=time.time)
-    container_id: Optional[str] = None   # Docker container ID if applicable
+    container_id: str | None = None  # Docker container ID if applicable
     file_count: int = 0
     size_bytes: int = 0
 
@@ -98,9 +109,10 @@ class SandboxSession:
 @dataclass
 class SandboxDiff:
     """Diff between sandbox and source workspace."""
-    added: List[str] = field(default_factory=list)
-    modified: List[str] = field(default_factory=list)
-    deleted: List[str] = field(default_factory=list)
+
+    added: list[str] = field(default_factory=list)
+    modified: list[str] = field(default_factory=list)
+    deleted: list[str] = field(default_factory=list)
     total_changes: int = 0
     diff_text: str = ""
 
@@ -108,22 +120,24 @@ class SandboxDiff:
 @dataclass
 class PromoteResult:
     """Result of promoting sandbox changes back to source."""
+
     success: bool
-    files_promoted: List[str] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    files_promoted: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     dry_run: bool = False
 
 
 @dataclass
 class SandboxCapabilities:
     """Describes what the sandbox can do."""
+
     mode: str
     can_execute_code: bool
     can_edit_files: bool
     can_install_packages: bool
     can_access_network: bool
-    isolation_level: str       # "process", "filesystem", "container"
-    supported_languages: List[str]
+    isolation_level: str  # "process", "filesystem", "container"
+    supported_languages: list[str]
     max_timeout_seconds: int
     max_memory_mb: int
     docker_available: bool
@@ -132,6 +146,7 @@ class SandboxCapabilities:
 # ─────────────────────────────────────────────────────────────────────
 # WorkspaceSandbox
 # ─────────────────────────────────────────────────────────────────────
+
 
 class WorkspaceSandbox:
     """
@@ -143,7 +158,7 @@ class WorkspaceSandbox:
     def __init__(
         self,
         mode: str = "auto",
-        sandbox_root: Optional[str] = None,
+        sandbox_root: str | None = None,
         docker_image: str = "python:3.11-slim",
         memory_limit: str = "512m",
         cpu_limit: str = "2.0",
@@ -158,7 +173,7 @@ class WorkspaceSandbox:
         self.timeout = timeout
         self.network_enabled = network_enabled
 
-        self._sessions: Dict[str, SandboxSession] = {}
+        self._sessions: dict[str, SandboxSession] = {}
         self.sandbox_root.mkdir(parents=True, exist_ok=True)
 
     # ── Backend detection ─────────────────────────────────────────────
@@ -167,7 +182,9 @@ class WorkspaceSandbox:
         """Check if Docker daemon is running."""
         try:
             result = subprocess.run(
-                ["docker", "info"], capture_output=True, timeout=5,
+                ["docker", "info"],
+                capture_output=True,
+                timeout=5,
             )
             return result.returncode == 0
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -224,15 +241,18 @@ class WorkspaceSandbox:
 
         logger.info(
             "Sandbox session created: %s (mode=%s, files=%d, size=%d bytes)",
-            session_id, mode, file_count, size_bytes,
+            session_id,
+            mode,
+            file_count,
+            size_bytes,
         )
         return session
 
-    def get_session(self, session_id: str) -> Optional[SandboxSession]:
+    def get_session(self, session_id: str) -> SandboxSession | None:
         """Retrieve an active session."""
         return self._sessions.get(session_id)
 
-    def list_sessions(self) -> List[SandboxSession]:
+    def list_sessions(self) -> list[SandboxSession]:
         """List all active sessions."""
         return list(self._sessions.values())
 
@@ -296,7 +316,9 @@ class WorkspaceSandbox:
         diff_text = self._build_diff_text(source, sandbox, added, modified, deleted)
 
         return SandboxDiff(
-            added=added, modified=modified, deleted=deleted,
+            added=added,
+            modified=modified,
+            deleted=deleted,
             total_changes=len(added) + len(modified) + len(deleted),
             diff_text=diff_text,
         )
@@ -306,7 +328,7 @@ class WorkspaceSandbox:
     def promote(
         self,
         session: SandboxSession,
-        files: Optional[List[str]] = None,
+        files: list[str] | None = None,
         dry_run: bool = False,
     ) -> PromoteResult:
         """
@@ -356,8 +378,8 @@ class WorkspaceSandbox:
         session: SandboxSession,
         code: str,
         language: str = "python",
-        timeout: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
         """
         Execute code inside the sandbox.
 
@@ -408,7 +430,7 @@ class WorkspaceSandbox:
 
     # ── Status ────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get full sandbox status."""
         caps = self.get_capabilities()
         return {
@@ -459,7 +481,9 @@ class WorkspaceSandbox:
 
             if item.is_file():
                 if total_size + item.stat().st_size > MAX_COPY_SIZE_BYTES:
-                    logger.warning("Sandbox copy size limit reached (%d bytes)", MAX_COPY_SIZE_BYTES)
+                    logger.warning(
+                        "Sandbox copy size limit reached (%d bytes)", MAX_COPY_SIZE_BYTES
+                    )
                     break
                 dest_file = dest / rel
                 dest_file.parent.mkdir(parents=True, exist_ok=True)
@@ -477,6 +501,7 @@ class WorkspaceSandbox:
         for pattern in COPY_EXCLUDE:
             if "*" in pattern:
                 import fnmatch
+
                 if fnmatch.fnmatch(name, pattern):
                     return True
         return False
@@ -495,11 +520,16 @@ class WorkspaceSandbox:
         return files
 
     def _build_diff_text(
-        self, source: Path, sandbox: Path,
-        added: List[str], modified: List[str], deleted: List[str],
+        self,
+        source: Path,
+        sandbox: Path,
+        added: list[str],
+        modified: list[str],
+        deleted: list[str],
     ) -> str:
         """Build a human-readable unified diff."""
         import difflib
+
         lines = []
 
         for rel in added:
@@ -513,9 +543,19 @@ class WorkspaceSandbox:
 
         for rel in modified:
             try:
-                src_lines = (source / rel).read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
-                sbx_lines = (sandbox / rel).read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
-                diff = difflib.unified_diff(src_lines, sbx_lines, fromfile=f"a/{rel}", tofile=f"b/{rel}")
+                src_lines = (
+                    (source / rel)
+                    .read_text(encoding="utf-8", errors="replace")
+                    .splitlines(keepends=True)
+                )
+                sbx_lines = (
+                    (sandbox / rel)
+                    .read_text(encoding="utf-8", errors="replace")
+                    .splitlines(keepends=True)
+                )
+                diff = difflib.unified_diff(
+                    src_lines, sbx_lines, fromfile=f"a/{rel}", tofile=f"b/{rel}"
+                )
                 lines.extend(line.rstrip() for line in diff)
                 lines.append("")
             except Exception:
@@ -532,18 +572,26 @@ class WorkspaceSandbox:
     # INTERNAL: Docker backend
     # ═════════════════════════════════════════════════════════════════
 
-    def _start_docker_container(self, session: SandboxSession) -> Optional[str]:
+    def _start_docker_container(self, session: SandboxSession) -> str | None:
         """Start a persistent Docker container for the session."""
         container_name = f"orion-ws-{session.session_id[:12]}"
         try:
             cmd = [
-                "docker", "run", "-d",
-                "--name", container_name,
-                "--memory", self.memory_limit,
-                "--cpus", self.cpu_limit,
-                "--pids-limit", "128",
-                "-v", f"{session.sandbox_path}:/workspace",
-                "-w", "/workspace",
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "--memory",
+                self.memory_limit,
+                "--cpus",
+                self.cpu_limit,
+                "--pids-limit",
+                "128",
+                "-v",
+                f"{session.sandbox_path}:/workspace",
+                "-w",
+                "/workspace",
             ]
             if not self.network_enabled:
                 cmd.extend(["--network", "none"])
@@ -563,29 +611,32 @@ class WorkspaceSandbox:
 
     def _stop_docker_container(self, container_id: str):
         """Stop and remove a Docker container."""
-        try:
+        with contextlib.suppress(Exception):
             subprocess.run(
                 ["docker", "rm", "-f", container_id],
-                capture_output=True, timeout=15,
+                capture_output=True,
+                timeout=15,
             )
-        except Exception:
-            pass
 
     # Language -> (Docker image, exec command prefix)
     _LANG_DOCKER = {
-        "python":     ("python:3.11-slim",  ["python3", "-c"]),
-        "python3":    ("python:3.11-slim",  ["python3", "-c"]),
-        "node":       ("node:20-slim",      ["node", "-e"]),
-        "nodejs":     ("node:20-slim",      ["node", "-e"]),
-        "javascript": ("node:20-slim",      ["node", "-e"]),
-        "bash":       ("ubuntu:22.04",      ["bash", "-c"]),
-        "shell":      ("ubuntu:22.04",      ["sh", "-c"]),
-        "sh":         ("ubuntu:22.04",      ["sh", "-c"]),
+        "python": ("python:3.11-slim", ["python3", "-c"]),
+        "python3": ("python:3.11-slim", ["python3", "-c"]),
+        "node": ("node:20-slim", ["node", "-e"]),
+        "nodejs": ("node:20-slim", ["node", "-e"]),
+        "javascript": ("node:20-slim", ["node", "-e"]),
+        "bash": ("ubuntu:22.04", ["bash", "-c"]),
+        "shell": ("ubuntu:22.04", ["sh", "-c"]),
+        "sh": ("ubuntu:22.04", ["sh", "-c"]),
     }
 
     def _run_code_docker(
-        self, session: SandboxSession, code: str, language: str, timeout: int,
-    ) -> Dict[str, Any]:
+        self,
+        session: SandboxSession,
+        code: str,
+        language: str,
+        timeout: int,
+    ) -> dict[str, Any]:
         """
         Execute code in Docker.
 
@@ -596,7 +647,11 @@ class WorkspaceSandbox:
         lang = language.lower()
         lang_entry = self._LANG_DOCKER.get(lang)
         if not lang_entry:
-            return {"success": False, "error": f"Unsupported language: {language}", "mode": "docker"}
+            return {
+                "success": False,
+                "error": f"Unsupported language: {language}",
+                "mode": "docker",
+            }
 
         image, cmd_prefix = lang_entry
 
@@ -608,8 +663,13 @@ class WorkspaceSandbox:
         return self._docker_run_oneshot(session, image, cmd_prefix, code, lang, timeout)
 
     def _docker_exec(
-        self, container_id: str, cmd_prefix: list, code: str, lang: str, timeout: int,
-    ) -> Dict[str, Any]:
+        self,
+        container_id: str,
+        cmd_prefix: list,
+        code: str,
+        lang: str,
+        timeout: int,
+    ) -> dict[str, Any]:
         """Execute inside an existing container."""
         try:
             docker_cmd = ["docker", "exec", container_id] + cmd_prefix + [code]
@@ -618,10 +678,12 @@ class WorkspaceSandbox:
             elapsed = time.time() - start
             return {
                 "success": result.returncode == 0,
-                "stdout": result.stdout, "stderr": result.stderr,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
                 "exit_code": result.returncode,
                 "execution_time": round(elapsed, 3),
-                "language": lang, "mode": "docker",
+                "language": lang,
+                "mode": "docker",
             }
         except subprocess.TimeoutExpired:
             return {"success": False, "error": f"Timed out after {timeout}s", "mode": "docker"}
@@ -629,18 +691,30 @@ class WorkspaceSandbox:
             return {"success": False, "error": str(e), "mode": "docker"}
 
     def _docker_run_oneshot(
-        self, session: SandboxSession, image: str, cmd_prefix: list,
-        code: str, lang: str, timeout: int,
-    ) -> Dict[str, Any]:
+        self,
+        session: SandboxSession,
+        image: str,
+        cmd_prefix: list,
+        code: str,
+        lang: str,
+        timeout: int,
+    ) -> dict[str, Any]:
         """Run a one-shot container with the correct image."""
         try:
             docker_cmd = [
-                "docker", "run", "--rm",
-                "--memory", self.memory_limit,
-                "--cpus", self.cpu_limit,
-                "--pids-limit", "64",
-                "-v", f"{session.sandbox_path}:/workspace",
-                "-w", "/workspace",
+                "docker",
+                "run",
+                "--rm",
+                "--memory",
+                self.memory_limit,
+                "--cpus",
+                self.cpu_limit,
+                "--pids-limit",
+                "64",
+                "-v",
+                f"{session.sandbox_path}:/workspace",
+                "-w",
+                "/workspace",
             ]
             if not self.network_enabled:
                 docker_cmd.extend(["--network", "none"])
@@ -651,10 +725,12 @@ class WorkspaceSandbox:
             elapsed = time.time() - start
             return {
                 "success": result.returncode == 0,
-                "stdout": result.stdout, "stderr": result.stderr,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
                 "exit_code": result.returncode,
                 "execution_time": round(elapsed, 3),
-                "language": lang, "mode": "docker",
+                "language": lang,
+                "mode": "docker",
             }
         except subprocess.TimeoutExpired:
             return {"success": False, "error": f"Timed out after {timeout}s", "mode": "docker"}
@@ -666,8 +742,12 @@ class WorkspaceSandbox:
     # ═════════════════════════════════════════════════════════════════
 
     def _run_code_local(
-        self, session: SandboxSession, code: str, language: str, timeout: int,
-    ) -> Dict[str, Any]:
+        self,
+        session: SandboxSession,
+        code: str,
+        language: str,
+        timeout: int,
+    ) -> dict[str, Any]:
         """Execute code in a local subprocess restricted to the sandbox dir."""
         lang_cmds = {
             "python": ["python", "-c"],
@@ -692,7 +772,9 @@ class WorkspaceSandbox:
             start = time.time()
             result = subprocess.run(
                 cmd_prefix + [code],
-                capture_output=True, text=True, timeout=timeout,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
                 cwd=session.sandbox_path,
                 env=env,
             )
@@ -710,7 +792,11 @@ class WorkspaceSandbox:
         except subprocess.TimeoutExpired:
             return {"success": False, "error": f"Timed out after {timeout}s", "mode": "local"}
         except FileNotFoundError:
-            return {"success": False, "error": f"{language} interpreter not found in PATH", "mode": "local"}
+            return {
+                "success": False,
+                "error": f"{language} interpreter not found in PATH",
+                "mode": "local",
+            }
         except Exception as e:
             return {"success": False, "error": str(e), "mode": "local"}
 
@@ -744,7 +830,7 @@ class WorkspaceSandbox:
 # Singleton
 # ─────────────────────────────────────────────────────────────────────
 
-_workspace_sandbox: Optional[WorkspaceSandbox] = None
+_workspace_sandbox: WorkspaceSandbox | None = None
 
 
 def get_workspace_sandbox(**kwargs) -> WorkspaceSandbox:

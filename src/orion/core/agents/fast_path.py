@@ -35,11 +35,12 @@ Architecture:
   - Secure API key retrieval via orion.security.store
 """
 
-import os
 import json
-from typing import List, Dict, Any, AsyncGenerator
+import os
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -47,9 +48,10 @@ import httpx
 @dataclass
 class FastPathResult:
     """Result of fast path execution."""
+
     success: bool
     response: str
-    actions_taken: List[Dict[str, Any]] = field(default_factory=list)
+    actions_taken: list[dict[str, Any]] = field(default_factory=list)
     tokens_used: int = 0
 
 
@@ -67,7 +69,8 @@ class FastPath:
     def _get_persona() -> str:
         """Load the Orion persona for FastPath."""
         try:
-            from orion.core.persona import get_builder_persona, AUTONOMY_TIERS
+            from orion.core.persona import AUTONOMY_TIERS, get_builder_persona
+
             return get_builder_persona() + "\n\n" + AUTONOMY_TIERS
         except Exception:
             return "You are Orion, a governed AI coding assistant."
@@ -89,6 +92,7 @@ IMPORTANT RULES:
         """Get a summary of connected platforms for the system prompt."""
         try:
             from orion.integrations.platform_service import get_platform_service
+
             service = get_platform_service()
             return service.describe_capabilities()
         except Exception:
@@ -117,12 +121,12 @@ FAST PATH RULES:
     def _build_prompt(self, request: str, scout_report=None) -> str:
         """Build the full prompt with file context and repo map."""
         file_contents = []
-        if scout_report and hasattr(scout_report, 'relevant_files'):
+        if scout_report and hasattr(scout_report, "relevant_files"):
             for fpath in scout_report.relevant_files[:3]:
                 try:
                     full_path = Path(self.workspace) / fpath
                     if full_path.exists() and full_path.is_file():
-                        content = full_path.read_text(encoding='utf-8', errors='ignore')
+                        content = full_path.read_text(encoding="utf-8", errors="ignore")
                         if len(content) > 5000:
                             content = content[:5000] + "\n... (truncated)"
                         file_contents.append(f"=== {fpath} ===\n{content}")
@@ -132,6 +136,7 @@ FAST PATH RULES:
         repo_context = ""
         try:
             from orion.core.context.repo_map import generate_repo_map
+
             repo_context = generate_repo_map(self.workspace, max_tokens=1024)
         except Exception:
             pass
@@ -139,7 +144,7 @@ FAST PATH RULES:
         user_prompt = f"Request: {request}"
 
         # Inject memory context (set by Router from MemoryEngine)
-        memory_ctx = getattr(self, '_memory_context', '')
+        memory_ctx = getattr(self, "_memory_context", "")
         if memory_ctx:
             user_prompt += f"\n\n{memory_ctx}"
 
@@ -165,8 +170,8 @@ FAST PATH RULES:
         user_prompt = self._build_prompt(request, scout_report)
 
         try:
-            from orion.core.llm.providers import call_provider
             from orion.core.llm.config import get_model_config
+            from orion.core.llm.providers import call_provider
 
             cfg = get_model_config()
             builder_rc = cfg.builder
@@ -185,6 +190,7 @@ FAST PATH RULES:
             # Extract error message from JSON
             try:
                 import json as _json
+
                 err = _json.loads(response)
                 err_msg = err.get("response", response)
             except Exception:
@@ -205,11 +211,7 @@ FAST PATH RULES:
                 ),
             )
 
-    async def execute_streaming(
-        self,
-        request: str,
-        scout_report=None
-    ) -> AsyncGenerator[str, None]:
+    async def execute_streaming(self, request: str, scout_report=None) -> AsyncGenerator[str, None]:
         """
         Execute with true token-by-token streaming.
 
@@ -222,6 +224,7 @@ FAST PATH RULES:
         # Get provider config from centralized source
         try:
             from orion.core.llm.config import get_model_config
+
             cfg = get_model_config()
             provider = cfg.builder.provider
             model = cfg.builder.model
@@ -242,6 +245,7 @@ FAST PATH RULES:
         elif provider in ("openai", "groq"):
             try:
                 from orion.core.llm.providers import _get_key
+
                 api_key = _get_key(provider)
                 if api_key:
                     async for token in self._stream_openai(user_prompt, api_key, model):
@@ -271,8 +275,9 @@ FAST PATH RULES:
     ) -> AsyncGenerator[str, None]:
         """True token-by-token streaming from Ollama via NDJSON."""
 
-        async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=self._TIMEOUT) as client,
+            client.stream(
                 "POST",
                 f"{ollama_url}/api/generate",
                 json={
@@ -280,27 +285,29 @@ FAST PATH RULES:
                     "prompt": f"{self.SYSTEM_PROMPT}\n\n{prompt}",
                     "stream": True,
                 },
-            ) as response:
-                if response.status_code != 200:
-                    raise RuntimeError(f"Ollama streaming failed: {response.status_code}")
-                async for line in response.aiter_lines():
-                    if line.strip():
-                        try:
-                            data = json.loads(line)
-                            token = data.get("response", "")
-                            if token:
-                                yield token
-                            if data.get("done"):
-                                break
-                        except json.JSONDecodeError:
-                            pass
+            ) as response,
+        ):
+            if response.status_code != 200:
+                raise RuntimeError(f"Ollama streaming failed: {response.status_code}")
+            async for line in response.aiter_lines():
+                if line.strip():
+                    try:
+                        data = json.loads(line)
+                        token = data.get("response", "")
+                        if token:
+                            yield token
+                        if data.get("done"):
+                            break
+                    except json.JSONDecodeError:
+                        pass
 
     async def _stream_openai(
         self, prompt: str, api_key: str, model: str
     ) -> AsyncGenerator[str, None]:
         """True token-by-token streaming from OpenAI-compatible APIs via SSE."""
-        async with httpx.AsyncClient(timeout=self._TIMEOUT) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=self._TIMEOUT) as client,
+            client.stream(
                 "POST",
                 "https://api.openai.com/v1/chat/completions",
                 headers={
@@ -315,22 +322,23 @@ FAST PATH RULES:
                     ],
                     "stream": True,
                 },
-            ) as response:
-                if response.status_code != 200:
-                    raise RuntimeError(f"OpenAI streaming failed: {response.status_code}")
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        payload = line[6:]
-                        if payload.strip() == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(payload)
-                            delta = data["choices"][0].get("delta", {})
-                            token = delta.get("content", "")
-                            if token:
-                                yield token
-                        except (json.JSONDecodeError, KeyError, IndexError):
-                            pass
+            ) as response,
+        ):
+            if response.status_code != 200:
+                raise RuntimeError(f"OpenAI streaming failed: {response.status_code}")
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    payload = line[6:]
+                    if payload.strip() == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(payload)
+                        delta = data["choices"][0].get("delta", {})
+                        token = delta.get("content", "")
+                        if token:
+                            yield token
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        pass
 
 
 def get_fast_path(workspace_path: str, model: str = "gpt-4o") -> FastPath:

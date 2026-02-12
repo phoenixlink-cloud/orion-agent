@@ -1,45 +1,34 @@
 """Tests for orion.core.context -- repo_map, python_ast, quality."""
 
-import os
 import ast
-import pytest
-from pathlib import Path
 
+import pytest
+
+from orion.core.context.python_ast import (
+    PythonContext,
+)
 from orion.core.context.quality import (
     CodeQualityAnalyzer,
-    QualityReport,
     FileHealth,
     QualityIssue,
     Severity,
     calculate_complexity,
-    check_complexity,
-    check_function_length,
     check_docstrings,
     check_naming,
-    check_god_class,
-)
-from orion.core.context.python_ast import (
-    PythonContext,
-    ImportInfo,
-    ClassInfo,
-    FunctionInfo,
-    SymbolDef,
-    get_python_context,
 )
 from orion.core.context.repo_map import (
-    Tag,
     LANGUAGE_MAP,
     SKIP_DIRS,
-    _extract_tags_python_ast,
-    _extract_python_signatures,
     RepoMap,
+    _extract_python_signatures,
+    _extract_tags_python_ast,
     generate_repo_map,
 )
-
 
 # =========================================================================
 # CODE QUALITY
 # =========================================================================
+
 
 class TestCalculateComplexity:
     def test_simple_function(self):
@@ -112,9 +101,19 @@ class TestFileHealth:
 
     def test_score_with_errors(self):
         fh = FileHealth(
-            file="test.py", lines=10, functions=1, classes=0,
-            issues=[QualityIssue(file="test.py", line=1, severity=Severity.ERROR,
-                                  category="test", message="error")],
+            file="test.py",
+            lines=10,
+            functions=1,
+            classes=0,
+            issues=[
+                QualityIssue(
+                    file="test.py",
+                    line=1,
+                    severity=Severity.ERROR,
+                    category="test",
+                    message="error",
+                )
+            ],
         )
         assert fh.score < 100.0
 
@@ -138,6 +137,7 @@ class TestCodeQualityAnalyzer:
 # PYTHON CONTEXT
 # =========================================================================
 
+
 class TestPythonContext:
     @pytest.fixture
     def workspace(self, tmp_path):
@@ -145,7 +145,7 @@ class TestPythonContext:
             'class User:\n    """A user."""\n    def __init__(self, name):\n        self.name = name\n'
         )
         (tmp_path / "views.py").write_text(
-            'from models import User\n\ndef get_user(name):\n    return User(name)\n'
+            "from models import User\n\ndef get_user(name):\n    return User(name)\n"
         )
         return tmp_path
 
@@ -188,15 +188,12 @@ class TestPythonContext:
 # REPO MAP
 # =========================================================================
 
+
 class TestRepoMap:
     @pytest.fixture
     def workspace(self, tmp_path):
-        (tmp_path / "main.py").write_text(
-            'from utils import helper\n\ndef main():\n    helper()\n'
-        )
-        (tmp_path / "utils.py").write_text(
-            'def helper():\n    """A helper."""\n    return 42\n'
-        )
+        (tmp_path / "main.py").write_text("from utils import helper\n\ndef main():\n    helper()\n")
+        (tmp_path / "utils.py").write_text('def helper():\n    """A helper."""\n    return 42\n')
         return tmp_path
 
     def test_python_ast_fallback(self, workspace):

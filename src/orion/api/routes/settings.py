@@ -16,20 +16,23 @@
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- Settings & Mode Routes."""
 
-from typing import Dict, Any
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
 from orion.api._shared import (
-    SettingsUpdate, ModeRequest,
-    _load_user_settings, _save_user_settings, _get_orion_log,
+    ModeRequest,
+    SettingsUpdate,
+    _get_orion_log,
+    _load_user_settings,
+    _save_user_settings,
 )
 
 router = APIRouter()
 
 
 @router.get("/api/settings")
-async def get_all_settings() -> Dict[str, Any]:
+async def get_all_settings() -> dict[str, Any]:
     """Get all current settings."""
     user_settings = _load_user_settings()
     defaults = {
@@ -115,7 +118,9 @@ async def set_mode(request: ModeRequest):
     """Switch Orion's operating mode."""
     valid_modes = {"safe", "pro", "project"}
     if request.mode not in valid_modes:
-        raise HTTPException(status_code=400, detail=f"Invalid mode. Use: {', '.join(sorted(valid_modes))}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid mode. Use: {', '.join(sorted(valid_modes))}"
+        )
     # Persist to settings
     user_settings = _load_user_settings()
     user_settings["default_mode"] = request.mode

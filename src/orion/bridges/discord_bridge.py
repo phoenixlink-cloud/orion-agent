@@ -33,9 +33,9 @@ Setup:
 """
 
 import asyncio
-from typing import Optional
+import contextlib
 
-from orion.bridges.base import MessagingBridge, BridgeConfig, BridgeMessage
+from orion.bridges.base import BridgeConfig, BridgeMessage, MessagingBridge
 
 
 class DiscordBridge(MessagingBridge):
@@ -52,8 +52,7 @@ class DiscordBridge(MessagingBridge):
             import discord
         except ImportError:
             if self._log:
-                self._log.error("Bridge", "discord.py not installed. "
-                                "Run: pip install discord.py")
+                self._log.error("Bridge", "discord.py not installed. Run: pip install discord.py")
             return
 
         if not self.config.token:
@@ -71,8 +70,7 @@ class DiscordBridge(MessagingBridge):
         @self._client.event
         async def on_ready():
             if bridge_ref._log:
-                bridge_ref._log.info("Bridge",
-                    f"Discord bridge connected as {self._client.user}")
+                bridge_ref._log.info("Bridge", f"Discord bridge connected as {self._client.user}")
             bridge_ref._running = True
 
         @self._client.event
@@ -110,17 +108,13 @@ class DiscordBridge(MessagingBridge):
             self._log.info("Bridge", "Discord bridge starting...")
 
         # Run in background task
-        self._task = asyncio.create_task(
-            self._client.start(self.config.token)
-        )
+        self._task = asyncio.create_task(self._client.start(self.config.token))
 
     async def stop(self):
         """Stop the Discord bot."""
         if self._client:
-            try:
+            with contextlib.suppress(Exception):
                 await self._client.close()
-            except Exception:
-                pass
         if self._task:
             self._task.cancel()
         self._running = False
@@ -139,7 +133,7 @@ class DiscordBridge(MessagingBridge):
 
             # Discord max message length is 2000
             if len(text) > 2000:
-                chunks = [text[i:i+1990] for i in range(0, len(text), 1990)]
+                chunks = [text[i : i + 1990] for i in range(0, len(text), 1990)]
                 for chunk in chunks:
                     await channel.send(chunk)
             else:
@@ -148,8 +142,7 @@ class DiscordBridge(MessagingBridge):
             if self._log:
                 self._log.error("Bridge", f"Discord send failed: {e}")
 
-    async def send_approval_prompt(self, chat_id: str, prompt: str,
-                                   approval_id: str) -> None:
+    async def send_approval_prompt(self, chat_id: str, prompt: str, approval_id: str) -> None:
         """Send an AEGIS approval request with Discord buttons."""
         if not self._client:
             return
@@ -177,10 +170,12 @@ class DiscordBridge(MessagingBridge):
             async def approve_callback(interaction):
                 try:
                     import httpx
+
                     async with httpx.AsyncClient() as client:
                         await client.post(
                             f"http://localhost:8001/api/aegis/respond/{approval_id}",
-                            json={"approved": True}, timeout=10,
+                            json={"approved": True},
+                            timeout=10,
                         )
                 except Exception:
                     pass
@@ -192,10 +187,12 @@ class DiscordBridge(MessagingBridge):
             async def deny_callback(interaction):
                 try:
                     import httpx
+
                     async with httpx.AsyncClient() as client:
                         await client.post(
                             f"http://localhost:8001/api/aegis/respond/{approval_id}",
-                            json={"approved": False}, timeout=10,
+                            json={"approved": False},
+                            timeout=10,
                         )
                 except Exception:
                     pass
@@ -214,4 +211,7 @@ class DiscordBridge(MessagingBridge):
                 view=view,
             )
         except Exception:
-            await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)")
+            await self.send(
+                chat_id,
+                f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}\n\n(Auto-denied -- button support unavailable)",
+            )

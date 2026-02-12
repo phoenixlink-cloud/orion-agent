@@ -26,10 +26,9 @@ Decisions:
   - BLOCK: Safety/constraint violation (hard stop)
 """
 
-import json
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.reviewer")
 
@@ -37,10 +36,11 @@ logger = logging.getLogger("orion.reviewer")
 @dataclass
 class ReviewerResult:
     """Result from Reviewer evaluation."""
-    decision: str         # "APPROVE", "REVISE_AND_APPROVE", "BLOCK"
-    assessment: str       # Brief overall assessment
-    revised_output: Optional[Dict[str, Any]] = None  # Corrected proposal if REVISE_AND_APPROVE
-    revision_notes: List[str] = field(default_factory=list)
+
+    decision: str  # "APPROVE", "REVISE_AND_APPROVE", "BLOCK"
+    assessment: str  # Brief overall assessment
+    revised_output: dict[str, Any] | None = None  # Corrected proposal if REVISE_AND_APPROVE
+    revision_notes: list[str] = field(default_factory=list)
     block_reason: str = ""
     raw: str = ""
     provider: str = ""
@@ -51,6 +51,7 @@ def _get_reviewer_persona() -> str:
     """Load the Orion persona for the Reviewer."""
     try:
         from orion.core.persona import get_reviewer_persona
+
         return get_reviewer_persona()
     except Exception:
         return "You are a quality-control reviewer in a governed AI system."
@@ -126,8 +127,8 @@ async def run_reviewer(
     Returns:
         ReviewerResult with decision and optional revisions
     """
-    from orion.core.llm.config import get_model_config
     from orion.core.agents.builder import _call_provider, extract_json
+    from orion.core.llm.config import get_model_config
 
     model_cfg = get_model_config()
     reviewer = model_cfg.get_reviewer()

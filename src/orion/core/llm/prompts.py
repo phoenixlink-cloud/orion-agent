@@ -21,11 +21,10 @@ Extracted from intelligent_orion.py to reduce god-class size.
 Contains: expansion instructions, project plan parsing, and enhanced input building.
 """
 
+import logging
 import os
 import re
-import logging
-from typing import Dict, Any, Optional, List
-
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,18 +42,18 @@ def get_expansion_instruction(ext: str, filename: str, user_lower: str, content:
         "No placeholders, stubs, TODOs, or 'implement this' comments",
         "All code must be immediately runnable",
         "All references must resolve (no missing imports, no undefined functions)",
-        "Match the scope and depth appropriate to the request"
+        "Match the scope and depth appropriate to the request",
     ]
 
     type_guidance = {
-        'py': "Include proper imports, error handling, and docstrings where helpful.",
-        'js': "Include proper imports and JSDoc where helpful.",
-        'ts': "Include proper imports and type annotations.",
-        'cs': "Include proper using statements and XML documentation where helpful.",
-        'xaml': "Include complete layouts with proper bindings and event handlers.",
-        'html': "Include embedded CSS for styling. Make it visually complete.",
-        'md': "Write full prose, not outlines. Include tables and formatting where appropriate.",
-        'css': "Include complete styles with proper selectors and responsive considerations.",
+        "py": "Include proper imports, error handling, and docstrings where helpful.",
+        "js": "Include proper imports and JSDoc where helpful.",
+        "ts": "Include proper imports and type annotations.",
+        "cs": "Include proper using statements and XML documentation where helpful.",
+        "xaml": "Include complete layouts with proper bindings and event handlers.",
+        "html": "Include embedded CSS for styling. Make it visually complete.",
+        "md": "Write full prose, not outlines. Include tables and formatting where appropriate.",
+        "css": "Include complete styles with proper selectors and responsive considerations.",
     }
 
     guidance = type_guidance.get(ext, "Write complete, usable content.")
@@ -62,7 +61,7 @@ def get_expansion_instruction(ext: str, filename: str, user_lower: str, content:
     return f"{' '.join(principles)}. {guidance}"
 
 
-def get_project_plan_instruction(workspace_path: str) -> Optional[str]:
+def get_project_plan_instruction(workspace_path: str) -> str | None:
     """
     Read PROJECT_PLAN.md and extract deliverables to enforce.
     """
@@ -72,31 +71,39 @@ def get_project_plan_instruction(workspace_path: str) -> Optional[str]:
         return None
 
     try:
-        with open(project_plan_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(project_plan_path, encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
         deliverables = []
         in_deliverables = False
 
-        for line in content.split('\n'):
+        for line in content.split("\n"):
             line_lower = line.lower().strip()
 
-            if 'deliverable' in line_lower or 'output' in line_lower or 'files to create' in line_lower:
+            if (
+                "deliverable" in line_lower
+                or "output" in line_lower
+                or "files to create" in line_lower
+            ):
                 in_deliverables = True
                 continue
 
-            if in_deliverables and line.startswith('## ') and 'deliverable' not in line_lower:
+            if in_deliverables and line.startswith("## ") and "deliverable" not in line_lower:
                 in_deliverables = False
                 continue
 
             if in_deliverables:
-                file_matches = re.findall(r'[`(]([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)[`)]', line)
+                file_matches = re.findall(r"[`(]([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)[`)]", line)
                 for match in file_matches:
                     if match not in deliverables:
                         deliverables.append(match)
 
-                if line.strip().startswith(('#', '-', '*', '1', '2', '3', '4', '5', '6', '7', '8', '9')):
-                    ext_matches = re.findall(r'(\w+\.(md|py|html|css|js|ts|json|xml|yaml|yml|txt))', line)
+                if line.strip().startswith(
+                    ("#", "-", "*", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+                ):
+                    ext_matches = re.findall(
+                        r"(\w+\.(md|py|html|css|js|ts|json|xml|yaml|yml|txt))", line
+                    )
                     for match in ext_matches:
                         if match[0] not in deliverables:
                             deliverables.append(match[0])
@@ -104,8 +111,8 @@ def get_project_plan_instruction(workspace_path: str) -> Optional[str]:
         if deliverables:
             return (
                 "## MANDATORY DELIVERABLES FROM PROJECT_PLAN.md\n"
-                f"You MUST create ALL of the following files as specified in the project plan:\n"
-                f"- " + "\n- ".join(deliverables) + "\n\n"
+                "You MUST create ALL of the following files as specified in the project plan:\n"
+                "- " + "\n- ".join(deliverables) + "\n\n"
                 "DO NOT skip any deliverables. Create EVERY file listed above with COMPLETE content.\n"
                 "Each file must be fully implemented, not a stub or placeholder."
             )
@@ -119,12 +126,12 @@ def get_project_plan_instruction(workspace_path: str) -> Optional[str]:
 def build_enhanced_input(
     user_input: str,
     workspace_path: str,
-    base_wisdom: Dict[str, Any],
-    institutional_wisdom: Dict[str, Any],
+    base_wisdom: dict[str, Any],
+    institutional_wisdom: dict[str, Any],
     project_context: str,
-    past_decisions: List[Dict],
+    past_decisions: list[dict],
     retry_context: str,
-    context_files: List[str] = None,
+    context_files: list[str] = None,
     knowledge_retrieval=None,
     reasoning_layer=None,
     working_memory=None,
@@ -161,6 +168,7 @@ def build_enhanced_input(
     # Repository map for codebase awareness 
     try:
         from orion.core.context.repo_map import get_repo_map_for_prompt
+
         repo_map = get_repo_map_for_prompt(workspace_path, context_files)
         parts.append(f"\n\n{repo_map}")
     except Exception:
@@ -170,6 +178,7 @@ def build_enhanced_input(
     try:
         from orion.core.editing.formats import get_format_instructions_for_model
         from orion.core.llm.config import get_model_config
+
         model_cfg = get_model_config()
         model_name = model_cfg.builder.model if model_cfg else ""
         if model_name:
@@ -182,6 +191,7 @@ def build_enhanced_input(
     if context_files:
         try:
             from orion.core.context.code_quality import get_quality_context_for_prompt
+
             quality_ctx = get_quality_context_for_prompt(workspace_path, context_files)
             if quality_ctx:
                 parts.append(f"\n\n{quality_ctx}")
@@ -194,17 +204,20 @@ def build_enhanced_input(
         for rel_path in context_files[:5]:
             full_path = os.path.join(workspace_path, rel_path)
             try:
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(full_path, encoding="utf-8", errors="ignore") as f:
                     content = f.read()[:5000]
                 context_content.append(f"### {rel_path}\n```\n{content}\n```")
             except Exception:
                 pass
         if context_content:
-            parts.append("\n\n## FILES IN CONTEXT (user added with /add)\n" + "\n\n".join(context_content))
+            parts.append(
+                "\n\n## FILES IN CONTEXT (user added with /add)\n" + "\n\n".join(context_content)
+            )
 
     # Inject available integration capabilities
     try:
         from orion.core.context.capability_injector import build_capability_prompt
+
         cap_prompt = build_capability_prompt()
         if cap_prompt:
             parts.append(cap_prompt)
@@ -240,13 +253,12 @@ def build_enhanced_input(
             f"- **NEVER**: {a['description']} (reason: {a['reason']})"
             for a in base_wisdom["anti_patterns"][:5]
         )
-        base_section.append(f"### Critical Anti-Patterns (VIOLATIONS WILL BE REJECTED)\n{anti_text}")
+        base_section.append(
+            f"### Critical Anti-Patterns (VIOLATIONS WILL BE REJECTED)\n{anti_text}"
+        )
 
     if base_wisdom.get("patterns"):
-        patterns_text = "\n".join(
-            f"- {p['description']}"
-            for p in base_wisdom["patterns"][:5]
-        )
+        patterns_text = "\n".join(f"- {p['description']}" for p in base_wisdom["patterns"][:5])
         base_section.append(f"### Best Practices\n{patterns_text}")
 
     if base_wisdom.get("domain_knowledge"):
@@ -257,7 +269,10 @@ def build_enhanced_input(
         base_section.append(f"### Domain Knowledge\n{domain_text}")
 
     if base_section:
-        parts.append("\n\n## FOUNDATIONAL KNOWLEDGE (University Graduate Level)\n" + "\n\n".join(base_section))
+        parts.append(
+            "\n\n## FOUNDATIONAL KNOWLEDGE (University Graduate Level)\n"
+            + "\n\n".join(base_section)
+        )
 
     # Layer 3: Institutional wisdom
     institutional_section = []
@@ -293,7 +308,7 @@ def build_enhanced_input(
                 domain=working_memory.current_domain,
                 files_involved=context_files,
                 institutional_memory=institutional_memory,
-                project_memory=project_memory
+                project_memory=project_memory,
             )
 
             if reasoning_context.has_enhancements():
@@ -320,6 +335,8 @@ def build_enhanced_input(
 
     # Layer 1: Working memory (retry context)
     if retry_context:
-        parts.append(f"\n\n## QUALITY FEEDBACK FROM PREVIOUS ATTEMPT\n{retry_context}\n\n**Fix these issues in your response.**")
+        parts.append(
+            f"\n\n## QUALITY FEEDBACK FROM PREVIOUS ATTEMPT\n{retry_context}\n\n**Fix these issues in your response.**"
+        )
 
     return "\n".join(parts)

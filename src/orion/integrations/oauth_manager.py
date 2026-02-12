@@ -27,7 +27,6 @@ Architecture (based on research of Open WebUI, NextAuth.js, ToolJet):
   -> Standard key input
 """
 
-import asyncio
 import base64
 import hashlib
 import json
@@ -36,7 +35,7 @@ import secrets
 import string
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from urllib.parse import urlencode
 
 log = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ SETTINGS_DIR = Path.home() / ".orion"
 # Provider definitions -- the single source of truth for OAuth configs
 # ---------------------------------------------------------------------------
 
-PROVIDERS: Dict[str, Dict[str, Any]] = {
+PROVIDERS: dict[str, dict[str, Any]] = {
     # Only Google and Microsoft need OAuth -- all other platforms now use
     # CLI tools (gh, glab) or bot tokens (Slack, Discord, Notion, etc.)
     # per the CLI delegation pattern. See internal-audit-reference.
@@ -80,7 +79,8 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
 # PKCE helpers
 # ---------------------------------------------------------------------------
 
-def generate_pkce_pair() -> Tuple[str, str]:
+
+def generate_pkce_pair() -> tuple[str, str]:
     """Generate PKCE code_verifier + code_challenge (S256)."""
     rand = secrets.SystemRandom()
     code_verifier = "".join(rand.choices(string.ascii_letters + string.digits, k=128))
@@ -93,10 +93,10 @@ def generate_pkce_pair() -> Tuple[str, str]:
 # Pending auth state (in-memory, short-lived)
 # ---------------------------------------------------------------------------
 
-_pending_auth: Dict[str, Dict[str, Any]] = {}
+_pending_auth: dict[str, dict[str, Any]] = {}
 
 
-def _load_oauth_tokens() -> Dict[str, Any]:
+def _load_oauth_tokens() -> dict[str, Any]:
     """Load stored OAuth tokens from disk."""
     path = SETTINGS_DIR / "oauth_tokens.json"
     if path.exists():
@@ -107,14 +107,14 @@ def _load_oauth_tokens() -> Dict[str, Any]:
     return {}
 
 
-def _save_oauth_tokens(tokens: Dict[str, Any]):
+def _save_oauth_tokens(tokens: dict[str, Any]):
     """Save OAuth tokens to disk."""
     SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
     path = SETTINGS_DIR / "oauth_tokens.json"
     path.write_text(json.dumps(tokens, indent=2))
 
 
-def _load_client_configs() -> Dict[str, Any]:
+def _load_client_configs() -> dict[str, Any]:
     """Load OAuth client_id / client_secret configs."""
     path = SETTINGS_DIR / "oauth_clients.json"
     if path.exists():
@@ -125,16 +125,17 @@ def _load_client_configs() -> Dict[str, Any]:
     return {}
 
 
-def _save_client_configs(configs: Dict[str, Any]):
+def _save_client_configs(configs: dict[str, Any]):
     """Save OAuth client configs."""
     SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
     path = SETTINGS_DIR / "oauth_clients.json"
     path.write_text(json.dumps(configs, indent=2))
 
 
-def get_client_id(provider: str) -> Optional[str]:
+def get_client_id(provider: str) -> str | None:
     """Get client_id for a provider from config or env."""
     import os
+
     # Check environment first
     env_key = f"ORION_{provider.upper()}_CLIENT_ID"
     env_val = os.environ.get(env_key)
@@ -145,9 +146,10 @@ def get_client_id(provider: str) -> Optional[str]:
     return configs.get(provider, {}).get("client_id")
 
 
-def get_client_secret(provider: str) -> Optional[str]:
+def get_client_secret(provider: str) -> str | None:
     """Get client_secret for a provider from config or env."""
     import os
+
     env_key = f"ORION_{provider.upper()}_CLIENT_SECRET"
     env_val = os.environ.get(env_key)
     if env_val:
@@ -160,7 +162,8 @@ def get_client_secret(provider: str) -> Optional[str]:
 # GitHub Device Flow -- best UX for desktop apps
 # ---------------------------------------------------------------------------
 
-async def github_device_flow_start(client_id: str) -> Dict[str, Any]:
+
+async def github_device_flow_start(client_id: str) -> dict[str, Any]:
     """
     Start GitHub Device Flow. Returns device_code, user_code, verification_uri.
     User opens verification_uri and enters user_code. We poll for the token.
@@ -181,7 +184,9 @@ async def github_device_flow_start(client_id: str) -> Dict[str, Any]:
         return resp.json()
 
 
-async def github_device_flow_poll(client_id: str, device_code: str, interval: int = 5) -> Optional[Dict[str, Any]]:
+async def github_device_flow_poll(
+    client_id: str, device_code: str, interval: int = 5
+) -> dict[str, Any] | None:
     """
     Poll GitHub for device flow token. Returns token dict or None if pending.
     Raises on error (expired, access_denied, etc.)
@@ -216,7 +221,8 @@ async def github_device_flow_poll(client_id: str, device_code: str, interval: in
 # Standard OAuth2 + PKCE flow
 # ---------------------------------------------------------------------------
 
-def build_auth_url(provider: str, redirect_uri: str, client_id: str) -> Tuple[str, str]:
+
+def build_auth_url(provider: str, redirect_uri: str, client_id: str) -> tuple[str, str]:
     """
     Build the authorization URL for a provider. Returns (auth_url, state_token).
     Stores PKCE state for callback.
@@ -228,7 +234,7 @@ def build_auth_url(provider: str, redirect_uri: str, client_id: str) -> Tuple[st
     state_token = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce_pair()
 
-    params: Dict[str, str] = {
+    params: dict[str, str] = {
         "client_id": client_id,
         "response_type": "code",
         "redirect_uri": redirect_uri,
@@ -263,7 +269,7 @@ def build_auth_url(provider: str, redirect_uri: str, client_id: str) -> Tuple[st
 async def exchange_code_for_token(
     state_token: str,
     code: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Exchange authorization code for tokens using stored pending state.
     Handles provider-specific quirks (Notion Basic auth, Slack nested tokens, etc.)
@@ -344,6 +350,7 @@ async def exchange_code_for_token(
     # Also store in SecureStore if available
     try:
         from orion.security.store import get_secure_store
+
         store = get_secure_store()
         if store and access_token:
             store.set_key(f"oauth_{provider}_access_token", access_token)
@@ -363,6 +370,7 @@ async def exchange_code_for_token(
 # ---------------------------------------------------------------------------
 # Token storage for guided setup (Tier 2 -- user pastes a token)
 # ---------------------------------------------------------------------------
+
 
 def store_manual_token(provider: str, token: str) -> bool:
     """Store a manually provided token (PAT, bot token, etc.)."""
@@ -389,6 +397,7 @@ def disconnect_provider(provider: str) -> bool:
     # Also clear from SecureStore
     try:
         from orion.security.store import get_secure_store
+
         store = get_secure_store()
         if store:
             store.delete_key(f"oauth_{provider}_access_token")
@@ -403,7 +412,8 @@ def disconnect_provider(provider: str) -> bool:
 # Status / listing
 # ---------------------------------------------------------------------------
 
-def get_provider_status() -> Dict[str, Any]:
+
+def get_provider_status() -> dict[str, Any]:
     """Get connection status for all providers."""
     stored = _load_oauth_tokens()
     result = {}
@@ -429,7 +439,7 @@ def get_provider_status() -> Dict[str, Any]:
     return result
 
 
-def _get_setup_steps(provider_id: str, prov: Dict) -> list:
+def _get_setup_steps(provider_id: str, prov: dict) -> list:
     """Get user-friendly setup steps for a provider."""
     setup_urls = {
         "google": "https://console.cloud.google.com/apis/credentials",
@@ -437,7 +447,12 @@ def _get_setup_steps(provider_id: str, prov: Dict) -> list:
     }
     url = setup_urls.get(provider_id, "")
     return [
-        {"step": 1, "text": f"Create an OAuth app at {prov['name']}", "action": "open_url", "url": url},
+        {
+            "step": 1,
+            "text": f"Create an OAuth app at {prov['name']}",
+            "action": "open_url",
+            "url": url,
+        },
         {"step": 2, "text": "Copy the Client ID", "action": "copy"},
         {"step": 3, "text": "Paste below, then click 'Sign In & Connect'", "action": "configure"},
     ]
@@ -447,9 +462,12 @@ def _get_setup_steps(provider_id: str, prov: Dict) -> list:
 # Cleanup stale pending auth states
 # ---------------------------------------------------------------------------
 
+
 def cleanup_pending(max_age_seconds: int = 600):
     """Remove pending auth states older than max_age_seconds."""
     now = time.time()
-    expired = [k for k, v in _pending_auth.items() if now - v.get("created_at", 0) > max_age_seconds]
+    expired = [
+        k for k, v in _pending_auth.items() if now - v.get("created_at", 0) > max_age_seconds
+    ]
     for k in expired:
         del _pending_auth[k]

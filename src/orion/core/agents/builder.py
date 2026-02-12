@@ -31,7 +31,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.builder")
 
@@ -40,14 +40,16 @@ logger = logging.getLogger("orion.builder")
 # DATA CLASSES
 # =============================================================================
 
+
 @dataclass
 class BuilderResult:
     """Result from Builder execution."""
-    outcome: str          # "ANSWER", "PLAN", "ACTION_INTENT"
-    response: str         # Human-readable response
-    actions: List[Dict[str, Any]] = field(default_factory=list)
+
+    outcome: str  # "ANSWER", "PLAN", "ACTION_INTENT"
+    response: str  # Human-readable response
+    actions: list[dict[str, Any]] = field(default_factory=list)
     explanation: str = ""
-    raw: str = ""         # Raw LLM output for debugging
+    raw: str = ""  # Raw LLM output for debugging
     provider: str = ""
     model: str = ""
 
@@ -56,28 +58,36 @@ class BuilderResult:
 # CONSTRAINT EXTRACTION
 # =============================================================================
 
+
 def extract_constraints(user_input: str) -> dict:
     """Extract explicit user constraints from input text."""
     lower = user_input.lower()
     constraints = {"no_file_ops": False, "max_files": None, "required_filename": None}
 
     no_file_patterns = [
-        "do not create any files", "don't create any files",
-        "no file operations", "no files", "plan only",
-        "planning only", "just plan", "only plan",
+        "do not create any files",
+        "don't create any files",
+        "no file operations",
+        "no files",
+        "plan only",
+        "planning only",
+        "just plan",
+        "only plan",
     ]
     for p in no_file_patterns:
         if p in lower:
             constraints["no_file_ops"] = True
             break
 
-    m = re.search(r'exactly\s+(\d+|one|two|three)\s+file', lower)
+    m = re.search(r"exactly\s+(\d+|one|two|three)\s+file", lower)
     if m:
         num_map = {"one": 1, "two": 2, "three": 3}
         v = m.group(1)
         constraints["max_files"] = num_map.get(v, int(v) if v.isdigit() else None)
 
-    m2 = re.search(r'(?:create|make)\s+(?:a\s+)?file\s+(?:named|called)\s+["\']?([\w.-]+)["\']?', lower)
+    m2 = re.search(
+        r'(?:create|make)\s+(?:a\s+)?file\s+(?:named|called)\s+["\']?([\w.-]+)["\']?', lower
+    )
     if m2:
         constraints["required_filename"] = m2.group(1)
 
@@ -117,6 +127,7 @@ def _get_evolution_guidance() -> str:
     guidance_lines = []
     try:
         from orion.core.learning.evolution import get_evolution_engine
+
         evo = get_evolution_engine()
         sw = evo.analyze_strengths_weaknesses(days=60)
         weaknesses = [s for s in sw if not s.is_strength]
@@ -147,19 +158,20 @@ def _get_evolution_guidance() -> str:
                         "Include code snippets. Match the project's existing doc style."
                     )
                 else:
-                    guidance_lines.append(
-                        f"- {w.area.upper()} tasks: {w.recommendation}"
-                    )
+                    guidance_lines.append(f"- {w.area.upper()} tasks: {w.recommendation}")
     except Exception:
         pass
 
     # Also pull anti-patterns from memory
     try:
         from orion.core.memory.engine import get_memory_engine
+
         mem = get_memory_engine()
         anti_patterns = mem.recall(
-            "anti-pattern avoid mistake", max_results=3,
-            categories=["anti_pattern"], min_confidence=0.6,
+            "anti-pattern avoid mistake",
+            max_results=3,
+            categories=["anti_pattern"],
+            min_confidence=0.6,
         )
         if anti_patterns:
             if not guidance_lines:
@@ -178,11 +190,17 @@ def _build_system_prompt(mode: str, constraints: dict, execution_mode: bool, is_
     """Build the system prompt for the Builder."""
     constraint_rules = []
     if constraints.get("no_file_ops"):
-        constraint_rules.append("USER CONSTRAINT: Do NOT propose any file operations. Respond with a PLAN only.")
+        constraint_rules.append(
+            "USER CONSTRAINT: Do NOT propose any file operations. Respond with a PLAN only."
+        )
     if constraints.get("max_files"):
-        constraint_rules.append(f"USER CONSTRAINT: Create at most {constraints['max_files']} file(s).")
+        constraint_rules.append(
+            f"USER CONSTRAINT: Create at most {constraints['max_files']} file(s)."
+        )
     if constraints.get("required_filename"):
-        constraint_rules.append(f"USER CONSTRAINT: If creating a file, it must be named '{constraints['required_filename']}'.")
+        constraint_rules.append(
+            f"USER CONSTRAINT: If creating a file, it must be named '{constraints['required_filename']}'."
+        )
     constraint_section = "\n".join(constraint_rules) if constraint_rules else ""
 
     # Auto-inject evolution guidance into prompt
@@ -194,6 +212,7 @@ def _build_system_prompt(mode: str, constraints: dict, execution_mode: bool, is_
     persona_section = ""
     try:
         from orion.core.persona import get_builder_persona
+
         persona_section = get_builder_persona()
     except Exception:
         pass
@@ -262,11 +281,18 @@ Always respond with valid JSON. The "response" field MUST be a string."""
 # PROVIDER CALLING (delegates to centralized providers.call_provider)
 # =============================================================================
 
-async def _call_provider(provider: str, model: str, system_prompt: str, user_prompt: str,
-                         max_tokens: int = 8000, temperature: float = 0.3) -> str:
+
+async def _call_provider(
+    provider: str,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int = 8000,
+    temperature: float = 0.3,
+) -> str:
     """Call any supported LLM provider via the centralized call_provider."""
-    from orion.core.llm.providers import call_provider
     from orion.core.llm.config import RoleConfig
+    from orion.core.llm.providers import call_provider
 
     role_config = RoleConfig(provider=provider, model=model)
     return await call_provider(
@@ -283,7 +309,8 @@ async def _call_provider(provider: str, model: str, system_prompt: str, user_pro
 # JSON EXTRACTION
 # =============================================================================
 
-def extract_json(text: str) -> Optional[Dict]:
+
+def extract_json(text: str) -> dict | None:
     """Extract JSON from LLM response text (may contain markdown fences)."""
     if not text:
         return None
@@ -293,24 +320,24 @@ def extract_json(text: str) -> Optional[Dict]:
     except json.JSONDecodeError:
         pass
     # Try extracting from markdown code blocks
-    m = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
+    m = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if m:
         try:
             return json.loads(m.group(1))
         except json.JSONDecodeError:
             pass
     # Try finding first { ... } block
-    start = text.find('{')
+    start = text.find("{")
     if start >= 0:
         depth = 0
         for i, c in enumerate(text[start:], start):
-            if c == '{':
+            if c == "{":
                 depth += 1
-            elif c == '}':
+            elif c == "}":
                 depth -= 1
                 if depth == 0:
                     try:
-                        return json.loads(text[start:i + 1])
+                        return json.loads(text[start : i + 1])
                     except json.JSONDecodeError:
                         break
     return None
@@ -319,6 +346,7 @@ def extract_json(text: str) -> Optional[Dict]:
 # =============================================================================
 # MAIN ENTRY POINT
 # =============================================================================
+
 
 async def run_builder(
     user_input: str,

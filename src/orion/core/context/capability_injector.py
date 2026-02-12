@@ -25,7 +25,6 @@ system prompt dynamically.
 """
 
 import logging
-from typing import List, Optional
 
 logger = logging.getLogger("orion.context.capabilities")
 
@@ -37,18 +36,31 @@ def build_capability_prompt() -> str:
     Returns:
         str: Prompt text describing available capabilities, or empty string if none.
     """
-    capabilities: List[str] = []
+    capabilities: list[str] = []
 
     # Check connected platforms
     try:
         from orion.integrations.platforms import get_platform_registry
+
         registry = get_platform_registry()
         connected = registry.list_connected()
 
         for platform in connected:
-            pid = platform.get("id", "") if isinstance(platform, dict) else getattr(platform, "id", "")
-            name = platform.get("name", pid) if isinstance(platform, dict) else getattr(platform, "name", pid)
-            caps = platform.get("capabilities", []) if isinstance(platform, dict) else getattr(platform, "capabilities", [])
+            pid = (
+                platform.get("id", "")
+                if isinstance(platform, dict)
+                else getattr(platform, "id", "")
+            )
+            name = (
+                platform.get("name", pid)
+                if isinstance(platform, dict)
+                else getattr(platform, "name", pid)
+            )
+            caps = (
+                platform.get("capabilities", [])
+                if isinstance(platform, dict)
+                else getattr(platform, "capabilities", [])
+            )
 
             if caps:
                 cap_list = ", ".join(caps) if isinstance(caps, list) else str(caps)
@@ -61,9 +73,13 @@ def build_capability_prompt() -> str:
     # Check image generation
     try:
         from orion.integrations.image import list_image_providers
+
         providers = list_image_providers()
         if providers:
-            names = [p.get("name", p.get("id", "?")) if isinstance(p, dict) else str(p) for p in providers]
+            names = [
+                p.get("name", p.get("id", "?")) if isinstance(p, dict) else str(p)
+                for p in providers
+            ]
             capabilities.append(f"- **Image Generation**: {', '.join(names)}")
     except Exception:
         pass
@@ -71,6 +87,7 @@ def build_capability_prompt() -> str:
     # Check voice
     try:
         from orion.integrations.voice import list_tts_providers
+
         providers = list_tts_providers()
         if providers:
             capabilities.append(f"- **Text-to-Speech**: {len(providers)} provider(s) available")

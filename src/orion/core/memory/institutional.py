@@ -32,12 +32,13 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
 class LearnedPattern:
     """A pattern learned from experience."""
+
     id: str
     description: str
     context: str
@@ -50,6 +51,7 @@ class LearnedPattern:
 @dataclass
 class LearnedAntiPattern:
     """An anti-pattern learned from failures."""
+
     id: str
     description: str
     context: str
@@ -62,6 +64,7 @@ class LearnedAntiPattern:
 @dataclass
 class UserPreference:
     """A learned user preference."""
+
     key: str
     value: str
     confidence: float
@@ -171,8 +174,8 @@ class InstitutionalMemory:
         context: str,
         outcome: str,
         quality_score: float,
-        user_feedback: Optional[str] = None,
-        domain: Optional[str] = None,
+        user_feedback: str | None = None,
+        domain: str | None = None,
     ):
         """Learn from an execution outcome. High quality -> pattern, low -> anti-pattern."""
         conn = sqlite3.connect(self.db_path)
@@ -198,7 +201,9 @@ class InstitutionalMemory:
 
     def _reinforce_pattern(self, c, action_type, context, outcome, ts):
         pid = hashlib.md5(f"{action_type}:{context[:100]}".encode()).hexdigest()[:12]
-        row = c.execute("SELECT success_count, confidence FROM learned_patterns WHERE id = ?", (pid,)).fetchone()
+        row = c.execute(
+            "SELECT success_count, confidence FROM learned_patterns WHERE id = ?", (pid,)
+        ).fetchone()
         if row:
             c.execute(
                 "UPDATE learned_patterns SET success_count = success_count + 1, last_used = ?, confidence = ? WHERE id = ?",
@@ -213,7 +218,9 @@ class InstitutionalMemory:
 
     def _reinforce_anti_pattern(self, c, action_type, context, outcome, ts):
         aid = hashlib.md5(f"anti:{action_type}:{context[:100]}".encode()).hexdigest()[:12]
-        row = c.execute("SELECT occurrence_count, severity FROM learned_anti_patterns WHERE id = ?", (aid,)).fetchone()
+        row = c.execute(
+            "SELECT occurrence_count, severity FROM learned_anti_patterns WHERE id = ?", (aid,)
+        ).fetchone()
         if row:
             c.execute(
                 "UPDATE learned_anti_patterns SET occurrence_count = occurrence_count + 1, last_seen = ?, severity = ? WHERE id = ?",
@@ -227,7 +234,9 @@ class InstitutionalMemory:
             )
 
     def _update_domain(self, c, domain, quality_score, ts):
-        row = c.execute("SELECT project_count, success_rate FROM domain_expertise WHERE domain = ?", (domain,)).fetchone()
+        row = c.execute(
+            "SELECT project_count, success_rate FROM domain_expertise WHERE domain = ?", (domain,)
+        ).fetchone()
         if row:
             new_count = row[0] + 1
             new_rate = ((row[1] * row[0]) + quality_score) / new_count
@@ -253,15 +262,17 @@ class InstitutionalMemory:
         conn.commit()
         conn.close()
 
-    def get_user_preferences(self) -> Dict[str, str]:
+    def get_user_preferences(self) -> dict[str, str]:
         conn = sqlite3.connect(self.db_path)
-        rows = conn.execute("SELECT key, value FROM user_preferences WHERE confidence >= 0.5").fetchall()
+        rows = conn.execute(
+            "SELECT key, value FROM user_preferences WHERE confidence >= 0.5"
+        ).fetchall()
         conn.close()
         return {r[0]: r[1] for r in rows}
 
     # ── Query patterns ───────────────────────────────────────────────────
 
-    def get_learned_patterns(self, min_confidence: float = 0.7) -> List[LearnedPattern]:
+    def get_learned_patterns(self, min_confidence: float = 0.7) -> list[LearnedPattern]:
         conn = sqlite3.connect(self.db_path)
         rows = conn.execute(
             "SELECT id, description, context, example, success_count, last_used, confidence "
@@ -271,7 +282,7 @@ class InstitutionalMemory:
         conn.close()
         return [LearnedPattern(*r) for r in rows]
 
-    def get_learned_anti_patterns(self, min_severity: float = 0.6) -> List[LearnedAntiPattern]:
+    def get_learned_anti_patterns(self, min_severity: float = 0.6) -> list[LearnedAntiPattern]:
         conn = sqlite3.connect(self.db_path)
         rows = conn.execute(
             "SELECT id, description, context, failure_reason, occurrence_count, last_seen, severity "
@@ -281,20 +292,23 @@ class InstitutionalMemory:
         conn.close()
         return [LearnedAntiPattern(*r) for r in rows]
 
-    def get_domain_expertise(self, domain: str) -> Optional[Dict[str, Any]]:
+    def get_domain_expertise(self, domain: str) -> dict[str, Any] | None:
         conn = sqlite3.connect(self.db_path)
         row = conn.execute("SELECT * FROM domain_expertise WHERE domain = ?", (domain,)).fetchone()
         conn.close()
         if not row:
             return None
         return {
-            "domain": row[0], "project_count": row[1], "success_rate": row[2],
-            "learned_patterns": json.loads(row[3]) if row[3] else [], "last_project": row[4],
+            "domain": row[0],
+            "project_count": row[1],
+            "success_rate": row[2],
+            "learned_patterns": json.loads(row[3]) if row[3] else [],
+            "last_project": row[4],
         }
 
     # ── Wisdom retrieval (main query interface) ──────────────────────────
 
-    def get_relevant_wisdom(self, task: str, domain: Optional[str] = None) -> Dict[str, Any]:
+    def get_relevant_wisdom(self, task: str, domain: str | None = None) -> dict[str, Any]:
         """Retrieve accumulated wisdom relevant to current task."""
         patterns = self.get_learned_patterns(min_confidence=0.7)
         anti_patterns = self.get_learned_anti_patterns(min_severity=0.6)
@@ -304,7 +318,11 @@ class InstitutionalMemory:
                 for p in patterns[:10]
             ],
             "learned_anti_patterns": [
-                {"description": ap.description, "reason": ap.failure_reason, "severity": ap.severity}
+                {
+                    "description": ap.description,
+                    "reason": ap.failure_reason,
+                    "severity": ap.severity,
+                }
                 for ap in anti_patterns[:10]
             ],
             "user_preferences": self.get_user_preferences(),
@@ -319,9 +337,9 @@ class InstitutionalMemory:
         original_feedback: str,
         rating: int,
         task_description: str,
-        scope_file: Optional[str] = None,
-        scope_project: Optional[str] = None,
-        scope_domain: Optional[str] = None,
+        scope_file: str | None = None,
+        scope_project: str | None = None,
+        scope_domain: str | None = None,
     ) -> str:
         """Store user-confirmed feedback with full scope context."""
         scope_key = f"{scope_file or ''}:{scope_project or ''}:{scope_domain or ''}"
@@ -334,8 +352,18 @@ class InstitutionalMemory:
             "(id, principle, original_feedback, rating, scope_file, scope_project, "
             "scope_domain, task_description, confirmed_at, is_positive) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (fid, principle, original_feedback, rating, scope_file, scope_project,
-             scope_domain, task_description[:500], datetime.now(timezone.utc).isoformat(), is_positive),
+            (
+                fid,
+                principle,
+                original_feedback,
+                rating,
+                scope_file,
+                scope_project,
+                scope_domain,
+                task_description[:500],
+                datetime.now(timezone.utc).isoformat(),
+                is_positive,
+            ),
         )
         conn.commit()
         conn.close()
@@ -343,10 +371,10 @@ class InstitutionalMemory:
 
     def get_relevant_feedback(
         self,
-        file_path: Optional[str] = None,
-        project_path: Optional[str] = None,
-        domain: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        file_path: str | None = None,
+        project_path: str | None = None,
+        domain: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Get confirmed feedback relevant to the current context, sorted by relevance."""
         conn = sqlite3.connect(self.db_path)
         rows = conn.execute("SELECT * FROM confirmed_feedback").fetchall()
@@ -355,10 +383,16 @@ class InstitutionalMemory:
         results = []
         for row in rows:
             fb = {
-                "id": row[0], "principle": row[1], "original_feedback": row[2],
-                "rating": row[3], "scope_file": row[4], "scope_project": row[5],
-                "scope_domain": row[6], "task_description": row[7],
-                "is_positive": row[9] == 1, "relevance": 0.0,
+                "id": row[0],
+                "principle": row[1],
+                "original_feedback": row[2],
+                "rating": row[3],
+                "scope_file": row[4],
+                "scope_project": row[5],
+                "scope_domain": row[6],
+                "task_description": row[7],
+                "is_positive": row[9] == 1,
+                "relevance": 0.0,
             }
             if file_path and fb["scope_file"] and file_path.endswith(fb["scope_file"]):
                 fb["relevance"] = 1.0
@@ -374,13 +408,15 @@ class InstitutionalMemory:
 
     # ── Statistics ────────────────────────────────────────────────────────
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         pattern_count = c.execute("SELECT COUNT(*) FROM learned_patterns").fetchone()[0]
         anti_count = c.execute("SELECT COUNT(*) FROM learned_anti_patterns").fetchone()[0]
         exec_count = c.execute("SELECT COUNT(*) FROM execution_history").fetchone()[0]
-        avg_quality = c.execute("SELECT AVG(quality_score) FROM execution_history").fetchone()[0] or 0.0
+        avg_quality = (
+            c.execute("SELECT AVG(quality_score) FROM execution_history").fetchone()[0] or 0.0
+        )
         domain_count = c.execute("SELECT COUNT(*) FROM domain_expertise").fetchone()[0]
         pref_count = c.execute("SELECT COUNT(*) FROM user_preferences").fetchone()[0]
         conn.close()
@@ -396,8 +432,13 @@ class InstitutionalMemory:
     def clear(self):
         """Clear all institutional memory (use with caution)."""
         conn = sqlite3.connect(self.db_path)
-        for table in ("learned_patterns", "learned_anti_patterns", "user_preferences",
-                       "domain_expertise", "execution_history"):
+        for table in (
+            "learned_patterns",
+            "learned_anti_patterns",
+            "user_preferences",
+            "domain_expertise",
+            "execution_history",
+        ):
             conn.execute(f"DELETE FROM {table}")
         conn.commit()
         conn.close()

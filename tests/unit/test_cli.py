@@ -1,24 +1,21 @@
 """Tests for orion.cli -- commands and REPL."""
 
-import os
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 from orion.cli.commands import (
-    handle_command,
-    _handle_workspace,
     _handle_add,
     _handle_drop,
     _handle_mode,
-    _handle_diff,
-    _handle_commit,
-    _handle_map,
+    _handle_workspace,
+    handle_command,
 )
-
 
 # =========================================================================
 # FIXTURES
 # =========================================================================
+
 
 @pytest.fixture
 def console():
@@ -35,6 +32,7 @@ def console():
 # =========================================================================
 # COMMAND DISPATCH
 # =========================================================================
+
 
 class TestHandleCommand:
     def test_quit(self, console):
@@ -65,6 +63,7 @@ class TestHandleCommand:
 # WORKSPACE
 # =========================================================================
 
+
 class TestWorkspace:
     def test_no_workspace_set(self, console):
         result = _handle_workspace(["/workspace"], console, None)
@@ -91,6 +90,7 @@ class TestWorkspace:
 # ADD / DROP
 # =========================================================================
 
+
 class TestAddDrop:
     def test_add_no_args_empty(self, console):
         result = _handle_add(["/add"], console, "/tmp", [])
@@ -107,23 +107,24 @@ class TestAddDrop:
 
     def test_drop_all(self, console):
         files = ["a.py", "b.py"]
-        result = _handle_drop(["/drop", "all"], console, files)
+        _handle_drop(["/drop", "all"], console, files)
         assert len(files) == 0
 
     def test_drop_specific(self, console):
         files = ["a.py", "b.py"]
-        result = _handle_drop(["/drop", "a.py"], console, files)
+        _handle_drop(["/drop", "a.py"], console, files)
         assert "a.py" not in files
 
     def test_drop_not_found(self, console):
         files = ["a.py"]
-        result = _handle_drop(["/drop", "z.py"], console, files)
+        _handle_drop(["/drop", "z.py"], console, files)
         console.print_error.assert_called()
 
 
 # =========================================================================
 # MODE
 # =========================================================================
+
 
 class TestMode:
     def test_show_current_mode(self, console):
@@ -148,6 +149,7 @@ class TestMode:
 # =========================================================================
 # CLEAR
 # =========================================================================
+
 
 class TestClear:
     def test_clear(self, console):

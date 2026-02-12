@@ -1,7 +1,8 @@
 """Unit tests for EditValidator -- path safety, syntax checks, confidence scoring."""
 
 import pytest
-from orion.core.editing.validator import EditValidator, ValidationResult, EditConfidence
+
+from orion.core.editing.validator import EditValidator
 
 
 @pytest.fixture
@@ -13,35 +14,35 @@ class TestPathSafety:
     """AEGIS: EditValidator must block path traversal and dangerous paths."""
 
     def test_blocks_path_traversal(self, validator):
-        result = validator.validate_edits([
-            {"operation": "CREATE", "path": "../../../etc/passwd", "content": "bad"}
-        ])
+        result = validator.validate_edits(
+            [{"operation": "CREATE", "path": "../../../etc/passwd", "content": "bad"}]
+        )
         assert result.valid is False
         assert any("Path escape" in i for i in result.blocking_issues)
 
     def test_blocks_double_traversal(self, validator):
-        result = validator.validate_edits([
-            {"operation": "CREATE", "path": "foo/../../bar/../../../secret", "content": "x"}
-        ])
+        result = validator.validate_edits(
+            [{"operation": "CREATE", "path": "foo/../../bar/../../../secret", "content": "x"}]
+        )
         assert result.valid is False
 
     def test_allows_safe_relative_path(self, validator):
-        result = validator.validate_edits([
-            {"operation": "CREATE", "path": "src/hello.py", "content": "print('hi')\n"}
-        ])
+        result = validator.validate_edits(
+            [{"operation": "CREATE", "path": "src/hello.py", "content": "print('hi')\n"}]
+        )
         assert result.valid is True
         assert result.avg_confidence >= 0.8
 
     def test_allows_simple_filename(self, validator):
-        result = validator.validate_edits([
-            {"operation": "CREATE", "path": "test.py", "content": "x = 1\n"}
-        ])
+        result = validator.validate_edits(
+            [{"operation": "CREATE", "path": "test.py", "content": "x = 1\n"}]
+        )
         assert result.valid is True
 
     def test_blocks_etc_path(self, validator):
-        result = validator.validate_edits([
-            {"operation": "CREATE", "path": "/etc/shadow", "content": "bad"}
-        ])
+        result = validator.validate_edits(
+            [{"operation": "CREATE", "path": "/etc/shadow", "content": "bad"}]
+        )
         assert result.valid is False
         assert any("Dangerous path" in i or "Absolute path" in i for i in result.blocking_issues)
 
@@ -114,10 +115,12 @@ class TestBatchValidation:
     """Test validate_edits with multiple actions."""
 
     def test_mixed_batch(self, validator):
-        result = validator.validate_edits([
-            {"operation": "CREATE", "path": "good.py", "content": "x = 1\n"},
-            {"operation": "CREATE", "path": "../bad.py", "content": "x = 1\n"},
-        ])
+        result = validator.validate_edits(
+            [
+                {"operation": "CREATE", "path": "good.py", "content": "x = 1\n"},
+                {"operation": "CREATE", "path": "../bad.py", "content": "x = 1\n"},
+            ]
+        )
         assert result.total_edits == 2
         assert result.valid is False  # One bad path makes batch invalid
         assert result.passed >= 1

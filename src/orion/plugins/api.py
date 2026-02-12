@@ -41,20 +41,20 @@ Hook lifecycle:
 import json
 import time
 from abc import ABC, abstractmethod
-from enum import Enum
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import (
-    Any, Callable, Dict, List, Optional, Set, Tuple, Union
-)
+from enum import Enum
 from pathlib import Path
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # HOOK TYPES
 # ---------------------------------------------------------------------------
 
+
 class HookType(Enum):
     """Lifecycle hook types that plugins can subscribe to."""
+
     SESSION_START = "session_start"
     SESSION_END = "session_end"
     PRE_TOOL_USE = "pre_tool_use"
@@ -68,24 +68,26 @@ class HookType(Enum):
 @dataclass
 class HookContext:
     """Context passed to hook handlers."""
+
     hook_type: HookType
     timestamp: float = field(default_factory=time.time)
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     blocked: bool = False
     block_reason: str = ""
-    modified_data: Optional[Dict[str, Any]] = None
+    modified_data: dict[str, Any] | None = None
 
 
 @dataclass
 class HookResult:
     """Result from a hook handler."""
+
     plugin_name: str
     hook_type: HookType
     success: bool
     blocked: bool = False
     block_reason: str = ""
-    modified_data: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    modified_data: dict[str, Any] | None = None
+    error: str | None = None
     duration_ms: float = 0
 
 
@@ -93,13 +95,15 @@ class HookResult:
 # PLUGIN COMMAND
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PluginCommand:
     """A slash command registered by a plugin."""
+
     name: str
     description: str
     plugin_name: str
-    handler: Optional[Callable] = None
+    handler: Callable | None = None
     usage: str = ""
     category: str = ""
 
@@ -108,14 +112,16 @@ class PluginCommand:
 # PLUGIN SKILL
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PluginSkill:
     """A reusable skill (tool-use function) registered by a plugin."""
+
     name: str
     description: str
     plugin_name: str
-    parameters: Dict[str, Any] = field(default_factory=dict)
-    handler: Optional[Callable] = None
+    parameters: dict[str, Any] = field(default_factory=dict)
+    handler: Callable | None = None
     category: str = ""
 
 
@@ -123,21 +129,23 @@ class PluginSkill:
 # PLUGIN MANIFEST
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PluginManifest:
     """Declarative plugin metadata -- can be loaded from plugin.json."""
+
     name: str
     version: str = "1.0.0"
     description: str = ""
     author: str = ""
-    hooks: List[str] = field(default_factory=list)
-    commands: List[Dict[str, str]] = field(default_factory=list)
-    skills: List[Dict[str, str]] = field(default_factory=list)
-    config: Dict[str, Any] = field(default_factory=dict)
+    hooks: list[str] = field(default_factory=list)
+    commands: list[dict[str, str]] = field(default_factory=list)
+    skills: list[dict[str, str]] = field(default_factory=list)
+    config: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PluginManifest":
+    def from_dict(cls, data: dict[str, Any]) -> "PluginManifest":
         return cls(
             name=data.get("name", "unknown"),
             version=data.get("version", "1.0.0"),
@@ -151,25 +159,29 @@ class PluginManifest:
         )
 
     @classmethod
-    def from_json_file(cls, path: Union[str, Path]) -> "PluginManifest":
-        with open(path, "r", encoding="utf-8") as f:
+    def from_json_file(cls, path: str | Path) -> "PluginManifest":
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return cls.from_dict(data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "name": self.name, "version": self.version,
-            "description": self.description, "author": self.author,
+            "name": self.name,
+            "version": self.version,
+            "description": self.description,
+            "author": self.author,
             "hooks": self.hooks,
             "commands": [c for c in self.commands],
             "skills": [s for s in self.skills],
-            "config": self.config, "enabled": self.enabled,
+            "config": self.config,
+            "enabled": self.enabled,
         }
 
 
 # ---------------------------------------------------------------------------
 # PLUGIN BASE CLASS
 # ---------------------------------------------------------------------------
+
 
 class PluginBase(ABC):
     """
@@ -178,15 +190,14 @@ class PluginBase(ABC):
     """
 
     def __init__(self):
-        self._manifest: Optional[PluginManifest] = None
-        self._hooks: Dict[HookType, Callable] = {}
-        self._commands: List[PluginCommand] = []
-        self._skills: List[PluginSkill] = []
+        self._manifest: PluginManifest | None = None
+        self._hooks: dict[HookType, Callable] = {}
+        self._commands: list[PluginCommand] = []
+        self._skills: list[PluginSkill] = []
 
     @property
     @abstractmethod
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @property
     def version(self) -> str:
@@ -205,40 +216,63 @@ class PluginBase(ABC):
     def register_hook(self, hook_type: HookType, handler: Callable):
         self._hooks[hook_type] = handler
 
-    def get_hooks(self) -> Dict[HookType, Callable]:
+    def get_hooks(self) -> dict[HookType, Callable]:
         return dict(self._hooks)
 
     def handles_hook(self, hook_type: HookType) -> bool:
         return hook_type in self._hooks
 
-    def register_command(self, name: str, handler: Callable,
-                         description: str = "", usage: str = "",
-                         category: str = ""):
-        self._commands.append(PluginCommand(
-            name=name, description=description, plugin_name=self.name,
-            handler=handler, usage=usage, category=category,
-        ))
+    def register_command(
+        self,
+        name: str,
+        handler: Callable,
+        description: str = "",
+        usage: str = "",
+        category: str = "",
+    ):
+        self._commands.append(
+            PluginCommand(
+                name=name,
+                description=description,
+                plugin_name=self.name,
+                handler=handler,
+                usage=usage,
+                category=category,
+            )
+        )
 
-    def get_commands(self) -> List[PluginCommand]:
+    def get_commands(self) -> list[PluginCommand]:
         return list(self._commands)
 
-    def register_skill(self, name: str, handler: Callable,
-                       description: str = "",
-                       parameters: Optional[Dict] = None,
-                       category: str = ""):
-        self._skills.append(PluginSkill(
-            name=name, description=description, plugin_name=self.name,
-            parameters=parameters or {}, handler=handler, category=category,
-        ))
+    def register_skill(
+        self,
+        name: str,
+        handler: Callable,
+        description: str = "",
+        parameters: dict | None = None,
+        category: str = "",
+    ):
+        self._skills.append(
+            PluginSkill(
+                name=name,
+                description=description,
+                plugin_name=self.name,
+                parameters=parameters or {},
+                handler=handler,
+                category=category,
+            )
+        )
 
-    def get_skills(self) -> List[PluginSkill]:
+    def get_skills(self) -> list[PluginSkill]:
         return list(self._skills)
 
     def get_manifest(self) -> PluginManifest:
         if self._manifest:
             return self._manifest
         return PluginManifest(
-            name=self.name, version=self.version, description=self.description,
+            name=self.name,
+            version=self.version,
+            description=self.description,
             hooks=[h.value for h in self._hooks],
             commands=[{"name": c.name, "description": c.description} for c in self._commands],
             skills=[{"name": s.name, "description": s.description} for s in self._skills],
@@ -247,9 +281,10 @@ class PluginBase(ABC):
     def set_manifest(self, manifest: PluginManifest):
         self._manifest = manifest
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
-            "name": self.name, "version": self.version,
+            "name": self.name,
+            "version": self.version,
             "description": self.description,
             "hooks": [h.value for h in self._hooks],
             "commands": [c.name for c in self._commands],
@@ -262,6 +297,7 @@ class PluginBase(ABC):
 # EVENT BUS
 # ---------------------------------------------------------------------------
 
+
 class EventBus:
     """
     Central event dispatcher for hook execution.
@@ -272,8 +308,8 @@ class EventBus:
     """
 
     def __init__(self):
-        self._plugins: Dict[str, PluginBase] = {}
-        self._hook_log: List[HookResult] = []
+        self._plugins: dict[str, PluginBase] = {}
+        self._hook_log: list[HookResult] = []
         self._max_log_size: int = 1000
 
     def register_plugin(self, plugin: PluginBase) -> bool:
@@ -288,7 +324,7 @@ class EventBus:
             return True
         return False
 
-    def fire(self, hook_type: HookType, data: Optional[Dict[str, Any]] = None) -> List[HookResult]:
+    def fire(self, hook_type: HookType, data: dict[str, Any] | None = None) -> list[HookResult]:
         context = HookContext(hook_type=hook_type, data=data or {})
         results = []
         for name, plugin in self._plugins.items():
@@ -300,34 +336,43 @@ class EventBus:
                 handler(context)
                 duration_ms = (time.time() - start) * 1000
                 result = HookResult(
-                    plugin_name=name, hook_type=hook_type, success=True,
-                    blocked=context.blocked, block_reason=context.block_reason,
-                    modified_data=context.modified_data, duration_ms=duration_ms,
+                    plugin_name=name,
+                    hook_type=hook_type,
+                    success=True,
+                    blocked=context.blocked,
+                    block_reason=context.block_reason,
+                    modified_data=context.modified_data,
+                    duration_ms=duration_ms,
                 )
             except Exception as e:
                 duration_ms = (time.time() - start) * 1000
                 result = HookResult(
-                    plugin_name=name, hook_type=hook_type, success=False,
-                    error=str(e), duration_ms=duration_ms,
+                    plugin_name=name,
+                    hook_type=hook_type,
+                    success=False,
+                    error=str(e),
+                    duration_ms=duration_ms,
                 )
             results.append(result)
             self._log_result(result)
             if context.blocked and hook_type in (
-                HookType.PRE_TOOL_USE, HookType.PRE_EDIT, HookType.PRE_PROMPT
+                HookType.PRE_TOOL_USE,
+                HookType.PRE_EDIT,
+                HookType.PRE_PROMPT,
             ):
                 break
         return results
 
-    def fire_blocking(self, hook_type: HookType,
-                      data: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
+    def fire_blocking(
+        self, hook_type: HookType, data: dict[str, Any] | None = None
+    ) -> tuple[bool, str]:
         results = self.fire(hook_type, data)
         for r in results:
             if r.blocked:
                 return False, r.block_reason
         return True, ""
 
-    def fire_modifying(self, hook_type: HookType,
-                       data: Dict[str, Any]) -> Dict[str, Any]:
+    def fire_modifying(self, hook_type: HookType, data: dict[str, Any]) -> dict[str, Any]:
         current_data = dict(data)
         for name, plugin in self._plugins.items():
             if not plugin.handles_hook(hook_type):
@@ -341,47 +386,56 @@ class EventBus:
                 if context.modified_data:
                     current_data.update(context.modified_data)
                 result = HookResult(
-                    plugin_name=name, hook_type=hook_type, success=True,
-                    modified_data=context.modified_data, duration_ms=duration_ms,
+                    plugin_name=name,
+                    hook_type=hook_type,
+                    success=True,
+                    modified_data=context.modified_data,
+                    duration_ms=duration_ms,
                 )
             except Exception as e:
                 duration_ms = (time.time() - start) * 1000
                 result = HookResult(
-                    plugin_name=name, hook_type=hook_type, success=False,
-                    error=str(e), duration_ms=duration_ms,
+                    plugin_name=name,
+                    hook_type=hook_type,
+                    success=False,
+                    error=str(e),
+                    duration_ms=duration_ms,
                 )
             self._log_result(result)
         return current_data
 
-    def get_all_commands(self) -> List[PluginCommand]:
+    def get_all_commands(self) -> list[PluginCommand]:
         commands = []
         for plugin in self._plugins.values():
             commands.extend(plugin.get_commands())
         return commands
 
-    def get_all_skills(self) -> List[PluginSkill]:
+    def get_all_skills(self) -> list[PluginSkill]:
         skills = []
         for plugin in self._plugins.values():
             skills.extend(plugin.get_skills())
         return skills
 
-    def get_plugin(self, name: str) -> Optional[PluginBase]:
+    def get_plugin(self, name: str) -> PluginBase | None:
         return self._plugins.get(name)
 
-    def list_plugins(self) -> List[Dict[str, Any]]:
+    def list_plugins(self) -> list[dict[str, Any]]:
         return [p.to_dict() for p in self._plugins.values()]
 
     @property
     def plugin_count(self) -> int:
         return len(self._plugins)
 
-    def get_hook_log(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_hook_log(self, limit: int = 50) -> list[dict[str, Any]]:
         entries = self._hook_log[-limit:]
         return [
             {
-                "plugin": r.plugin_name, "hook": r.hook_type.value,
-                "success": r.success, "blocked": r.blocked,
-                "duration_ms": round(r.duration_ms, 2), "error": r.error,
+                "plugin": r.plugin_name,
+                "hook": r.hook_type.value,
+                "success": r.success,
+                "blocked": r.blocked,
+                "duration_ms": round(r.duration_ms, 2),
+                "error": r.error,
             }
             for r in entries
         ]
@@ -389,21 +443,22 @@ class EventBus:
     def _log_result(self, result: HookResult):
         self._hook_log.append(result)
         if len(self._hook_log) > self._max_log_size:
-            self._hook_log = self._hook_log[-self._max_log_size:]
+            self._hook_log = self._hook_log[-self._max_log_size :]
 
 
 # ---------------------------------------------------------------------------
 # PLUGIN LOADER
 # ---------------------------------------------------------------------------
 
+
 class PluginLoader:
     """Discovers and loads plugins from a directory."""
 
     def __init__(self, event_bus: EventBus):
         self.event_bus = event_bus
-        self._load_errors: Dict[str, str] = {}
+        self._load_errors: dict[str, str] = {}
 
-    def load_from_manifest(self, manifest_path: Union[str, Path]) -> Optional[PluginBase]:
+    def load_from_manifest(self, manifest_path: str | Path) -> PluginBase | None:
         try:
             manifest = PluginManifest.from_json_file(manifest_path)
             if not manifest.enabled:
@@ -417,7 +472,7 @@ class PluginLoader:
             self._load_errors[str(manifest_path)] = str(e)
             return None
 
-    def wrap_integration(self, integration) -> Optional[PluginBase]:
+    def wrap_integration(self, integration) -> PluginBase | None:
         try:
             plugin = IntegrationPluginWrapper(integration)
             if self.event_bus.register_plugin(plugin):
@@ -428,7 +483,7 @@ class PluginLoader:
             self._load_errors[name] = str(e)
             return None
 
-    def discover_plugins(self, plugins_dir: Union[str, Path]) -> int:
+    def discover_plugins(self, plugins_dir: str | Path) -> int:
         plugins_path = Path(plugins_dir)
         if not plugins_path.is_dir():
             return 0
@@ -441,13 +496,14 @@ class PluginLoader:
                         count += 1
         return count
 
-    def get_errors(self) -> Dict[str, str]:
+    def get_errors(self) -> dict[str, str]:
         return dict(self._load_errors)
 
 
 # ---------------------------------------------------------------------------
 # MANIFEST-ONLY PLUGIN
 # ---------------------------------------------------------------------------
+
 
 class ManifestPlugin(PluginBase):
     """A plugin created from a plugin.json manifest (no code)."""
@@ -473,6 +529,7 @@ class ManifestPlugin(PluginBase):
 # ---------------------------------------------------------------------------
 # INTEGRATION WRAPPER
 # ---------------------------------------------------------------------------
+
 
 class IntegrationPluginWrapper(PluginBase):
     """Wraps an existing IntegrationBase as a PluginBase."""
@@ -503,8 +560,8 @@ class IntegrationPluginWrapper(PluginBase):
 # SINGLETON
 # ---------------------------------------------------------------------------
 
-_event_bus: Optional[EventBus] = None
-_plugin_loader: Optional[PluginLoader] = None
+_event_bus: EventBus | None = None
+_plugin_loader: PluginLoader | None = None
 
 
 def get_event_bus() -> EventBus:

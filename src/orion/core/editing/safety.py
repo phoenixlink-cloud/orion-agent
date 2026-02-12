@@ -34,34 +34,33 @@ Safety invariants:
 Savepoint commits use a special prefix: [orion:savepoint]
 """
 
-import os
 import subprocess
-import time
-from pathlib import Path
-from typing import Optional, List, Dict, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # DATA TYPES
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Savepoint:
     """A recorded git savepoint before an AI edit."""
+
     commit_hash: str
     timestamp: str
     description: str
-    files_snapshot: List[str]
+    files_snapshot: list[str]
 
 
 @dataclass
 class UndoResult:
     """Result of an undo operation."""
+
     success: bool
     message: str
-    reverted_to: Optional[str] = None
+    reverted_to: str | None = None
     files_restored: int = 0
     files_removed: int = 0
 
@@ -74,12 +73,17 @@ EDIT_PREFIX = "[orion:edit]"
 # GIT HELPERS
 # ---------------------------------------------------------------------------
 
+
 def _run_git(workspace: str, *args: str, check: bool = True) -> subprocess.CompletedProcess:
     """Run a git command in the workspace."""
     cmd = ["git"] + list(args)
     return subprocess.run(
-        cmd, cwd=workspace, capture_output=True, text=True,
-        check=check, timeout=30,
+        cmd,
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=check,
+        timeout=30,
     )
 
 
@@ -103,7 +107,7 @@ def _git_init(workspace: str) -> bool:
         return False
 
 
-def _get_head_hash(workspace: str) -> Optional[str]:
+def _get_head_hash(workspace: str) -> str | None:
     """Get current HEAD commit hash."""
     try:
         result = _run_git(workspace, "rev-parse", "HEAD", check=False)
@@ -123,7 +127,7 @@ def _has_changes(workspace: str) -> bool:
         return False
 
 
-def _get_tracked_files(workspace: str) -> List[str]:
+def _get_tracked_files(workspace: str) -> list[str]:
     """Get list of tracked files."""
     try:
         result = _run_git(workspace, "ls-files", check=False)
@@ -137,6 +141,7 @@ def _get_tracked_files(workspace: str) -> List[str]:
 # ---------------------------------------------------------------------------
 # GIT SAFETY NET
 # ---------------------------------------------------------------------------
+
 
 class GitSafetyNet:
     """
@@ -153,7 +158,7 @@ class GitSafetyNet:
 
     def __init__(self, workspace_path: str):
         self.workspace = str(Path(workspace_path).resolve())
-        self._savepoints: List[Savepoint] = []
+        self._savepoints: list[Savepoint] = []
         self._initialized = False
         self._enabled = True
 
@@ -177,7 +182,7 @@ class GitSafetyNet:
             return True
         return False
 
-    def create_savepoint(self, description: str = "") -> Optional[Savepoint]:
+    def create_savepoint(self, description: str = "") -> Savepoint | None:
         """Create a savepoint before AI edits."""
         if not self._enabled:
             return None
@@ -202,7 +207,7 @@ class GitSafetyNet:
         except Exception:
             return None
 
-    def commit_edit(self, description: str = "", files: Optional[List[str]] = None) -> Optional[str]:
+    def commit_edit(self, description: str = "", files: list[str] | None = None) -> str | None:
         """Commit AI edit results."""
         if not self._enabled or not self._initialized:
             return None
@@ -239,12 +244,17 @@ class GitSafetyNet:
             restored = len(set(savepoint.files_snapshot) & set(current_files))
             removed = len(set(current_files) - set(savepoint.files_snapshot))
             return UndoResult(
-                success=True, message=f"Reverted to: {savepoint.description}",
+                success=True,
+                message=f"Reverted to: {savepoint.description}",
                 reverted_to=savepoint.commit_hash,
-                files_restored=restored, files_removed=removed,
+                files_restored=restored,
+                files_removed=removed,
             )
         except subprocess.CalledProcessError as e:
-            return UndoResult(success=False, message=f"Git reset failed: {e.stderr.strip() if e.stderr else str(e)}")
+            return UndoResult(
+                success=False,
+                message=f"Git reset failed: {e.stderr.strip() if e.stderr else str(e)}",
+            )
         except Exception as e:
             return UndoResult(success=False, message=f"Undo failed: {str(e)}")
 
@@ -259,18 +269,21 @@ class GitSafetyNet:
             count = len(self._savepoints)
             self._savepoints.clear()
             return UndoResult(
-                success=True, message=f"Reverted {count} edit(s) to initial state",
+                success=True,
+                message=f"Reverted {count} edit(s) to initial state",
                 reverted_to=first.commit_hash,
             )
         except Exception as e:
             return UndoResult(success=False, message=f"Undo-all failed: {str(e)}")
 
-    def get_undo_stack(self) -> List[Dict]:
+    def get_undo_stack(self) -> list[dict]:
         """Get the current undo stack for display."""
         return [
             {
-                "index": i, "hash": sp.commit_hash[:8],
-                "description": sp.description, "timestamp": sp.timestamp,
+                "index": i,
+                "hash": sp.commit_hash[:8],
+                "description": sp.description,
+                "timestamp": sp.timestamp,
                 "files": len(sp.files_snapshot),
             }
             for i, sp in enumerate(reversed(self._savepoints))
@@ -279,16 +292,17 @@ class GitSafetyNet:
     def get_savepoint_count(self) -> int:
         return len(self._savepoints)
 
-    def get_last_savepoint(self) -> Optional[Savepoint]:
+    def get_last_savepoint(self) -> Savepoint | None:
         return self._savepoints[-1] if self._savepoints else None
 
-    def get_edit_history(self, max_entries: int = 20) -> List[Dict]:
+    def get_edit_history(self, max_entries: int = 20) -> list[dict]:
         """Get history of Orion edits from git log."""
         if not self._initialized:
             return []
         try:
             result = _run_git(
-                self.workspace, "log",
+                self.workspace,
+                "log",
                 f"--max-count={max_entries}",
                 "--pretty=format:%H|%ai|%s",
                 check=False,
@@ -302,18 +316,24 @@ class GitSafetyNet:
                 parts = line.split("|", 2)
                 if len(parts) == 3:
                     commit_hash, timestamp, message = parts
-                    entry_type = "savepoint" if SAVEPOINT_PREFIX in message else (
-                        "edit" if EDIT_PREFIX in message else "user"
+                    entry_type = (
+                        "savepoint"
+                        if SAVEPOINT_PREFIX in message
+                        else ("edit" if EDIT_PREFIX in message else "user")
                     )
-                    entries.append({
-                        "hash": commit_hash[:8], "timestamp": timestamp.strip(),
-                        "message": message.strip(), "type": entry_type,
-                    })
+                    entries.append(
+                        {
+                            "hash": commit_hash[:8],
+                            "timestamp": timestamp.strip(),
+                            "message": message.strip(),
+                            "type": entry_type,
+                        }
+                    )
             return entries
         except Exception:
             return []
 
-    def get_last_edit_diff(self) -> Optional[str]:
+    def get_last_edit_diff(self) -> str | None:
         """Get the diff of the last AI edit."""
         if not self._savepoints:
             return None
@@ -329,7 +349,7 @@ class GitSafetyNet:
 # CONVENIENCE API
 # ---------------------------------------------------------------------------
 
-_instances: Dict[str, GitSafetyNet] = {}
+_instances: dict[str, GitSafetyNet] = {}
 
 
 def get_git_safety(workspace_path: str) -> GitSafetyNet:

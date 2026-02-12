@@ -13,39 +13,37 @@ Tests cover:
 - process_request() / process_request_sync()
 """
 
-import asyncio
-import os
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from orion.core.agents.router import (
     Intent,
-    classify_intent,
     RequestRouter,
+    classify_intent,
     get_router,
-    process_request,
     process_request_sync,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers / Mocks
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class MockScoutReport:
     route: object = None
     complexity_score: float = 0.3
     risk_level: str = "low"
-    relevant_files: List[str] = field(default_factory=list)
+    relevant_files: list[str] = field(default_factory=list)
     reasoning: str = "mock reasoning"
 
 
 class MockRoute:
     """Mimics orion.core.agents.scout.Route enum."""
+
     FAST_PATH = "FAST_PATH"
     COUNCIL = "COUNCIL"
     ESCALATION = "ESCALATION"
@@ -58,7 +56,7 @@ class MockRoute:
         return self._value
 
     def __eq__(self, other):
-        if hasattr(other, '_value'):
+        if hasattr(other, "_value"):
             return self._value == other._value
         return self._value == other
 
@@ -72,6 +70,7 @@ class MockFastPathResult:
 # ---------------------------------------------------------------------------
 # Intent dataclass
 # ---------------------------------------------------------------------------
+
 
 class TestIntent:
     def test_fields(self):
@@ -92,6 +91,7 @@ class TestIntent:
 # ---------------------------------------------------------------------------
 # classify_intent()
 # ---------------------------------------------------------------------------
+
 
 class TestClassifyIntent:
     def test_returns_valid_intent(self, tmp_path):
@@ -114,6 +114,7 @@ class TestClassifyIntent:
 # ---------------------------------------------------------------------------
 # RequestRouter -- init with sandbox disabled
 # ---------------------------------------------------------------------------
+
 
 class TestRequestRouterInit:
     def test_init_sandbox_disabled(self, tmp_path):
@@ -147,6 +148,7 @@ class TestRequestRouterInit:
 # Sandbox methods (when sandbox is not active)
 # ---------------------------------------------------------------------------
 
+
 class TestSandboxInactive:
     def test_get_sandbox_diff_returns_none(self, tmp_path):
         router = RequestRouter(str(tmp_path), sandbox_enabled=False)
@@ -171,6 +173,7 @@ class TestSandboxInactive:
 # _get_memory_context()
 # ---------------------------------------------------------------------------
 
+
 class TestGetMemoryContext:
     def test_no_memory_engine(self, tmp_path):
         router = RequestRouter(str(tmp_path), sandbox_enabled=False, memory_engine=None)
@@ -194,6 +197,7 @@ class TestGetMemoryContext:
 # ---------------------------------------------------------------------------
 # record_interaction()
 # ---------------------------------------------------------------------------
+
 
 class TestRecordInteraction:
     def test_no_memory_engine(self, tmp_path):
@@ -222,6 +226,7 @@ class TestRecordInteraction:
 # handle_request() -- routing
 # ---------------------------------------------------------------------------
 
+
 class TestHandleRequest:
     @pytest.mark.asyncio
     async def test_no_scout_returns_failure(self, tmp_path):
@@ -247,15 +252,22 @@ class TestHandleRequest:
         router._fast_path = mock_fp
 
         # Mock Route enum import inside handle_request
-        with patch("orion.core.agents.router.RequestRouter._handle_fast_path",
-                    new_callable=AsyncMock, return_value={"content": "answer"}):
+        with patch(
+            "orion.core.agents.router.RequestRouter._handle_fast_path",
+            new_callable=AsyncMock,
+            return_value={"content": "answer"},
+        ):
             # Patch the Route import
             mock_route_module = MagicMock()
-            mock_route_module.Route = type('Route', (), {
-                'FAST_PATH': mock_route,
-                'COUNCIL': MockRoute("COUNCIL"),
-                'ESCALATION': MockRoute("ESCALATION"),
-            })
+            mock_route_module.Route = type(
+                "Route",
+                (),
+                {
+                    "FAST_PATH": mock_route,
+                    "COUNCIL": MockRoute("COUNCIL"),
+                    "ESCALATION": MockRoute("ESCALATION"),
+                },
+            )
             with patch.dict("sys.modules", {"orion.core.agents.scout": mock_route_module}):
                 result = await router.handle_request("show me main.py")
                 assert result["success"] is True
@@ -287,6 +299,7 @@ class TestHandleRequest:
 # _handle_escalation()
 # ---------------------------------------------------------------------------
 
+
 class TestHandleEscalation:
     @pytest.mark.asyncio
     async def test_user_cancels(self, tmp_path):
@@ -315,6 +328,7 @@ class TestHandleEscalation:
 # _handle_council() fallback
 # ---------------------------------------------------------------------------
 
+
 class TestHandleCouncil:
     @pytest.mark.asyncio
     async def test_council_none_falls_back_to_fast_path(self, tmp_path):
@@ -335,6 +349,7 @@ class TestHandleCouncil:
 # Lazy property loading
 # ---------------------------------------------------------------------------
 
+
 class TestLazyProperties:
     def test_fast_path_lazy_load_fails_gracefully(self, tmp_path):
         router = RequestRouter(str(tmp_path), sandbox_enabled=False)
@@ -353,6 +368,7 @@ class TestLazyProperties:
 # get_router() factory
 # ---------------------------------------------------------------------------
 
+
 class TestGetRouter:
     def test_returns_router_instance(self, tmp_path):
         router = get_router(str(tmp_path), sandbox_enabled=False)
@@ -367,13 +383,18 @@ class TestGetRouter:
 # process_request_sync()
 # ---------------------------------------------------------------------------
 
+
 class TestProcessRequestSync:
     def test_sync_wrapper(self, tmp_path):
         with patch("orion.core.agents.router.RequestRouter") as MockRouter:
             mock_instance = MagicMock()
-            mock_instance.handle_request = AsyncMock(return_value={
-                "success": True, "route": "FAST_PATH", "response": "done",
-            })
+            mock_instance.handle_request = AsyncMock(
+                return_value={
+                    "success": True,
+                    "route": "FAST_PATH",
+                    "response": "done",
+                }
+            )
             MockRouter.return_value = mock_instance
 
             result = process_request_sync("hello", str(tmp_path), stream=False)

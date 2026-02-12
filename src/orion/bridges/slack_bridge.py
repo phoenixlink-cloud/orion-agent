@@ -32,10 +32,9 @@ Setup:
     6. Message the bot on Slack with the passphrase
 """
 
-import asyncio
-from typing import Optional
+import contextlib
 
-from orion.bridges.base import MessagingBridge, BridgeConfig, BridgeMessage
+from orion.bridges.base import BridgeConfig, BridgeMessage, MessagingBridge
 
 
 class SlackBridge(MessagingBridge):
@@ -49,12 +48,11 @@ class SlackBridge(MessagingBridge):
     async def start(self):
         """Start the Slack bot with Socket Mode."""
         try:
-            from slack_bolt.async_app import AsyncApp
             from slack_bolt.adapter.socket_mode.async_handler import AsyncSocketModeHandler
+            from slack_bolt.async_app import AsyncApp
         except ImportError:
             if self._log:
-                self._log.error("Bridge", "slack-bolt not installed. "
-                                "Run: pip install slack-bolt")
+                self._log.error("Bridge", "slack-bolt not installed. Run: pip install slack-bolt")
             return
 
         if not self.config.token:
@@ -67,6 +65,7 @@ class SlackBridge(MessagingBridge):
         if not app_token:
             # Try environment
             import os
+
             app_token = os.environ.get("SLACK_APP_TOKEN", "")
 
         self._bolt_app = AsyncApp(token=self.config.token)
@@ -99,6 +98,7 @@ class SlackBridge(MessagingBridge):
 
             # Strip the bot mention from text
             import re
+
             text = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
 
             if not text:
@@ -122,16 +122,17 @@ class SlackBridge(MessagingBridge):
             await self._handler.start_async()
         else:
             if self._log:
-                self._log.warn("Bridge", "No SLACK_APP_TOKEN -- Socket Mode unavailable. "
-                               "Set SLACK_APP_TOKEN env var for real-time messaging.")
+                self._log.warn(
+                    "Bridge",
+                    "No SLACK_APP_TOKEN -- Socket Mode unavailable. "
+                    "Set SLACK_APP_TOKEN env var for real-time messaging.",
+                )
 
     async def stop(self):
         """Stop the Slack bot."""
         if self._handler:
-            try:
+            with contextlib.suppress(Exception):
                 await self._handler.close_async()
-            except Exception:
-                pass
         self._running = False
         if self._log:
             self._log.info("Bridge", "Slack bridge stopped")
@@ -143,29 +144,27 @@ class SlackBridge(MessagingBridge):
 
         try:
             from slack_sdk.web.async_client import AsyncWebClient
+
             client = AsyncWebClient(token=self.config.token)
             await client.chat_postMessage(channel=chat_id, text=text)
         except Exception as e:
             if self._log:
                 self._log.error("Bridge", f"Slack send failed: {e}")
 
-    async def send_approval_prompt(self, chat_id: str, prompt: str,
-                                   approval_id: str) -> None:
+    async def send_approval_prompt(self, chat_id: str, prompt: str, approval_id: str) -> None:
         """Send an AEGIS approval request with Slack action buttons."""
         if not self._bolt_app:
             return
 
         try:
             from slack_sdk.web.async_client import AsyncWebClient
+
             client = AsyncWebClient(token=self.config.token)
 
             blocks = [
                 {
                     "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"⚠️ *AEGIS APPROVAL REQUIRED*\n\n{prompt}"
-                    }
+                    "text": {"type": "mrkdwn", "text": f"⚠️ *AEGIS APPROVAL REQUIRED*\n\n{prompt}"},
                 },
                 {
                     "type": "actions",
@@ -184,8 +183,8 @@ class SlackBridge(MessagingBridge):
                             "action_id": f"aegis_deny_{approval_id}",
                             "value": approval_id,
                         },
-                    ]
-                }
+                    ],
+                },
             ]
 
             await client.chat_postMessage(
@@ -193,5 +192,5 @@ class SlackBridge(MessagingBridge):
                 text=f"AEGIS Approval Required: {prompt}",
                 blocks=blocks,
             )
-        except Exception as e:
+        except Exception:
             await self.send(chat_id, f"⚠️ AEGIS APPROVAL REQUIRED\n\n{prompt}")

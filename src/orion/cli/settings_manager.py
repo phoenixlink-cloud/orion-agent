@@ -31,11 +31,11 @@ Usage:
     await run_settings(console)
 """
 
-import os
+import contextlib
 import json
+import os
 from pathlib import Path
-from typing import Optional, Dict, Any
-
+from typing import Any
 
 SETTINGS_DIR = Path.home() / ".orion"
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
@@ -179,18 +179,16 @@ SETTING_CATEGORIES = {
 }
 
 
-def _load_settings() -> Dict[str, Any]:
+def _load_settings() -> dict[str, Any]:
     """Load current settings with defaults."""
     user_settings = {}
     if SETTINGS_FILE.exists():
-        try:
+        with contextlib.suppress(Exception):
             user_settings = json.loads(SETTINGS_FILE.read_text())
-        except Exception:
-            pass
 
     # Merge with defaults
     result = {}
-    for category, settings in SETTING_CATEGORIES.items():
+    for _category, settings in SETTING_CATEGORIES.items():
         for key, meta in settings.items():
             result[key] = user_settings.get(key, meta["default"])
     # Include any extra user settings not in our schema
@@ -200,13 +198,13 @@ def _load_settings() -> Dict[str, Any]:
     return result
 
 
-def _save_settings(settings: Dict[str, Any]):
+def _save_settings(settings: dict[str, Any]):
     """Save settings to file."""
     SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
     SETTINGS_FILE.write_text(json.dumps(settings, indent=2))
 
 
-async def run_settings(console=None, action: str = "view") -> Dict[str, Any]:
+async def run_settings(console=None, action: str = "view") -> dict[str, Any]:
     """
     Run the settings manager.
 
@@ -247,9 +245,10 @@ async def run_settings(console=None, action: str = "view") -> Dict[str, Any]:
             _print(f"      {meta['description']}", "dim")
 
     # Show API key status
-    _print(f"\n  [API Keys]", "bold")
+    _print("\n  [API Keys]", "bold")
     try:
         from orion.security.store import get_secure_store
+
         store = get_secure_store()
         providers = store.list_providers()
         api_providers = [p for p in providers if not p.startswith("oauth_")]
@@ -270,10 +269,10 @@ async def run_settings(console=None, action: str = "view") -> Dict[str, Any]:
     return settings
 
 
-async def _reset_settings(console=None) -> Dict[str, Any]:
+async def _reset_settings(console=None) -> dict[str, Any]:
     """Reset all settings to defaults."""
     defaults = {}
-    for category, settings in SETTING_CATEGORIES.items():
+    for _category, settings in SETTING_CATEGORIES.items():
         for key, meta in settings.items():
             defaults[key] = meta["default"]
 
@@ -288,7 +287,7 @@ async def _reset_settings(console=None) -> Dict[str, Any]:
     return defaults
 
 
-async def _export_settings(console=None) -> Dict[str, Any]:
+async def _export_settings(console=None) -> dict[str, Any]:
     """Export settings to a portable format."""
     settings = _load_settings()
     export_path = SETTINGS_DIR / "settings_export.json"
@@ -304,7 +303,7 @@ async def _export_settings(console=None) -> Dict[str, Any]:
     return settings
 
 
-def _format_value(value: Any, meta: Dict) -> str:
+def _format_value(value: Any, meta: dict) -> str:
     """Format a setting value for display."""
     if meta["type"] == "bool":
         return "enabled" if value else "disabled"

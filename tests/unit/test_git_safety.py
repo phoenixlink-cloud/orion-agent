@@ -1,9 +1,11 @@
 """Unit tests for GitSafetyNet -- savepoints, undo, edit history."""
 
 import os
-import pytest
-import tempfile
 import subprocess
+import tempfile
+
+import pytest
+
 from orion.core.editing.safety import GitSafetyNet
 
 
@@ -13,15 +15,18 @@ def git_workspace():
     with tempfile.TemporaryDirectory() as tmp:
         subprocess.run(
             ["git", "init", "-q"],
-            cwd=tmp, capture_output=True,
+            cwd=tmp,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=tmp, capture_output=True,
+            cwd=tmp,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "Test"],
-            cwd=tmp, capture_output=True,
+            cwd=tmp,
+            capture_output=True,
         )
         # Create initial commit
         init_file = os.path.join(tmp, "init.txt")
@@ -30,7 +35,8 @@ def git_workspace():
         subprocess.run(["git", "add", "."], cwd=tmp, capture_output=True)
         subprocess.run(
             ["git", "commit", "-m", "init", "-q"],
-            cwd=tmp, capture_output=True,
+            cwd=tmp,
+            capture_output=True,
         )
         yield tmp
 
@@ -44,7 +50,7 @@ class TestGitSafetyInit:
 
     def test_init_with_non_git_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
-            safety = GitSafetyNet(tmp)
+            GitSafetyNet(tmp)
             # Should handle gracefully even without git
 
 
@@ -67,7 +73,8 @@ class TestSavepoints:
         subprocess.run(["git", "add", "."], cwd=git_workspace, capture_output=True)
         subprocess.run(
             ["git", "commit", "-m", "test edit", "-q"],
-            cwd=git_workspace, capture_output=True,
+            cwd=git_workspace,
+            capture_output=True,
         )
 
         # Undo should revert

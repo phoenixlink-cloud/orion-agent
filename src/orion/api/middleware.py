@@ -24,10 +24,9 @@ Lightweight middleware for production hardening:
 Both are no-ops when unconfigured -- zero overhead for local development.
 """
 
-import time
 import logging
+import time
 from collections import defaultdict
-from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -39,6 +38,7 @@ logger = logging.getLogger("orion.api.middleware")
 # =============================================================================
 # RATE LIMITING (token bucket, per-IP)
 # =============================================================================
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
@@ -94,6 +94,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 # OPTIONAL API KEY AUTH (Bearer token)
 # =============================================================================
 
+
 class OptionalAuthMiddleware(BaseHTTPMiddleware):
     """
     Optional Bearer token authentication.
@@ -111,10 +112,10 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app):
         super().__init__(app)
-        self._cached_key: Optional[str] = None
+        self._cached_key: str | None = None
         self._last_check: float = 0
 
-    def _get_server_key(self) -> Optional[str]:
+    def _get_server_key(self) -> str | None:
         """Load the server key from settings (cached for 30s)."""
         now = time.monotonic()
         if now - self._last_check < 30:
@@ -123,6 +124,7 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
         self._last_check = now
         try:
             from orion.api._shared import _load_user_settings
+
             settings = _load_user_settings()
             self._cached_key = settings.get("api_server_key") or None
         except Exception:
@@ -157,9 +159,11 @@ class OptionalAuthMiddleware(BaseHTTPMiddleware):
             if token == server_key:
                 return await call_next(request)
 
-        logger.warning("Unauthorized request to %s from %s",
-                        request.url.path,
-                        request.client.host if request.client else "unknown")
+        logger.warning(
+            "Unauthorized request to %s from %s",
+            request.url.path,
+            request.client.host if request.client else "unknown",
+        )
         return JSONResponse(
             status_code=401,
             content={"detail": "Authentication required. Set Authorization: Bearer <key> header."},

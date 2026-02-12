@@ -1,17 +1,15 @@
 """Tests for orion.core.production -- logging, health, shutdown, metrics."""
 
 import json
-import time
-import pytest
 
+from orion.core.production.health import HealthProbe, HealthStatus
 from orion.core.production.logging import StructuredLogger
-from orion.core.production.health import HealthStatus, HealthProbe
-from orion.core.production.metrics import MetricsCollector, RequestMetrics
-
+from orion.core.production.metrics import MetricsCollector
 
 # =========================================================================
 # STRUCTURED LOGGING
 # =========================================================================
+
 
 class TestStructuredLogger:
     def test_logger_creation(self):
@@ -46,6 +44,7 @@ class TestStructuredLogger:
 # HEALTH PROBE
 # =========================================================================
 
+
 class TestHealthProbe:
     def test_default_healthy(self):
         probe = HealthProbe()
@@ -65,6 +64,7 @@ class TestHealthProbe:
 # =========================================================================
 # METRICS COLLECTOR
 # =========================================================================
+
 
 class TestMetricsCollector:
     def test_track_request(self):

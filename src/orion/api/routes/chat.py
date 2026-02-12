@@ -16,6 +16,8 @@
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Orion Agent -- Chat Routes (REST + WebSocket)."""
 
+import contextlib
+
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from orion.api._shared import ChatRequest, _get_orion_log
@@ -33,12 +35,12 @@ async def chat_endpoint(request: ChatRequest):
 
     try:
         from orion.core.agents.router import RequestRouter
+
         router_inst = RequestRouter(
             request.workspace,
             stream_output=False,
             sandbox_enabled=False,
         )
-        import asyncio
         result = await router_inst.handle_request(request.message)
         return {
             "success": result.get("success", False),
@@ -86,6 +88,7 @@ async def websocket_chat(websocket: WebSocket):
                 task_desc = data.get("task_description", "")
                 if memory_engine and rating and 1 <= rating <= 5:
                     import uuid as _feedback_uuid
+
                     task_id = str(_feedback_uuid.uuid4())[:8]
                     memory_engine.record_approval(
                         task_id=task_id,
@@ -95,12 +98,18 @@ async def websocket_chat(websocket: WebSocket):
                         quality_score=rating / 5.0,
                     )
                     if log:
-                        log.approval(task_id=task_id, rating=rating, promoted=(rating >= 4 or rating <= 2))
-                    await websocket.send_json({
-                        "type": "feedback_ack",
-                        "rating": rating,
-                        "pattern": "positive" if rating >= 4 else ("anti" if rating <= 2 else "neutral"),
-                    })
+                        log.approval(
+                            task_id=task_id, rating=rating, promoted=(rating >= 4 or rating <= 2)
+                        )
+                    await websocket.send_json(
+                        {
+                            "type": "feedback_ack",
+                            "rating": rating,
+                            "pattern": "positive"
+                            if rating >= 4
+                            else ("anti" if rating <= 2 else "neutral"),
+                        }
+                    )
                 continue
 
             # Chat message
@@ -121,6 +130,7 @@ async def websocket_chat(websocket: WebSocket):
                 current_workspace = workspace
                 try:
                     from orion.core.memory.engine import get_memory_engine
+
                     if memory_engine:
                         memory_engine.end_session()
                     memory_engine = get_memory_engine(workspace)
@@ -130,6 +140,7 @@ async def websocket_chat(websocket: WebSocket):
 
                 try:
                     from orion.core.agents.router import RequestRouter
+
                     router_inst = RequestRouter(
                         workspace,
                         stream_output=False,  # We handle streaming ourselves
@@ -137,7 +148,9 @@ async def websocket_chat(websocket: WebSocket):
                         memory_engine=memory_engine,
                     )
                 except Exception as e:
-                    await websocket.send_json({"type": "error", "message": f"Router init failed: {e}"})
+                    await websocket.send_json(
+                        {"type": "error", "message": f"Router init failed: {e}"}
+                    )
                     continue
 
                 if log:
@@ -149,17 +162,18 @@ async def websocket_chat(websocket: WebSocket):
                 route_name = "FAST_PATH"
                 if router_inst.scout:
                     report = router_inst.scout.analyze(user_input)
-                    from orion.core.agents.scout import Route
                     route_name = report.route.name
 
-                    await websocket.send_json({
-                        "type": "routing",
-                        "route": route_name,
-                        "reasoning": report.reasoning,
-                        "files": report.relevant_files[:5],
-                        "complexity": report.complexity_score,
-                        "risk": report.risk_level,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "routing",
+                            "route": route_name,
+                            "reasoning": report.reasoning,
+                            "files": report.relevant_files[:5],
+                            "complexity": report.complexity_score,
+                            "risk": report.risk_level,
+                        }
+                    )
 
                 # Streaming for FastPath
                 if route_name == "FAST_PATH" and router_inst.fast_path:
@@ -172,7 +186,9 @@ async def websocket_chat(websocket: WebSocket):
 
                     collected = []
                     try:
-                        async for token in router_inst.fast_path.execute_streaming(user_input, report):
+                        async for token in router_inst.fast_path.execute_streaming(
+                            user_input, report
+                        ):
                             collected.append(token)
                             await websocket.send_json({"type": "token", "content": token})
                         full_response = "".join(collected)
@@ -182,59 +198,84 @@ async def websocket_chat(websocket: WebSocket):
                         full_response = result.response
                         await websocket.send_json({"type": "token", "content": full_response})
 
-                    await websocket.send_json({
-                        "type": "complete",
-                        "success": True,
-                        "response": full_response,
-                        "route": route_name,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "complete",
+                            "success": True,
+                            "response": full_response,
+                            "route": route_name,
+                        }
+                    )
 
                 # Council path (Builder -> Reviewer -> Governor)
                 elif route_name == "COUNCIL" and router_inst.council:
-                    await websocket.send_json({"type": "status", "message": "Council deliberating..."})
-                    await websocket.send_json({"type": "council_phase", "phase": "builder", "message": "Builder generating proposal..."})
+                    await websocket.send_json(
+                        {"type": "status", "message": "Council deliberating..."}
+                    )
+                    await websocket.send_json(
+                        {
+                            "type": "council_phase",
+                            "phase": "builder",
+                            "message": "Builder generating proposal...",
+                        }
+                    )
 
                     result = await router_inst.handle_request(user_input)
                     full_response = result.get("response", "")
 
-                    await websocket.send_json({"type": "council_phase", "phase": "complete", "message": "Council complete"})
-                    await websocket.send_json({
-                        "type": "complete",
-                        "success": result.get("success", False),
-                        "response": full_response,
-                        "route": route_name,
-                        "actions": result.get("actions", []),
-                        "execution_time_ms": result.get("execution_time_ms", 0),
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "council_phase",
+                            "phase": "complete",
+                            "message": "Council complete",
+                        }
+                    )
+                    await websocket.send_json(
+                        {
+                            "type": "complete",
+                            "success": result.get("success", False),
+                            "response": full_response,
+                            "route": route_name,
+                            "actions": result.get("actions", []),
+                            "execution_time_ms": result.get("execution_time_ms", 0),
+                        }
+                    )
 
                 # Escalation
                 elif route_name == "ESCALATION":
-                    await websocket.send_json({
-                        "type": "escalation",
-                        "message": f"This request was flagged for escalation.",
-                        "reason": report.reasoning if report else "Unknown",
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "escalation",
+                            "message": "This request was flagged for escalation.",
+                            "reason": report.reasoning if report else "Unknown",
+                        }
+                    )
                     full_response = "Request escalated -- requires human approval."
 
                 # Fallback
                 else:
                     result = await router_inst.handle_request(user_input)
                     full_response = result.get("response", "")
-                    await websocket.send_json({
-                        "type": "complete",
-                        "success": result.get("success", False),
-                        "response": full_response,
-                        "route": route_name,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "complete",
+                            "success": result.get("success", False),
+                            "response": full_response,
+                            "route": route_name,
+                        }
+                    )
 
                 # Record interaction in memory
                 if router_inst:
                     router_inst.record_interaction(user_input, full_response, route_name)
 
                 if log:
-                    log.route(route_name, user_input,
-                              complexity=report.complexity_score if report else 0,
-                              risk=report.risk_level if report else "")
+                    log.route(
+                        route_name,
+                        user_input,
+                        complexity=report.complexity_score if report else 0,
+                        risk=report.risk_level if report else "",
+                    )
 
             except Exception as e:
                 if log:
@@ -244,10 +285,8 @@ async def websocket_chat(websocket: WebSocket):
     except WebSocketDisconnect:
         # Clean up session
         if memory_engine:
-            try:
+            with contextlib.suppress(Exception):
                 memory_engine.end_session()
-            except Exception:
-                pass
         if log:
             client_host = websocket.client.host if websocket.client else "unknown"
             log.ws_disconnect(client=client_host, requests=ws_request_count)
@@ -255,7 +294,5 @@ async def websocket_chat(websocket: WebSocket):
     except Exception as e:
         if log:
             log.error("WebSocket", f"Unhandled error: {e}")
-        try:
+        with contextlib.suppress(Exception):
             await websocket.send_json({"type": "error", "message": f"WebSocket error: {e}"})
-        except Exception:
-            pass

@@ -18,18 +18,18 @@ Tests cover:
 - get_memory_engine() factory singleton
 """
 
-import json
 import os
-import pytest
-from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # Mock EmbeddingStore before importing engine (it tries to load
 # sentence-transformers on init, which may not be installed).
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def _mock_embedding_store(monkeypatch):
@@ -39,25 +39,22 @@ def _mock_embedding_store(monkeypatch):
     mock_instance.available = False
     mock_instance.search.return_value = []
     mock_cls.return_value = mock_instance
-    monkeypatch.setattr(
-        "orion.core.memory.engine.EmbeddingStore", mock_cls
-    )
+    monkeypatch.setattr("orion.core.memory.engine.EmbeddingStore", mock_cls)
     return mock_instance
 
 
 from orion.core.memory.engine import (
-    MemoryEntry,
-    ApprovalGateResult,
     EvolutionSnapshot,
-    MemoryStats,
     MemoryEngine,
+    MemoryEntry,
+    MemoryStats,
     get_memory_engine,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_engine(tmp_path):
     """Create a MemoryEngine using a temp workspace and temp DB path."""
@@ -65,7 +62,6 @@ def _make_engine(tmp_path):
     os.makedirs(workspace, exist_ok=True)
     engine = MemoryEngine(workspace_path=workspace)
     # Override DB path to use temp dir instead of ~/.orion
-    import sqlite3
     db_path = tmp_path / "test_memory.db"
     engine._db_path = db_path
     engine._init_db()
@@ -76,13 +72,20 @@ def _make_engine(tmp_path):
 # MemoryEntry dataclass
 # =========================================================================
 
+
 class TestMemoryEntry:
     def test_to_dict_roundtrip(self):
         entry = MemoryEntry(
-            id="abc123", content="Use type hints", tier=2,
-            category="pattern", confidence=0.8,
-            created_at="2025-01-01T00:00:00", last_accessed="2025-01-01T00:00:00",
-            access_count=3, source="test", metadata={"key": "val"},
+            id="abc123",
+            content="Use type hints",
+            tier=2,
+            category="pattern",
+            confidence=0.8,
+            created_at="2025-01-01T00:00:00",
+            last_accessed="2025-01-01T00:00:00",
+            access_count=3,
+            source="test",
+            metadata={"key": "val"},
         )
         d = entry.to_dict()
         restored = MemoryEntry.from_dict(d)
@@ -94,8 +97,13 @@ class TestMemoryEntry:
 
     def test_from_dict_ignores_extra_keys(self):
         d = {
-            "id": "x", "content": "y", "tier": 1, "category": "insight",
-            "confidence": 0.5, "created_at": "", "last_accessed": "",
+            "id": "x",
+            "content": "y",
+            "tier": 1,
+            "category": "insight",
+            "confidence": 0.5,
+            "created_at": "",
+            "last_accessed": "",
             "extra_field": "ignored",
         }
         entry = MemoryEntry.from_dict(d)
@@ -104,8 +112,13 @@ class TestMemoryEntry:
 
     def test_defaults(self):
         entry = MemoryEntry(
-            id="a", content="b", tier=1, category="insight",
-            confidence=0.5, created_at="", last_accessed="",
+            id="a",
+            content="b",
+            tier=1,
+            category="insight",
+            confidence=0.5,
+            created_at="",
+            last_accessed="",
         )
         assert entry.access_count == 0
         assert entry.source == ""
@@ -116,10 +129,11 @@ class TestMemoryEntry:
 # MemoryEngine -- init
 # =========================================================================
 
+
 class TestMemoryEngineInit:
     def test_creates_project_dir(self, tmp_path):
         workspace = str(tmp_path / "new_project")
-        engine = MemoryEngine(workspace_path=workspace)
+        MemoryEngine(workspace_path=workspace)
         assert (Path(workspace) / ".orion").is_dir()
 
     def test_no_workspace(self, tmp_path):
@@ -131,6 +145,7 @@ class TestMemoryEngineInit:
 # =========================================================================
 # remember()
 # =========================================================================
+
 
 class TestRemember:
     def test_tier1_session(self, tmp_path):
@@ -170,6 +185,7 @@ class TestRemember:
 # =========================================================================
 # recall()
 # =========================================================================
+
 
 class TestRecall:
     def test_keyword_matching(self, tmp_path):
@@ -235,6 +251,7 @@ class TestRecall:
 # recall_for_prompt()
 # =========================================================================
 
+
 class TestRecallForPrompt:
     def test_returns_formatted_string(self, tmp_path):
         engine = _make_engine(tmp_path)
@@ -254,12 +271,15 @@ class TestRecallForPrompt:
 # record_approval()
 # =========================================================================
 
+
 class TestRecordApproval:
     def test_approved_high_rating(self, tmp_path):
         engine = _make_engine(tmp_path)
         result = engine.record_approval(
-            task_id="t1", task_description="Fixed the bug",
-            rating=5, feedback="Perfect fix",
+            task_id="t1",
+            task_description="Fixed the bug",
+            rating=5,
+            feedback="Perfect fix",
             quality_score=0.95,
         )
         assert result.approved is True
@@ -269,8 +289,10 @@ class TestRecordApproval:
     def test_rejected_low_rating(self, tmp_path):
         engine = _make_engine(tmp_path)
         result = engine.record_approval(
-            task_id="t2", task_description="Broke the tests",
-            rating=1, feedback="Wrong approach",
+            task_id="t2",
+            task_description="Broke the tests",
+            rating=1,
+            feedback="Wrong approach",
         )
         assert result.approved is False
         assert result.promoted_to_tier3 is True  # anti-patterns also go to tier3
@@ -278,8 +300,10 @@ class TestRecordApproval:
     def test_neutral_rating_no_tier3(self, tmp_path):
         engine = _make_engine(tmp_path)
         result = engine.record_approval(
-            task_id="t3", task_description="Average work",
-            rating=3, feedback="Meh",
+            task_id="t3",
+            task_description="Average work",
+            rating=3,
+            feedback="Meh",
         )
         assert result.approved is False  # rating 3 < 4
         assert result.promoted_to_tier3 is False  # rating 3 is neutral
@@ -287,8 +311,10 @@ class TestRecordApproval:
     def test_stores_in_project_memory(self, tmp_path):
         engine = _make_engine(tmp_path)
         engine.record_approval(
-            task_id="t4", task_description="Some task",
-            rating=4, feedback="Good",
+            task_id="t4",
+            task_description="Some task",
+            rating=4,
+            feedback="Good",
         )
         # Should have at least one entry in project cache
         assert len(engine._project_cache) >= 1
@@ -296,8 +322,10 @@ class TestRecordApproval:
     def test_records_evolution_event(self, tmp_path):
         engine = _make_engine(tmp_path)
         engine.record_approval(
-            task_id="t5", task_description="Task five",
-            rating=5, feedback="Great",
+            task_id="t5",
+            task_description="Task five",
+            rating=5,
+            feedback="Great",
         )
         history = engine.get_evolution_history(limit=10)
         assert len(history) >= 1
@@ -307,6 +335,7 @@ class TestRecordApproval:
 # =========================================================================
 # promote_to_institutional()
 # =========================================================================
+
 
 class TestPromoteToInstitutional:
     def test_successful_promotion(self, tmp_path):
@@ -333,11 +362,15 @@ class TestPromoteToInstitutional:
 # auto_promote()
 # =========================================================================
 
+
 class TestAutoPromote:
     def test_promotes_eligible_entries(self, tmp_path):
         engine = _make_engine(tmp_path)
         entry = engine.remember(
-            "frequently accessed pattern", tier=2, category="pattern", confidence=0.9,
+            "frequently accessed pattern",
+            tier=2,
+            category="pattern",
+            confidence=0.9,
         )
         # Simulate 3+ accesses
         engine._project_cache[entry.id].access_count = 5
@@ -354,7 +387,10 @@ class TestAutoPromote:
     def test_skips_wrong_category(self, tmp_path):
         engine = _make_engine(tmp_path)
         entry = engine.remember(
-            "anti pattern", tier=2, category="anti_pattern", confidence=0.9,
+            "anti pattern",
+            tier=2,
+            category="anti_pattern",
+            confidence=0.9,
         )
         engine._project_cache[entry.id].access_count = 5
         promoted = engine.auto_promote()
@@ -364,6 +400,7 @@ class TestAutoPromote:
 # =========================================================================
 # consolidate()
 # =========================================================================
+
 
 class TestConsolidate:
     def test_decays_old_low_confidence_tier2(self, tmp_path):
@@ -399,6 +436,7 @@ class TestConsolidate:
 # Session lifecycle
 # =========================================================================
 
+
 class TestSessionLifecycle:
     def test_start_session_clears_tier1(self, tmp_path):
         engine = _make_engine(tmp_path)
@@ -430,6 +468,7 @@ class TestSessionLifecycle:
 # =========================================================================
 # get_evolution_snapshot() and get_stats()
 # =========================================================================
+
 
 class TestEvolutionAndStats:
     def test_snapshot_empty_db(self, tmp_path):
@@ -481,13 +520,18 @@ class TestEvolutionAndStats:
 # _relevance_score()
 # =========================================================================
 
+
 class TestRelevanceScore:
     def test_full_overlap_scores_high(self, tmp_path):
         engine = _make_engine(tmp_path)
         entry = MemoryEntry(
-            id="r1", content="python type hints", tier=3,
-            category="pattern", confidence=1.0,
-            created_at="", last_accessed="",
+            id="r1",
+            content="python type hints",
+            tier=3,
+            category="pattern",
+            confidence=1.0,
+            created_at="",
+            last_accessed="",
         )
         score = engine._relevance_score(entry, "python type hints", {"python", "type", "hints"})
         assert score > 0.5
@@ -495,9 +539,13 @@ class TestRelevanceScore:
     def test_no_overlap_scores_zero(self, tmp_path):
         engine = _make_engine(tmp_path)
         entry = MemoryEntry(
-            id="r2", content="java spring boot", tier=3,
-            category="pattern", confidence=1.0,
-            created_at="", last_accessed="",
+            id="r2",
+            content="java spring boot",
+            tier=3,
+            category="pattern",
+            confidence=1.0,
+            created_at="",
+            last_accessed="",
         )
         score = engine._relevance_score(entry, "python type hints", {"python", "type", "hints"})
         assert score == 0.0
@@ -505,12 +553,22 @@ class TestRelevanceScore:
     def test_higher_tier_scores_higher(self, tmp_path):
         engine = _make_engine(tmp_path)
         entry_t1 = MemoryEntry(
-            id="t1", content="python best practices", tier=1,
-            category="insight", confidence=0.8, created_at="", last_accessed="",
+            id="t1",
+            content="python best practices",
+            tier=1,
+            category="insight",
+            confidence=0.8,
+            created_at="",
+            last_accessed="",
         )
         entry_t3 = MemoryEntry(
-            id="t3", content="python best practices", tier=3,
-            category="insight", confidence=0.8, created_at="", last_accessed="",
+            id="t3",
+            content="python best practices",
+            tier=3,
+            category="insight",
+            confidence=0.8,
+            created_at="",
+            last_accessed="",
         )
         query_lower = "python best practices"
         query_words = {"python", "best", "practices"}
@@ -521,12 +579,22 @@ class TestRelevanceScore:
     def test_pattern_category_gets_boost(self, tmp_path):
         engine = _make_engine(tmp_path)
         entry_pattern = MemoryEntry(
-            id="p", content="python tips", tier=2,
-            category="pattern", confidence=0.8, created_at="", last_accessed="",
+            id="p",
+            content="python tips",
+            tier=2,
+            category="pattern",
+            confidence=0.8,
+            created_at="",
+            last_accessed="",
         )
         entry_insight = MemoryEntry(
-            id="i", content="python tips", tier=2,
-            category="insight", confidence=0.8, created_at="", last_accessed="",
+            id="i",
+            content="python tips",
+            tier=2,
+            category="insight",
+            confidence=0.8,
+            created_at="",
+            last_accessed="",
         )
         query_words = {"python", "tips"}
         s_pat = engine._relevance_score(entry_pattern, "python tips", query_words)
@@ -537,6 +605,7 @@ class TestRelevanceScore:
 # =========================================================================
 # _classify_task()
 # =========================================================================
+
 
 class TestClassifyTask:
     def test_bug_fix(self, tmp_path):
@@ -575,6 +644,7 @@ class TestClassifyTask:
 # =========================================================================
 # load_knowledge_pack()
 # =========================================================================
+
 
 class TestLoadKnowledgePack:
     def test_inserts_patterns(self, tmp_path):
@@ -616,6 +686,7 @@ class TestLoadKnowledgePack:
 # Project memory persistence (Tier 2)
 # =========================================================================
 
+
 class TestProjectPersistence:
     def test_save_and_reload(self, tmp_path):
         workspace = str(tmp_path / "persist_project")
@@ -635,6 +706,7 @@ class TestProjectPersistence:
 # =========================================================================
 # _count_tiers() static
 # =========================================================================
+
 
 class TestCountTiers:
     def test_single_tier(self):
@@ -657,9 +729,11 @@ class TestCountTiers:
 # get_memory_engine() singleton factory
 # =========================================================================
 
+
 class TestGetMemoryEngine:
     def test_returns_same_instance(self, tmp_path):
         import orion.core.memory.engine as mod
+
         mod._engine_instance = None  # reset singleton
 
         workspace = str(tmp_path / "singleton_test")
@@ -672,6 +746,7 @@ class TestGetMemoryEngine:
 
     def test_recreates_on_different_workspace(self, tmp_path):
         import orion.core.memory.engine as mod
+
         mod._engine_instance = None
 
         ws1 = str(tmp_path / "ws1")

@@ -1,9 +1,9 @@
 """Unit tests for LLM provider routing -- no real API calls, tests structure and error paths."""
 
-import pytest
 import asyncio
-from orion.core.llm.providers import call_provider, _error_json, _get_key
+
 from orion.core.llm.config import RoleConfig
+from orion.core.llm.providers import _error_json, call_provider
 
 
 class TestErrorJson:
@@ -11,6 +11,7 @@ class TestErrorJson:
 
     def test_error_json_format(self):
         import json
+
         result = _error_json("something failed")
         parsed = json.loads(result)
         assert parsed["outcome"] == "ANSWER"

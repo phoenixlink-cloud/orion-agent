@@ -23,7 +23,7 @@ Providers: Slack, Discord, Telegram, Teams, WhatsApp.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.integrations.messaging")
 
@@ -36,11 +36,11 @@ class MessagingProviderBase(ABC):
     def name(self) -> str: ...
 
     @abstractmethod
-    async def send_message(self, channel: str, text: str, **kwargs) -> Dict[str, Any]:
+    async def send_message(self, channel: str, text: str, **kwargs) -> dict[str, Any]:
         """Send a message to a channel/conversation."""
         ...
 
-    async def list_channels(self) -> List[Dict[str, str]]:
+    async def list_channels(self) -> list[dict[str, str]]:
         """List available channels."""
         return []
 
@@ -51,23 +51,24 @@ class MessagingProviderBase(ABC):
 class SlackProvider(MessagingProviderBase):
     """Slack messaging via Bot Token + Web API."""
 
-    def __init__(self, bot_token: Optional[str] = None):
+    def __init__(self, bot_token: str | None = None):
         self._token = bot_token
 
     @property
     def name(self) -> str:
         return "slack"
 
-    def _get_token(self) -> Optional[str]:
+    def _get_token(self) -> str | None:
         if self._token:
             return self._token
         try:
             from orion.security.store import SecureStore
+
             return SecureStore().get_key("slack")
         except Exception:
             return None
 
-    async def send_message(self, channel: str, text: str, **kwargs) -> Dict[str, Any]:
+    async def send_message(self, channel: str, text: str, **kwargs) -> dict[str, Any]:
         import httpx
 
         token = self._get_token()
@@ -80,14 +81,16 @@ class SlackProvider(MessagingProviderBase):
             payload["thread_ts"] = kwargs["thread_ts"]
 
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post("https://slack.com/api/chat.postMessage", headers=headers, json=payload)
+            resp = await client.post(
+                "https://slack.com/api/chat.postMessage", headers=headers, json=payload
+            )
             data = resp.json()
 
         if data.get("ok"):
             return {"success": True, "ts": data.get("ts"), "channel": data.get("channel")}
         return {"success": False, "error": data.get("error", "Unknown Slack error")}
 
-    async def list_channels(self) -> List[Dict[str, str]]:
+    async def list_channels(self) -> list[dict[str, str]]:
         import httpx
 
         token = self._get_token()
@@ -106,18 +109,18 @@ class SlackProvider(MessagingProviderBase):
 
 # ── Provider registry ────────────────────────────────────────────────────
 
-_PROVIDERS: Dict[str, MessagingProviderBase] = {}
+_PROVIDERS: dict[str, MessagingProviderBase] = {}
 
 
 def register_messaging_provider(provider: MessagingProviderBase):
     _PROVIDERS[provider.name] = provider
 
 
-def get_messaging_provider(name: str) -> Optional[MessagingProviderBase]:
+def get_messaging_provider(name: str) -> MessagingProviderBase | None:
     return _PROVIDERS.get(name)
 
 
-def list_messaging_providers() -> List[str]:
+def list_messaging_providers() -> list[str]:
     return list(_PROVIDERS.keys())
 
 

@@ -20,10 +20,9 @@ Orion Agent -- Structured Logging (v7.4.0)
 JSON-structured logger for production environments.
 """
 
-import sys
 import json
 import logging
-from typing import Optional
+import sys
 from datetime import datetime, timezone
 
 
@@ -40,7 +39,7 @@ class StructuredLogger:
         self.level = getattr(logging, level.upper(), logging.INFO)
         self._logger = logging.getLogger(name)
         self._logger.setLevel(self.level)
-        self._correlation_id: Optional[str] = None
+        self._correlation_id: str | None = None
 
         if not self._logger.handlers:
             handler = logging.StreamHandler(sys.stdout)

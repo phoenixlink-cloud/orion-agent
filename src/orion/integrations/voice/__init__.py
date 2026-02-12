@@ -24,7 +24,7 @@ STT Providers: OpenAI Whisper, Google Cloud STT, Azure STT, etc.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("orion.integrations.voice")
 
@@ -37,11 +37,11 @@ class TTSProviderBase(ABC):
     def name(self) -> str: ...
 
     @property
-    def supported_voices(self) -> List[str]:
+    def supported_voices(self) -> list[str]:
         return []
 
     @abstractmethod
-    async def synthesize(self, text: str, voice: str = "default", **kwargs) -> Dict[str, Any]:
+    async def synthesize(self, text: str, voice: str = "default", **kwargs) -> dict[str, Any]:
         """
         Convert text to speech audio.
 
@@ -59,11 +59,11 @@ class STTProviderBase(ABC):
     def name(self) -> str: ...
 
     @property
-    def supported_languages(self) -> List[str]:
+    def supported_languages(self) -> list[str]:
         return ["en"]
 
     @abstractmethod
-    async def transcribe(self, audio: bytes, language: str = "en", **kwargs) -> Dict[str, Any]:
+    async def transcribe(self, audio: bytes, language: str = "en", **kwargs) -> dict[str, Any]:
         """
         Transcribe audio to text.
 
@@ -81,14 +81,15 @@ class OpenAITTSProvider(TTSProviderBase):
         return "openai_tts"
 
     @property
-    def supported_voices(self) -> List[str]:
+    def supported_voices(self) -> list[str]:
         return ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
 
-    async def synthesize(self, text: str, voice: str = "alloy", **kwargs) -> Dict[str, Any]:
+    async def synthesize(self, text: str, voice: str = "alloy", **kwargs) -> dict[str, Any]:
         import httpx
 
         try:
             from orion.security.store import SecureStore
+
             api_key = SecureStore().get_key("openai")
         except Exception:
             api_key = None
@@ -105,7 +106,9 @@ class OpenAITTSProvider(TTSProviderBase):
         }
 
         async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post("https://api.openai.com/v1/audio/speech", headers=headers, json=payload)
+            resp = await client.post(
+                "https://api.openai.com/v1/audio/speech", headers=headers, json=payload
+            )
             resp.raise_for_status()
 
         return {"success": True, "audio": resp.content, "format": payload["response_format"]}
@@ -119,14 +122,15 @@ class OpenAISTTProvider(STTProviderBase):
         return "openai_stt"
 
     @property
-    def supported_languages(self) -> List[str]:
+    def supported_languages(self) -> list[str]:
         return ["en", "es", "fr", "de", "it", "pt", "nl", "ja", "zh", "ko"]
 
-    async def transcribe(self, audio: bytes, language: str = "en", **kwargs) -> Dict[str, Any]:
+    async def transcribe(self, audio: bytes, language: str = "en", **kwargs) -> dict[str, Any]:
         import httpx
 
         try:
             from orion.security.store import SecureStore
+
             api_key = SecureStore().get_key("openai")
         except Exception:
             api_key = None
@@ -141,7 +145,9 @@ class OpenAISTTProvider(STTProviderBase):
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/audio/transcriptions",
-                headers=headers, files=files, data=data,
+                headers=headers,
+                files=files,
+                data=data,
             )
             resp.raise_for_status()
             result = resp.json()
@@ -151,8 +157,8 @@ class OpenAISTTProvider(STTProviderBase):
 
 # ── Provider registries ──────────────────────────────────────────────────
 
-_TTS_PROVIDERS: Dict[str, TTSProviderBase] = {}
-_STT_PROVIDERS: Dict[str, STTProviderBase] = {}
+_TTS_PROVIDERS: dict[str, TTSProviderBase] = {}
+_STT_PROVIDERS: dict[str, STTProviderBase] = {}
 
 
 def register_tts_provider(provider: TTSProviderBase):
@@ -163,19 +169,19 @@ def register_stt_provider(provider: STTProviderBase):
     _STT_PROVIDERS[provider.name] = provider
 
 
-def get_tts_provider(name: str = "openai_tts") -> Optional[TTSProviderBase]:
+def get_tts_provider(name: str = "openai_tts") -> TTSProviderBase | None:
     return _TTS_PROVIDERS.get(name)
 
 
-def get_stt_provider(name: str = "openai_stt") -> Optional[STTProviderBase]:
+def get_stt_provider(name: str = "openai_stt") -> STTProviderBase | None:
     return _STT_PROVIDERS.get(name)
 
 
-def list_tts_providers() -> List[str]:
+def list_tts_providers() -> list[str]:
     return list(_TTS_PROVIDERS.keys())
 
 
-def list_stt_providers() -> List[str]:
+def list_stt_providers() -> list[str]:
     return list(_STT_PROVIDERS.keys())
 
 
