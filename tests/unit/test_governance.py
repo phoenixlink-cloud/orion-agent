@@ -157,7 +157,9 @@ class TestIsPathConfined:
     def test_deeply_nested(self, tmp_path):
         assert _is_path_confined("a/b/c/d/e/f/g.py", str(tmp_path)) is True
 
-    @pytest.mark.skipif(sys.platform != "win32", reason="Backslash is not a path separator on Linux")
+    @pytest.mark.skipif(
+        sys.platform != "win32", reason="Backslash is not a path separator on Linux"
+    )
     def test_backslash_traversal(self, tmp_path):
         assert _is_path_confined("..\\..\\etc\\passwd", str(tmp_path)) is False
 
