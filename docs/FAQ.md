@@ -6,7 +6,7 @@
 
 Orion is an open-source, multi-agent AI coding assistant. It uses three specialized agents (Builder, Reviewer, Governor) to generate, review, and govern code changes. Unlike single-shot AI tools, Orion has persistent memory and learns from your feedback over time.
 
-### How is Orion different from other AI coding tools?
+### What makes Orion different from other AI coding tools?
 
 Key differentiators:
 - **Multi-agent deliberation** -- Three agents collaborate instead of one

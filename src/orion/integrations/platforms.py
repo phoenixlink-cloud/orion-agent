@@ -54,7 +54,7 @@ class AuthMethod(Enum):
     API_KEY = "api_key"
     TOKEN = "token"
     OAUTH = "oauth"
-    CLI_TOOL = "cli_tool"  # Like CLI delegation: delegates to installed CLI (gh, docker, etc.)
+    CLI_TOOL = "cli_tool"  # Delegates to installed CLI (gh, docker, etc.)
 
 
 class PlatformCategory(Enum):
@@ -90,7 +90,7 @@ class PlatformDef:
     env_var_alt: str = ""  # Alternate env var name
     secure_store_key: str = ""  # Key in SecureStore (defaults to id)
     oauth_provider: str = ""  # Maps to OAUTH_PLATFORMS in server.py
-    cli_tool: str = ""  # CLI binary name (e.g. "gh", "docker") -- CLI delegation pattern
+    cli_tool: str = ""  # CLI binary name (e.g. "gh", "docker")
     # Setup
     setup_url: str = ""  # URL to get API key / create OAuth app
     setup_instructions: str = ""  # Short setup guide
@@ -848,7 +848,7 @@ class PlatformRegistry:
                     platform.status_message = "Connected via OAuth"
                     continue
 
-            # Check 4: CLI tool detection (CLI delegation pattern)
+            # Check 4: CLI tool detection
             if platform.cli_tool and self._check_cli_tool(platform.cli_tool):
                 platform.connected = True
                 platform.connection_source = "cli_tool"
@@ -872,7 +872,7 @@ class PlatformRegistry:
 
     @staticmethod
     def _check_cli_tool(tool_name: str) -> bool:
-        """Check if a CLI tool is installed and available (CLI delegation pattern)."""
+        """Check if a CLI tool is installed and available."""
         import shutil
 
         return shutil.which(tool_name) is not None

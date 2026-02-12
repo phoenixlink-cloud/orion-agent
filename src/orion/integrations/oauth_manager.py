@@ -49,7 +49,6 @@ SETTINGS_DIR = Path.home() / ".orion"
 PROVIDERS: dict[str, dict[str, Any]] = {
     # Only Google and Microsoft need OAuth -- all other platforms now use
     # CLI tools (gh, glab) or bot tokens (Slack, Discord, Notion, etc.)
-    # per the CLI delegation pattern. See internal-audit-reference.
     "google": {
         "name": "Google",
         "description": "Gemini AI, Google Workspace, Drive, YouTube",

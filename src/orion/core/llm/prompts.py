@@ -33,7 +33,7 @@ def get_expansion_instruction(ext: str, filename: str, user_lower: str, content:
     """
     Get principle-based expansion instructions.
 
-    Following principle-based approach: principles over metrics.
+    Principles over metrics.
     No hardcoded line counts - trust the LLM to produce appropriate content.
     """
     principles = [
@@ -165,7 +165,7 @@ def build_enhanced_input(
     if project_plan_instruction:
         parts.append(f"\n\n{project_plan_instruction}")
 
-    # Repository map for codebase awareness 
+    # Repository map for codebase awareness
     try:
         from orion.core.context.repo_map import get_repo_map_for_prompt
 

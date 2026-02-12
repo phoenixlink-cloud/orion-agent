@@ -17,8 +17,7 @@
 """
 Orion Agent -- Formal Plugin API (v7.4.0)
 
-Extends the existing IntegrationBase with a composable plugin contract
-inspired by a composable plugin architecture.
+Extends the existing IntegrationBase with a composable plugin contract.
 
 Architecture:
     1. MANIFEST:    plugin.json declarative metadata (name, version, hooks, commands)

@@ -220,7 +220,7 @@ def _build_system_prompt(mode: str, constraints: dict, execution_mode: bool, is_
     if is_local:
         return f"""{persona_section}
 
-OUTPUT FORMAT (standard file listing):
+OUTPUT FORMAT (file listing):
 To create a file, output the filename on its own line, then the code in a fenced block:
 
 filename.py

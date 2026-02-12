@@ -82,18 +82,18 @@ Orion learns from every interaction:
 
 ---
 
-## Comparison
+## Why Orion?
 
 | Feature | Orion |
-|---------|-------|-------|-------------|----------------|
-| Multi-agent deliberation | 3 agents | Single | Single | Single |
-| Persistent memory | 3 tiers | Session only | Session only | None |
-| Learns from feedback | Yes | No | No | No |
-| Governance/safety gate | AEGIS | Basic | Basic | None |
-| Edit validation | Pre-write scoring | Format-specific | Basic | None |
-| LLM providers | 11 providers | Limited | Claude only | OpenAI only |
-| Self-hosted option | Full | Full | No | No |
-| Open source | AGPL-3.0 | Apache-2.0 | No | No |
+|---------|-------|
+| Multi-agent deliberation | 3 specialized agents (Builder, Reviewer, Governor) |
+| Persistent memory | 3 tiers (session, project, institutional) |
+| Learns from feedback | Evolves based on your approval/rejection patterns |
+| Governance/safety gate | AEGIS -- hardened security invariants |
+| Edit validation | Pre-write confidence scoring + auto-recovery |
+| LLM providers | 11 providers including local Ollama |
+| Self-hosted | Runs entirely on your machine |
+| Open source | AGPL-3.0 |
 
 ---
 

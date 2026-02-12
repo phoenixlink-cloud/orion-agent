@@ -20,7 +20,7 @@ Orion Agent -- Scout Module (v7.4.0)
 Fast triage before expensive deliberation.
 Routes requests to Fast Path, Council, or Escalation.
 
-Based on proven approach: simple pattern matching + file count heuristics
+Uses simple pattern matching + file count heuristics,
 runs in <500ms to avoid slowing down simple requests.
 """
 
