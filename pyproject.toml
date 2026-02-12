@@ -38,6 +38,7 @@ dependencies = [
     "httpx>=0.25",
     "pyyaml>=6.0",
     "tree-sitter>=0.20",
+    "networkx>=3.0",
 ]
 
 [project.optional-dependencies]
