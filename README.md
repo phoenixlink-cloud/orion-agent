@@ -308,11 +308,13 @@ Orion Agent is dual-licensed:
 
 Orion is free and open-source. If it has benefited you and you'd like to see continued development, please consider making a voluntary financial contribution.
 
-[![Support Orion Development](https://img.shields.io/badge/Support-Orion%20Development-blue?style=for-the-badge)](https://payf.st/t2pmo)
+| Tier | Amount | Description | Link |
+|------|--------|-------------|------|
+| **One-Time Support** | R400 | Supports ongoing development, documentation, and testing of Orion Agent and governed AI tooling. | [![Support](https://img.shields.io/badge/Support-R400-blue?style=flat-square)](https://payf.st/jkza6) |
+| **Development Sponsor** | R1,500 | Supports feature development, performance improvements, integrations, and security hardening. | [![Sponsor](https://img.shields.io/badge/Sponsor-R1500-green?style=flat-square)](https://payf.st/vhjfz) |
+| **Infrastructure Sponsor** | R8,000 | Helps fund infrastructure, CI/CD pipelines, security audits, and long-term sustainability. | [![Sponsor](https://img.shields.io/badge/Sponsor-R8000-orange?style=flat-square)](https://payf.st/qil2v) |
 
-Your contribution helps fund core development, security audits, documentation, and long-term sustainability.
-
-**This is a voluntary contribution, not a purchase.** See [FUNDING.md](FUNDING.md) for details.
+**This is a voluntary contribution, not a purchase.** See [FUNDING.md](FUNDING.md) for full details.
 
 *Other ways to help: Star the repo | Report bugs | Improve docs | Contribute code*
 

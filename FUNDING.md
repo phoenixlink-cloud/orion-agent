@@ -18,24 +18,43 @@ Maintaining and developing Orion requires significant time and resources:
 
 If Orion has benefited you in any way and you would like to see its continued development, please consider supporting the project by making a voluntary financial contribution.
 
-### Make a Contribution
+### Sponsorship Tiers
 
-[![Support Orion Development](https://img.shields.io/badge/Support-Orion%20Development-blue?style=for-the-badge)](https://payf.st/t2pmo)
+Choose the level of support that works for you:
 
-**Direct Link:** [https://payf.st/t2pmo](https://payf.st/t2pmo)
+---
 
-### Contribution Tiers
+#### One-Time Support -- R400.00
 
-We offer suggested contribution levels, but any amount is appreciated:
+[![One-Time Support](https://img.shields.io/badge/One--Time_Support-R400-blue?style=for-the-badge)](https://payf.st/jkza6)
 
-| Tier | Amount (ZAR) | Recognition |
-|------|--------------|-------------|
-| Supporter | R50 | Our gratitude |
-| Backer | R150 | Listed in SUPPORTERS.md (optional) |
-| Sponsor | R250 | Listed in SUPPORTERS.md + README (optional) |
-| Strategic Sponsor | R500+ | Logo in README (optional) |
+A voluntary one-time contribution supporting ongoing development, documentation, and testing of Orion Agent and governed AI tooling.
 
-*Recognition is optional -- let us know if you'd like to be listed.*
+**[Support Orion -- R400](https://payf.st/jkza6)**
+
+---
+
+#### Development Sponsor -- R1,500.00
+
+[![Development Sponsor](https://img.shields.io/badge/Development_Sponsor-R1500-green?style=for-the-badge)](https://payf.st/vhjfz)
+
+Supports feature development, performance improvements, integrations, and security hardening of Orion Agent's multi-agent architecture.
+
+**[Sponsor Development -- R1,500](https://payf.st/vhjfz)**
+
+---
+
+#### Infrastructure Sponsor -- R8,000.00
+
+[![Infrastructure Sponsor](https://img.shields.io/badge/Infrastructure_Sponsor-R8000-orange?style=for-the-badge)](https://payf.st/qil2v)
+
+Helps fund infrastructure, CI/CD pipelines, security audits, and long-term sustainability of Orion Agent and Phoenix Link engineering initiatives.
+
+**[Sponsor Infrastructure -- R8,000](https://payf.st/qil2v)**
+
+---
+
+*All tiers include optional recognition in project documentation. Let us know if you'd like to be listed.*
 
 ## Important Information
 
