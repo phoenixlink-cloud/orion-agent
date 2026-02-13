@@ -69,9 +69,18 @@ async def websocket_chat(websocket: WebSocket):
     # Per-connection state
     router_inst = None
     memory_engine = None
+    conversation = None
     current_workspace = None
     log = _get_orion_log()
     ws_request_count = 0
+
+    # Initialize Conversation Buffer (NLA Phase 1A)
+    try:
+        from orion.core.memory.conversation import ConversationBuffer
+
+        conversation = ConversationBuffer()
+    except Exception:
+        pass
 
     if log:
         client_host = websocket.client.host if websocket.client else "unknown"
@@ -117,6 +126,10 @@ async def websocket_chat(websocket: WebSocket):
             user_input = data.get("message", "")
             workspace = data.get("workspace", "")
             mode = data.get("mode", "safe")
+
+            # Record user turn in conversation buffer
+            if conversation and user_input:
+                conversation.add("user", user_input)
 
             if not user_input:
                 await websocket.send_json({"type": "error", "message": "No message provided"})
@@ -264,6 +277,10 @@ async def websocket_chat(websocket: WebSocket):
                             "route": route_name,
                         }
                     )
+
+                # Record Orion's response in conversation buffer
+                if conversation and full_response:
+                    conversation.add("orion", full_response[:500])
 
                 # Record interaction in memory
                 if router_inst:

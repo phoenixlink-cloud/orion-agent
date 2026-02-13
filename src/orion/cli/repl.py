@@ -320,6 +320,15 @@ def start_repl():
     except Exception:
         pass
 
+    # Initialize Conversation Buffer (NLA Phase 1A)
+    conversation = None
+    try:
+        from orion.core.memory.conversation import ConversationBuffer
+
+        conversation = ConversationBuffer()
+    except Exception:
+        pass
+
     if log:
         log.session_start(workspace=workspace_path or "(not set)", mode=mode)
 
@@ -410,6 +419,10 @@ def start_repl():
                 except Exception:
                     pass
 
+            # Record user turn in conversation buffer
+            if conversation:
+                conversation.add("user", user_input)
+
             # Step 1: Intent Classification
             try:
                 from orion.core.agents.router import classify_intent
@@ -464,6 +477,10 @@ def start_repl():
                 route_name = result.get("route", "UNKNOWN")
 
                 if result.get("success"):
+                    # Record Orion's response in conversation buffer
+                    if conversation and response_text:
+                        conversation.add("orion", response_text[:500])
+
                     # Router already printed response in stream mode
                     if not router_instance.stream_output:
                         console.print_response(response_text)
