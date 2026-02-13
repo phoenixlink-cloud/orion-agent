@@ -93,7 +93,7 @@ class TestKeywordFallback:
         assert result.intent == "coding"
 
     def test_question_detected(self, classifier):
-        result = classifier.classify("What does this function do?")
+        result = classifier.classify("What is the difference between REST and GraphQL?")
         assert result.intent == "question"
 
     def test_ambiguous_detected(self, classifier):

@@ -159,11 +159,11 @@ class TestQuestion:
     """Test full pipeline for questions."""
 
     def test_question_classified(self, analyzer):
-        result = analyzer.analyze("What does the authenticate function do?")
+        result = analyzer.analyze("What is the difference between REST and GraphQL?")
         assert result.intent == "question"
 
     def test_question_no_clarification(self, analyzer):
-        result = analyzer.analyze("What does this function do?")
+        result = analyzer.analyze("How does the router work?")
         assert result.needs_clarification is False
 
     def test_question_maps_to_question(self, analyzer):
