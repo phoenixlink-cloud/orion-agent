@@ -163,8 +163,27 @@ class FastPath:
         self.workspace = str(Path(workspace_path).resolve())
         self.model = model
 
+        # NLA Phase 2C: RequestAnalyzer replaces regex _classify_intent
+        self._request_analyzer = None
+        try:
+            from orion.core.understanding.request_analyzer import RequestAnalyzer
+
+            self._request_analyzer = RequestAnalyzer()
+        except Exception:
+            logger.debug("RequestAnalyzer not available, using regex fallback")
+
         # Evolution guidance is loaded once (appended to coding prompts)
         self._evolution_guidance = self._load_evolution_guidance()
+
+    def _nla_classify(self, request: str) -> str:
+        """Classify intent via NLA RequestAnalyzer, falling back to regex."""
+        if self._request_analyzer:
+            try:
+                result = self._request_analyzer.analyze(request)
+                return result.fast_path_intent
+            except Exception:
+                logger.debug("NLA classification failed, using regex fallback")
+        return _classify_intent(request)
 
     def _build_system_prompt(self, intent: str) -> str:
         """Build a slim system prompt matching the request intent.
@@ -270,7 +289,7 @@ class FastPath:
         Uses the centralized call_provider from providers.py which handles
         all providers, model config, key retrieval, and retry logic.
         """
-        intent = _classify_intent(request)
+        intent = self._nla_classify(request)
         system_prompt = self._build_system_prompt(intent)
         user_prompt = self._build_prompt(request, scout_report, intent)
 
@@ -324,7 +343,7 @@ class FastPath:
         Uses SSE (Server-Sent Events) for both Ollama and OpenAI-compatible APIs.
         Falls back to non-streaming execute() if streaming isn't available.
         """
-        intent = _classify_intent(request)
+        intent = self._nla_classify(request)
         self._current_system_prompt = self._build_system_prompt(intent)
         user_prompt = self._build_prompt(request, scout_report, intent)
 
