@@ -36,13 +36,77 @@ Architecture:
 """
 
 import json
+import logging
 import os
+import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import httpx
+
+logger = logging.getLogger("orion.agents.fast_path")
+
+# ---------------------------------------------------------------------------
+# INTENT CLASSIFICATION
+# ---------------------------------------------------------------------------
+
+
+class _Intent:
+    CONVERSATIONAL = "conversational"
+    QUESTION = "question"
+    CODING_TASK = "coding_task"
+
+
+# Patterns that indicate casual / conversational messages
+_CONVERSATIONAL_PATTERNS = [
+    r"^\s*(hi|hello|hey|howdy|greetings|good\s+(morning|afternoon|evening|day)|yo|sup)\b",
+    r"^\s*how\s+are\s+you",
+    r"^\s*what'?s\s+up",
+    r"^\s*thanks?\s*(you)?[!.]*$",
+    r"^\s*thank\s+you",
+    r"^\s*bye|goodbye|see\s+you|good\s*night",
+    r"^\s*nice|cool|awesome|great|perfect[!.]*$",
+    r"^\s*who\s+are\s+you",
+    r"^\s*tell\s+me\s+about\s+(yourself|you)",
+    r"^\s*what\s+can\s+you\s+do\s*\??",
+    r"^\s*are\s+you\s+(there|ready|ok|okay)",
+]
+
+# Patterns that indicate a coding/technical task
+_CODING_PATTERNS = [
+    r"\b(create|write|build|implement|add|fix|debug|refactor|update|modify|delete|remove)\b",
+    r"\b(file|function|class|method|module|api|endpoint|route|component|test)\b",
+    r"\b(install|deploy|run|execute|compile|build|lint|format)\b",
+    r"\b(error|bug|exception|traceback|stack\s*trace|crash|fail)\b",
+    r"\.(py|js|ts|jsx|tsx|json|yaml|yml|html|css|sql|go|rs|java|cs|cpp|c|h)\b",
+    r"```",
+    r"\b(import|from|def |class |function |const |let |var )\b",
+]
+
+
+def _classify_intent(request: str) -> str:
+    """Classify user request intent for context injection decisions."""
+    text = request.strip()
+    lower = text.lower()
+
+    # Short messages that are just greetings
+    for pattern in _CONVERSATIONAL_PATTERNS:
+        if re.search(pattern, lower):
+            # But if the message also contains coding signals, it's a coding task
+            for cp in _CODING_PATTERNS:
+                if re.search(cp, lower):
+                    return _Intent.CODING_TASK
+            return _Intent.CONVERSATIONAL
+
+    # Check for coding task signals
+    for pattern in _CODING_PATTERNS:
+        if re.search(pattern, lower):
+            return _Intent.CODING_TASK
+
+    # Default: treat as a general question
+    return _Intent.QUESTION
 
 
 @dataclass
@@ -65,27 +129,21 @@ class FastPath:
     Uses httpx for fully async HTTP -- never blocks the event loop.
     """
 
+    SYSTEM_PROMPT = (
+        "You are Orion, a governed AI coding assistant by Phoenix Link. "
+        "Be honest, concise, and match the user's tone. "
+        "Never fabricate facts. When unsure, say so."
+    )
+
     @staticmethod
-    def _get_persona() -> str:
-        """Load the Orion persona for FastPath."""
+    def _get_persona_for_intent(intent: str) -> str:
+        """Load a slim persona card matching the request intent."""
         try:
-            from orion.core.persona import AUTONOMY_TIERS, get_builder_persona
+            from orion.core.persona import get_fastpath_persona
 
-            return get_builder_persona() + "\n\n" + AUTONOMY_TIERS
+            return get_fastpath_persona(intent)
         except Exception:
-            return "You are Orion, a governed AI coding assistant."
-
-    SYSTEM_PROMPT = """You are Orion, a governed AI coding assistant with AEGIS safety.
-
-You have direct access to the user's codebase. Be concise and direct.
-
-IMPORTANT RULES:
-- Stay within the workspace directory
-- For write operations, show a brief diff of changes
-- Be concise and direct
-- If you can't do something, explain why briefly
-- When the user asks about connected services (GitHub, Slack, etc.), check platform capabilities
-"""
+            return FastPath.SYSTEM_PROMPT
 
     @staticmethod
     def _get_platform_context() -> str:
@@ -105,21 +163,92 @@ IMPORTANT RULES:
         self.workspace = str(Path(workspace_path).resolve())
         self.model = model
 
-        # Build persona-aware system prompt (instance-level overrides class-level)
-        persona = self._get_persona()
-        if persona and len(persona) > 50:
-            self.SYSTEM_PROMPT = f"""{persona}
+        # Evolution guidance is loaded once (appended to coding prompts)
+        self._evolution_guidance = self._load_evolution_guidance()
 
-FAST PATH RULES:
-- Stay within the workspace directory
-- For write operations, show a brief diff of changes
-- Be concise and direct
-- If you can't do something, explain why briefly
-- When the user asks about connected services (GitHub, Slack, etc.), check platform capabilities
-"""
+    def _build_system_prompt(self, intent: str) -> str:
+        """Build a slim system prompt matching the request intent.
 
-    def _build_prompt(self, request: str, scout_report=None) -> str:
-        """Build the full prompt with file context and repo map."""
+        Conversational: ~50 tokens (just persona)
+        Question:        ~70 tokens (persona + grounding)
+        Coding:          ~120 tokens (persona + grounding + quality + evolution)
+        """
+        persona = self._get_persona_for_intent(intent)
+
+        if intent == _Intent.CONVERSATIONAL:
+            return persona
+
+        prompt = persona
+        if self._evolution_guidance:
+            prompt += f"\n\n{self._evolution_guidance}"
+        return prompt
+
+    @staticmethod
+    def _load_evolution_guidance() -> str:
+        """Load improvement guidance from the evolution engine."""
+        try:
+            from orion.core.learning.evolution import get_evolution_engine
+
+            engine = get_evolution_engine()
+            guidance = engine.get_improvement_guidance()
+            if guidance:
+                return f"SELF-IMPROVEMENT NOTES:\n{guidance}"
+        except Exception as e:
+            logger.debug("Could not load evolution guidance: %s", e)
+        return ""
+
+    def _build_prompt(self, request: str, scout_report=None, intent: str = None) -> str:
+        """Build the user prompt with context appropriate to the request intent.
+
+        Classifies the request intent and only injects context that is
+        relevant -- casual messages get no technical context dump.
+        """
+        if intent is None:
+            intent = _classify_intent(request)
+        user_prompt = f"Request: {request}"
+
+        # Memory context is always relevant (contains learned preferences)
+        memory_ctx = getattr(self, "_memory_context", "")
+        if memory_ctx:
+            user_prompt += f"\n\n{memory_ctx}"
+
+        # For conversational messages, skip all technical context
+        if intent == _Intent.CONVERSATIONAL:
+            return user_prompt
+
+        # For questions, include repo map but skip platforms unless asked
+        if intent == _Intent.QUESTION:
+            repo_context = self._try_get_repo_map()
+            if repo_context:
+                user_prompt += f"\n\nRepository Map:\n{repo_context}"
+            return user_prompt
+
+        # For coding tasks, include full context
+        file_contents = self._get_relevant_files(scout_report)
+        repo_context = self._try_get_repo_map()
+        platform_ctx = self._get_platform_context()
+
+        if platform_ctx:
+            user_prompt += f"\n\n{platform_ctx}"
+        if repo_context:
+            user_prompt += f"\n\nRepository Map:\n{repo_context}"
+        if file_contents:
+            user_prompt += f"\n\nRelevant Files:\n{chr(10).join(file_contents)}"
+
+        return user_prompt
+
+    def _try_get_repo_map(self) -> str:
+        """Get repository map, returning empty string on failure."""
+        try:
+            from orion.core.context.repo_map import generate_repo_map
+
+            return generate_repo_map(self.workspace, max_tokens=1024)
+        except Exception as e:
+            logger.debug("Could not load repo map: %s", e)
+            return ""
+
+    def _get_relevant_files(self, scout_report) -> list[str]:
+        """Read relevant files from scout report."""
         file_contents = []
         if scout_report and hasattr(scout_report, "relevant_files"):
             for fpath in scout_report.relevant_files[:3]:
@@ -130,35 +259,9 @@ FAST PATH RULES:
                         if len(content) > 5000:
                             content = content[:5000] + "\n... (truncated)"
                         file_contents.append(f"=== {fpath} ===\n{content}")
-                except Exception:
-                    pass
-
-        repo_context = ""
-        try:
-            from orion.core.context.repo_map import generate_repo_map
-
-            repo_context = generate_repo_map(self.workspace, max_tokens=1024)
-        except Exception:
-            pass
-
-        user_prompt = f"Request: {request}"
-
-        # Inject memory context (set by Router from MemoryEngine)
-        memory_ctx = getattr(self, "_memory_context", "")
-        if memory_ctx:
-            user_prompt += f"\n\n{memory_ctx}"
-
-        # Inject connected platform capabilities
-        platform_ctx = self._get_platform_context()
-        if platform_ctx:
-            user_prompt += f"\n\n{platform_ctx}"
-
-        if repo_context:
-            user_prompt += f"\n\nRepository Map:\n{repo_context}"
-        if file_contents:
-            user_prompt += f"\n\nRelevant Files:\n{chr(10).join(file_contents)}"
-
-        return user_prompt
+                except Exception as e:
+                    logger.debug("Could not read file %s: %s", fpath, e)
+        return file_contents
 
     async def execute(self, request: str, scout_report=None) -> FastPathResult:
         """
@@ -167,7 +270,9 @@ FAST PATH RULES:
         Uses the centralized call_provider from providers.py which handles
         all providers, model config, key retrieval, and retry logic.
         """
-        user_prompt = self._build_prompt(request, scout_report)
+        intent = _classify_intent(request)
+        system_prompt = self._build_system_prompt(intent)
+        user_prompt = self._build_prompt(request, scout_report, intent)
 
         try:
             from orion.core.llm.config import get_model_config
@@ -177,7 +282,7 @@ FAST PATH RULES:
             builder_rc = cfg.builder
             response = await call_provider(
                 role_config=builder_rc,
-                system_prompt=self.SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 max_tokens=4000,
                 component="fast_path",
@@ -219,7 +324,9 @@ FAST PATH RULES:
         Uses SSE (Server-Sent Events) for both Ollama and OpenAI-compatible APIs.
         Falls back to non-streaming execute() if streaming isn't available.
         """
-        user_prompt = self._build_prompt(request, scout_report)
+        intent = _classify_intent(request)
+        self._current_system_prompt = self._build_system_prompt(intent)
+        user_prompt = self._build_prompt(request, scout_report, intent)
 
         # Get provider config from centralized source
         try:
@@ -282,7 +389,7 @@ FAST PATH RULES:
                 f"{ollama_url}/api/generate",
                 json={
                     "model": model,
-                    "prompt": f"{self.SYSTEM_PROMPT}\n\n{prompt}",
+                    "prompt": f"{getattr(self, '_current_system_prompt', self.SYSTEM_PROMPT)}\n\n{prompt}",
                     "stream": True,
                 },
             ) as response,
@@ -317,7 +424,10 @@ FAST PATH RULES:
                 json={
                     "model": model,
                     "messages": [
-                        {"role": "system", "content": self.SYSTEM_PROMPT},
+                        {
+                            "role": "system",
+                            "content": getattr(self, "_current_system_prompt", self.SYSTEM_PROMPT),
+                        },
                         {"role": "user", "content": prompt},
                     ],
                     "stream": True,

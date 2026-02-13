@@ -186,6 +186,110 @@ class OrionConsole:
         print(text)
 
 
+def _collect_feedback(
+    console,
+    user_input: str,
+    response_text: str,
+    route_name: str,
+    workspace_path: str | None,
+    memory_engine=None,
+    log=None,
+):
+    """Collect rich feedback from the user after every response.
+
+    Flow:
+        1. Rate 1-5 (Enter to skip) -- lightweight, always available
+        2. If rating <= 3: ask what to improve (free text or category)
+        3. Wire into LearningLoop for deep pattern learning
+        4. Record in memory engine for approval gate
+    """
+    try:
+        rating_input = input("  Rate (1-5, Enter to skip): ").strip()
+        if not rating_input or not rating_input.isdigit():
+            return
+        rating = int(rating_input)
+        if not 1 <= rating <= 5:
+            return
+
+        import uuid
+
+        task_id = str(uuid.uuid4())[:8]
+        feedback_text = ""
+
+        # For low ratings, ask what went wrong
+        if rating <= 3:
+            try:
+                print("  What should I improve?")
+                print("    [1] Too technical / robotic")
+                print("    [2] Wrong answer / incorrect")
+                print("    [3] Too verbose / too brief")
+                print("    [4] Didn't understand my request")
+                print("    [5] Other (type your feedback)")
+                fb_input = input("  > ").strip()
+
+                feedback_categories = {
+                    "1": "Response was too technical or robotic. User wants more natural, conversational tone.",
+                    "2": "Response contained incorrect information or wrong answer.",
+                    "3": "Response length was inappropriate (too verbose or too brief).",
+                    "4": "Orion did not understand the user's actual intent.",
+                }
+
+                if fb_input in feedback_categories:
+                    feedback_text = feedback_categories[fb_input]
+                elif fb_input == "5" or (fb_input and not fb_input.isdigit()):
+                    # If they typed "5", ask for text; if they typed text directly, use it
+                    if fb_input == "5":
+                        feedback_text = input("  Tell me more: ").strip()
+                    else:
+                        feedback_text = fb_input
+                elif fb_input:
+                    feedback_text = fb_input
+            except (EOFError, KeyboardInterrupt):
+                pass
+
+        # Record in memory engine (approval gate)
+        if memory_engine:
+            full_feedback = f"User rated {rating}/5"
+            if feedback_text:
+                full_feedback += f": {feedback_text}"
+
+            memory_engine.record_approval(
+                task_id=task_id,
+                task_description=user_input[:300],
+                rating=rating,
+                feedback=full_feedback,
+                quality_score=rating / 5.0,
+            )
+
+            if rating >= 4:
+                console.print_info("Positive pattern recorded")
+            elif rating <= 2:
+                console.print_info("Anti-pattern recorded \u2014 Orion will learn from this")
+
+        # Wire into LearningLoop for deeper pattern extraction
+        try:
+            from orion.core.learning.feedback import LearningLoop
+
+            loop = LearningLoop(workspace_path)
+            if rating >= 4:
+                loop.process_feedback(user_input, response_text, "positive", feedback_text)
+            elif rating <= 2:
+                loop.process_feedback(user_input, response_text, "negative", feedback_text)
+        except Exception:
+            pass  # LearningLoop not available
+
+        if log:
+            log.approval(
+                task_id=task_id,
+                rating=rating,
+                task_type=route_name,
+                promoted=(rating >= 4 or rating <= 2),
+            )
+
+    except (EOFError, KeyboardInterrupt):
+        pass
+
+
 def start_repl():
     """Start the interactive Orion REPL."""
     console = OrionConsole()
@@ -382,37 +486,16 @@ def start_repl():
                             latency_ms=exec_ms,
                         )
 
-                    # Optional feedback (user can press Enter to skip)
-                    try:
-                        feedback = input("  Rate (1-5, Enter to skip): ").strip()
-                        if feedback and feedback.isdigit() and 1 <= int(feedback) <= 5:
-                            rating = int(feedback)
-                            import uuid
-
-                            task_id = str(uuid.uuid4())[:8]
-                            if memory_engine:
-                                memory_engine.record_approval(
-                                    task_id=task_id,
-                                    task_description=user_input[:300],
-                                    rating=rating,
-                                    feedback=f"User rated {rating}/5",
-                                    quality_score=rating / 5.0,
-                                )
-                                if rating >= 4:
-                                    console.print_info("Positive pattern recorded")
-                                elif rating <= 2:
-                                    console.print_info(
-                                        "Anti-pattern recorded \u2014 Orion will learn from this"
-                                    )
-                            if log:
-                                log.approval(
-                                    task_id=task_id,
-                                    rating=rating,
-                                    task_type=route_name,
-                                    promoted=(rating >= 4 or rating <= 2),
-                                )
-                    except (EOFError, KeyboardInterrupt):
-                        pass
+                    # Feedback loop (user can press Enter to skip)
+                    _collect_feedback(
+                        console=console,
+                        user_input=user_input,
+                        response_text=response_text,
+                        route_name=route_name,
+                        workspace_path=workspace_path,
+                        memory_engine=memory_engine,
+                        log=log,
+                    )
                 else:
                     error = result.get("response", result.get("error", "Unknown error"))
                     console.print_error(error)
