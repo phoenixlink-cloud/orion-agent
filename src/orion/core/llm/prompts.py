@@ -119,7 +119,8 @@ def get_project_plan_instruction(workspace_path: str) -> str | None:
 
         return None
 
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to parse PROJECT_PLAN.md: %s", e)
         return None
 
 
@@ -171,8 +172,8 @@ def build_enhanced_input(
 
         repo_map = get_repo_map_for_prompt(workspace_path, context_files)
         parts.append(f"\n\n{repo_map}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not load repo map: %s", e)
 
     # Inject edit format instructions based on model
     try:
@@ -184,8 +185,8 @@ def build_enhanced_input(
         if model_name:
             _fmt, fmt_instructions = get_format_instructions_for_model(model_name)
             parts.append(f"\n\n## EDIT FORMAT INSTRUCTIONS\n{fmt_instructions}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not load edit format instructions: %s", e)
 
     # Inject code quality context for files being edited
     if context_files:
@@ -195,8 +196,8 @@ def build_enhanced_input(
             quality_ctx = get_quality_context_for_prompt(workspace_path, context_files)
             if quality_ctx:
                 parts.append(f"\n\n{quality_ctx}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load code quality context: %s", e)
 
     # Context files content (files user explicitly added with /add)
     if context_files:
@@ -207,8 +208,8 @@ def build_enhanced_input(
                 with open(full_path, encoding="utf-8", errors="ignore") as f:
                     content = f.read()[:5000]
                 context_content.append(f"### {rel_path}\n```\n{content}\n```")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Could not read context file %s: %s", rel_path, e)
         if context_content:
             parts.append(
                 "\n\n## FILES IN CONTEXT (user added with /add)\n" + "\n\n".join(context_content)
@@ -221,8 +222,8 @@ def build_enhanced_input(
         cap_prompt = build_capability_prompt()
         if cap_prompt:
             parts.append(cap_prompt)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Could not load capability prompt: %s", e)
 
     # PRINCIPLES-BASED GUIDANCE
     parts.append("""
@@ -242,8 +243,8 @@ def build_enhanced_input(
             deep_knowledge_text = knowledge_retrieval.format_for_prompt(knowledge_context)
             if deep_knowledge_text:
                 parts.append(f"\n\n## KNOWLEDGE CONTEXT\n{deep_knowledge_text}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not load knowledge context: %s", e)
 
     # Layer 4: Base Knowledge
     base_section = []

@@ -14,6 +14,10 @@
 #    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
-"""Single source of truth for the Orion Agent version."""
+"""
+Orion Agent -- Understanding Layer (NLA-002)
 
-__version__ = "7.8.0-beta"
+The educated middleman between user and LLM.
+Provides intent classification, clarification detection,
+and structured brief generation.
+"""

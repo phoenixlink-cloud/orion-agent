@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "orion-agent"
-version = "7.4.0-beta"
+version = "7.8.0-beta"
 description = "Multi-agent AI coding assistant with persistent memory, knowledge distillation, and AEGIS governance"
 readme = "README.md"
 license = "AGPL-3.0-or-later"

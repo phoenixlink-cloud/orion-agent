@@ -235,6 +235,8 @@ RULES:
 4. Output the ENTIRE file content - never truncate or use "..."
 5. Create ONE file at a time when asked
 
+{_GROUNDING_RULES}
+
 {evolution_section}
 
 {constraint_section}"""

@@ -163,8 +163,8 @@ Review the Builder's proposal. Decide: APPROVE, REVISE_AND_APPROVE, or BLOCK."""
     except Exception as e:
         logger.error(f"Reviewer call failed: {e}")
         return ReviewerResult(
-            decision="APPROVE",
-            assessment=f"Reviewer unavailable ({e}), defaulting to approve.",
+            decision="REVISE_AND_APPROVE",
+            assessment=f"Reviewer unavailable ({e}). Defaulting to REVISE_AND_APPROVE for safety -- manual review recommended.",
             raw=str(e),
             provider=reviewer.provider,
             model=reviewer.model,
@@ -189,10 +189,10 @@ Review the Builder's proposal. Decide: APPROVE, REVISE_AND_APPROVE, or BLOCK."""
             model=reviewer.model,
         )
 
-    # Couldn't parse -- default to approve
+    # Couldn't parse -- fail closed, do not auto-approve
     return ReviewerResult(
-        decision="APPROVE",
-        assessment="Could not parse reviewer response, defaulting to approve.",
+        decision="REVISE_AND_APPROVE",
+        assessment="Could not parse reviewer response. Defaulting to REVISE_AND_APPROVE for safety -- manual review recommended.",
         raw=raw,
         provider=reviewer.provider,
         model=reviewer.model,

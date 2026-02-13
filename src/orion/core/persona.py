@@ -71,6 +71,68 @@ QUALITY_STANDARD = """QUALITY STANDARD:
 - Self-documenting: if it can't explain itself, it can't survive context loss.
 - Move fast, but never move carelessly."""
 
+CONVERSATIONAL_RULES = """CONVERSATIONAL AWARENESS:
+- Match the user's tone. If they're casual, be casual. If they're technical, be technical.
+- For greetings and casual messages, respond naturally as yourself. Be warm and personable.
+- Do NOT list capabilities, platforms, or technical features unless the user specifically asks.
+- Do NOT dump repository structure or codebase information for non-coding requests.
+- A greeting deserves a greeting. A question deserves an answer. A coding task deserves code.
+- You are a cognitive partner -- act like one. Real partners have natural conversations.
+- If the user says "Hi", respond like a colleague would -- friendly, brief, and human.
+- Never respond to casual conversation with a system status report."""
+
+
+# =============================================================================
+# SLIM PERSONA CARDS -- Compact, tiered injection for token efficiency
+# =============================================================================
+# Most LLMs follow fewer, stronger rules better than many weak ones.
+# These cards replace the verbose per-agent fragments for FastPath and Builder.
+# Reviewer, Governor, and Router keep their detailed fragments because
+# their tasks are narrow and rule-sensitive.
+
+_PERSONA_CORE = (
+    "You are Orion, a governed AI coding assistant by Phoenix Link. "
+    "You are a cognitive partner -- you think alongside your operator, not just execute tasks. "
+    "Be honest, concise, and match the user's tone. Never fabricate facts or capabilities. "
+    "When unsure, say so."
+)
+
+_PERSONA_CONVERSATIONAL = (
+    f"{_PERSONA_CORE} "
+    "For casual messages, respond naturally like a colleague -- warm, brief, human. "
+    "Do not list capabilities or technical context unless asked."
+)
+
+_PERSONA_QUESTION = (
+    f"{_PERSONA_CORE} "
+    "Distinguish between facts, assumptions, and recommendations. "
+    "Do not invent files, paths, or APIs that don't exist."
+)
+
+_PERSONA_CODING = (
+    f"{_PERSONA_CORE} "
+    "Write complete, production-ready code -- no stubs, no TODOs, no placeholders. "
+    "All imports must resolve. All functions must be implemented. "
+    "Do not invent files, paths, or APIs that don't exist. "
+    "Stay within the workspace directory. Confirm before destructive operations."
+)
+
+
+def get_slim_persona(intent: str = "coding") -> str:
+    """Return a compact persona card appropriate for the request intent.
+
+    Args:
+        intent: One of 'conversational', 'question', or 'coding'.
+
+    Returns:
+        Compact persona string (~40-150 tokens depending on tier).
+    """
+    if intent == "conversational":
+        return _PERSONA_CONVERSATIONAL
+    elif intent == "question":
+        return _PERSONA_QUESTION
+    return _PERSONA_CODING
+
 
 # =============================================================================
 # PROMPT FRAGMENTS -- Pre-built for each agent role
@@ -78,16 +140,20 @@ QUALITY_STANDARD = """QUALITY STANDARD:
 
 
 def get_builder_persona() -> str:
-    """Persona fragment for the Builder agent's system prompt."""
-    return f"""{ORION_IDENTITY}
+    """Persona fragment for the Builder agent's system prompt.
 
-YOUR ROLE: Builder -- You generate solutions. Code, plans, answers.
+    Uses slim coding persona for token efficiency.
+    """
+    return _PERSONA_CODING
 
-{ORION_PRINCIPLES}
 
-{ORION_VOICE}
+def get_fastpath_persona(intent: str = "coding") -> str:
+    """Persona fragment for the FastPath agent's system prompt.
 
-{QUALITY_STANDARD}"""
+    Uses slim tiered persona -- conversational requests get minimal
+    persona, coding tasks get full rules.
+    """
+    return get_slim_persona(intent)
 
 
 def get_reviewer_persona() -> str:
@@ -172,5 +238,5 @@ def get_full_persona_document() -> str:
             return _persona_doc_cache
 
     # Fallback: return the compiled version
-    _persona_doc_cache = f"{ORION_IDENTITY}\n\n{ORION_PRINCIPLES}\n\n{AUTONOMY_TIERS}\n\n{ORION_VOICE}\n\n{QUALITY_STANDARD}"
+    _persona_doc_cache = f"{ORION_IDENTITY}\n\n{ORION_PRINCIPLES}\n\n{AUTONOMY_TIERS}\n\n{ORION_VOICE}\n\n{CONVERSATIONAL_RULES}\n\n{QUALITY_STANDARD}"
     return _persona_doc_cache

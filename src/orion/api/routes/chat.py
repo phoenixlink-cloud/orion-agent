@@ -69,9 +69,28 @@ async def websocket_chat(websocket: WebSocket):
     # Per-connection state
     router_inst = None
     memory_engine = None
+    conversation = None
     current_workspace = None
     log = _get_orion_log()
     ws_request_count = 0
+
+    # Initialize Conversation Buffer (NLA Phase 1A)
+    try:
+        from orion.core.memory.conversation import ConversationBuffer
+
+        conversation = ConversationBuffer()
+    except Exception:
+        pass
+
+    # Initialize NLA Learning Bridge (NLA Phase 3B)
+    learning_bridge = None
+    try:
+        from orion.core.understanding.exemplar_bank import ExemplarBank
+        from orion.core.understanding.learning_bridge import LearningBridge
+
+        learning_bridge = LearningBridge(exemplar_bank=ExemplarBank())
+    except Exception:
+        pass
 
     if log:
         client_host = websocket.client.host if websocket.client else "unknown"
@@ -86,17 +105,53 @@ async def websocket_chat(websocket: WebSocket):
             if msg_type == "feedback":
                 rating = data.get("rating", 0)
                 task_desc = data.get("task_description", "")
-                if memory_engine and rating and 1 <= rating <= 5:
+                feedback_text = data.get("feedback_text", "")
+                if rating and 1 <= rating <= 5:
                     import uuid as _feedback_uuid
 
                     task_id = str(_feedback_uuid.uuid4())[:8]
-                    memory_engine.record_approval(
-                        task_id=task_id,
-                        task_description=task_desc[:300],
-                        rating=rating,
-                        feedback=f"User rated {rating}/5 via web",
-                        quality_score=rating / 5.0,
-                    )
+
+                    # Record in memory engine (approval gate)
+                    if memory_engine:
+                        full_feedback = f"User rated {rating}/5 via web"
+                        if feedback_text:
+                            full_feedback += f": {feedback_text}"
+                        memory_engine.record_approval(
+                            task_id=task_id,
+                            task_description=task_desc[:300],
+                            rating=rating,
+                            feedback=full_feedback,
+                            quality_score=rating / 5.0,
+                        )
+
+                    # Wire into NLA LearningBridge (feedback → exemplar bank)
+                    if learning_bridge and task_desc:
+                        try:
+                            nla_classification = None
+                            if router_inst and hasattr(router_inst, "_fast_path"):
+                                fp = router_inst._fast_path
+                                if hasattr(fp, "_request_analyzer") and fp._request_analyzer:
+                                    r = fp._request_analyzer.analyze(task_desc)
+                                    from orion.core.understanding.intent_classifier import (
+                                        ClassificationResult,
+                                    )
+
+                                    nla_classification = ClassificationResult(
+                                        intent=r.intent,
+                                        sub_intent=r.sub_intent,
+                                        confidence=r.confidence,
+                                        method="nla",
+                                    )
+                            learning_bridge.record_rich_feedback(
+                                user_message=task_desc,
+                                response_text="",
+                                classification=nla_classification,
+                                rating=rating,
+                                feedback_text=feedback_text,
+                            )
+                        except Exception:
+                            pass
+
                     if log:
                         log.approval(
                             task_id=task_id, rating=rating, promoted=(rating >= 4 or rating <= 2)
@@ -117,6 +172,10 @@ async def websocket_chat(websocket: WebSocket):
             user_input = data.get("message", "")
             workspace = data.get("workspace", "")
             mode = data.get("mode", "safe")
+
+            # Record user turn in conversation buffer
+            if conversation and user_input:
+                conversation.add("user", user_input)
 
             if not user_input:
                 await websocket.send_json({"type": "error", "message": "No message provided"})
@@ -264,6 +323,10 @@ async def websocket_chat(websocket: WebSocket):
                             "route": route_name,
                         }
                     )
+
+                # Record Orion's response in conversation buffer
+                if conversation and full_response:
+                    conversation.add("orion", full_response[:500])
 
                 # Record interaction in memory
                 if router_inst:
