@@ -20,7 +20,6 @@ import pytest
 
 from orion.core.memory.conversation import ConversationBuffer, ConversationTurn
 
-
 # =============================================================================
 # BASIC OPERATIONS
 # =============================================================================
