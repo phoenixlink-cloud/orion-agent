@@ -120,6 +120,16 @@ class IntentClassifier:
         self._embedding_store = None
         self._embeddings_available = False
         self._exemplar_embeddings: list[tuple[str, str, str, object]] | None = None
+
+        # English Foundation pre-processor (NLA Phase 3A)
+        self._english = None
+        try:
+            from orion.core.understanding.english_foundation import EnglishFoundation
+
+            self._english = EnglishFoundation()
+        except Exception:
+            pass
+
         self._try_init_embeddings()
 
     def _try_init_embeddings(self) -> None:
@@ -152,6 +162,10 @@ class IntentClassifier:
             return ClassificationResult(
                 intent="conversational", sub_intent="", confidence=0.1, method="keyword"
             )
+
+        # Pre-process via English Foundation
+        if self._english:
+            text = self._english.pre_process(text)
 
         # Try embedding-based classification
         if self._embeddings_available and self._bank:
