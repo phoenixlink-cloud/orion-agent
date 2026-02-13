@@ -60,6 +60,7 @@ class LearningBridge:
         user_message: str,
         classification: "ClassificationResult",
         rating: int,
+        feedback_text: str = "",
     ) -> None:
         """
         Record user feedback on a classification.
@@ -68,6 +69,7 @@ class LearningBridge:
             user_message: The original user message.
             classification: How it was classified.
             rating: User satisfaction (1-5).
+            feedback_text: Optional free-text or category feedback.
         """
         if not self._bank:
             return
@@ -83,6 +85,14 @@ class LearningBridge:
         if len(text) > _MAX_EXEMPLAR_LENGTH:
             text = text[:_MAX_EXEMPLAR_LENGTH]
 
+        # If user said "didn't understand my request" (category 4), treat as misclassification
+        if feedback_text and "did not understand" in feedback_text.lower():
+            logger.info(
+                "Skipping exemplar — user reported misunderstanding: '%s'",
+                text[:50],
+            )
+            return
+
         self._bank.add(
             user_message=text,
             intent=classification.intent,
@@ -91,11 +101,12 @@ class LearningBridge:
             source="learned",
         )
         logger.info(
-            "Learned exemplar from feedback: '%s' → %s/%s (rating=%d)",
+            "Learned exemplar from feedback: '%s' → %s/%s (rating=%d, feedback=%s)",
             text[:50],
             classification.intent,
             classification.sub_intent,
             rating,
+            feedback_text[:50] if feedback_text else "none",
         )
 
     def record_correction(
@@ -139,6 +150,44 @@ class LearningBridge:
             original.intent,
             original.sub_intent,
         )
+
+    def record_rich_feedback(
+        self,
+        user_message: str,
+        response_text: str,
+        classification: "ClassificationResult | None",
+        rating: int,
+        feedback_text: str = "",
+    ) -> None:
+        """
+        Record rich feedback from CLI or WebSocket UI.
+
+        Combines rating + text feedback + classification context.
+        Delegates to record_classification_feedback for exemplar learning
+        and logs the full feedback for analysis.
+
+        Args:
+            user_message: The original user message.
+            response_text: Orion's response.
+            classification: NLA classification (if available).
+            rating: User satisfaction (1-5).
+            feedback_text: Category label or free-text feedback.
+        """
+        if classification:
+            self.record_classification_feedback(
+                user_message=user_message,
+                classification=classification,
+                rating=rating,
+                feedback_text=feedback_text,
+            )
+
+        if feedback_text:
+            logger.info(
+                "Rich feedback (rating=%d): '%s' | feedback: %s",
+                rating,
+                user_message[:50],
+                feedback_text[:100],
+            )
 
     def get_learning_stats(self) -> dict[str, Any]:
         """Get statistics about learned exemplars."""

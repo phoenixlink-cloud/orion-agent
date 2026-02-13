@@ -194,6 +194,8 @@ def _collect_feedback(
     workspace_path: str | None,
     memory_engine=None,
     log=None,
+    learning_bridge=None,
+    nla_classification=None,
 ):
     """Collect rich feedback from the user after every response.
 
@@ -278,6 +280,19 @@ def _collect_feedback(
         except Exception:
             pass  # LearningLoop not available
 
+        # Wire into NLA LearningBridge (feedback → exemplar bank)
+        if learning_bridge:
+            try:
+                learning_bridge.record_rich_feedback(
+                    user_message=user_input,
+                    response_text=response_text,
+                    classification=nla_classification,
+                    rating=rating,
+                    feedback_text=feedback_text,
+                )
+            except Exception:
+                pass
+
         if log:
             log.approval(
                 task_id=task_id,
@@ -326,6 +341,16 @@ def start_repl():
         from orion.core.memory.conversation import ConversationBuffer
 
         conversation = ConversationBuffer()
+    except Exception:
+        pass
+
+    # Initialize NLA Learning Bridge (NLA Phase 3B)
+    learning_bridge = None
+    try:
+        from orion.core.understanding.exemplar_bank import ExemplarBank
+        from orion.core.understanding.learning_bridge import LearningBridge
+
+        learning_bridge = LearningBridge(exemplar_bank=ExemplarBank())
     except Exception:
         pass
 
@@ -503,6 +528,31 @@ def start_repl():
                             latency_ms=exec_ms,
                         )
 
+                    # NLA classification for learning bridge
+                    _nla_classification = None
+                    if hasattr(router_instance, "_fast_path") and hasattr(
+                        router_instance._fast_path, "_request_analyzer"
+                    ):
+                        try:
+                            analyzer = router_instance._fast_path._request_analyzer
+                            if analyzer:
+                                _nla_result = analyzer.analyze(user_input)
+                                _nla_classification = (
+                                    _nla_result.brief
+                                )  # pass the ClassificationResult
+                                from orion.core.understanding.intent_classifier import (
+                                    ClassificationResult,
+                                )
+
+                                _nla_classification = ClassificationResult(
+                                    intent=_nla_result.intent,
+                                    sub_intent=_nla_result.sub_intent,
+                                    confidence=_nla_result.confidence,
+                                    method="nla",
+                                )
+                        except Exception:
+                            pass
+
                     # Feedback loop (user can press Enter to skip)
                     _collect_feedback(
                         console=console,
@@ -512,6 +562,8 @@ def start_repl():
                         workspace_path=workspace_path,
                         memory_engine=memory_engine,
                         log=log,
+                        learning_bridge=learning_bridge,
+                        nla_classification=_nla_classification,
                     )
                 else:
                     error = result.get("response", result.get("error", "Unknown error"))

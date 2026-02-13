@@ -249,3 +249,65 @@ class TestEdgeCases:
         stats = bridge.get_learning_stats()
         assert stats["total_learned"] >= 0
         assert isinstance(stats, dict)
+
+
+# =============================================================================
+# RICH FEEDBACK (rating + text)
+# =============================================================================
+
+
+class TestRichFeedback:
+    """Test record_rich_feedback with text feedback."""
+
+    def test_rich_positive_creates_exemplar(self, bridge, bank):
+        bridge.record_rich_feedback(
+            user_message="Deploy the staging server",
+            response_text="Done, deployed to staging.",
+            classification=_cr("coding", "modify_file", 0.8),
+            rating=5,
+            feedback_text="Perfect, exactly what I needed.",
+        )
+        assert bank.count() == 1
+
+    def test_rich_negative_no_exemplar(self, bridge, bank):
+        bridge.record_rich_feedback(
+            user_message="Fix the bug",
+            response_text="I fixed it.",
+            classification=_cr("coding", "fix_bug"),
+            rating=2,
+            feedback_text="Response contained incorrect information.",
+        )
+        assert bank.count() == 0
+
+    def test_rich_misunderstanding_no_exemplar(self, bridge, bank):
+        bridge.record_rich_feedback(
+            user_message="Check the logs",
+            response_text="Here are the logs.",
+            classification=_cr("question", "code_explanation"),
+            rating=5,
+            feedback_text="Orion did not understand the user's actual intent.",
+        )
+        # "did not understand" should block exemplar creation
+        assert bank.count() == 0
+
+    def test_rich_no_classification(self, bridge, bank):
+        bridge.record_rich_feedback(
+            user_message="Hello",
+            response_text="Hi there!",
+            classification=None,
+            rating=5,
+            feedback_text="Great response.",
+        )
+        # No classification → no exemplar, but should not crash
+        assert bank.count() == 0
+
+    def test_rich_with_category_feedback(self, bridge, bank):
+        bridge.record_rich_feedback(
+            user_message="Add caching to the API",
+            response_text="I added Redis caching.",
+            classification=_cr("coding", "modify_file"),
+            rating=4,
+            feedback_text="Response was too technical or robotic.",
+        )
+        # Rating 4 → should still create exemplar (feedback is about response quality, not intent)
+        assert bank.count() == 1
