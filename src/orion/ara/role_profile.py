@@ -40,6 +40,9 @@ VALID_AUTH_METHODS = frozenset({"pin", "totp"})
 # Valid scope values
 VALID_SCOPES = frozenset({"coding", "research", "devops", "full"})
 
+# Valid risk tolerance values
+VALID_RISK_TOLERANCES = frozenset({"low", "medium", "high"})
+
 # AEGIS-enforced action blocklist — no role can enable these
 AEGIS_BLOCKED_ACTIONS = frozenset({
     "delete_repository",
@@ -80,6 +83,28 @@ class WorkingHours:
 
 
 @dataclass
+class ConfidenceThresholds:
+    """Confidence levels that control execution behaviour.
+
+    - auto_execute: confidence >= this → execute without flagging
+    - execute_and_flag: confidence >= this → execute but flag for review
+    - pause_and_ask: confidence < this → pause and ask user
+    """
+
+    auto_execute: float = 0.90
+    execute_and_flag: float = 0.70
+    pause_and_ask: float = 0.50
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ConfidenceThresholds:
+        return cls(
+            auto_execute=data.get("auto_execute", 0.90),
+            execute_and_flag=data.get("execute_and_flag", 0.70),
+            pause_and_ask=data.get("pause_and_ask", 0.50),
+        )
+
+
+@dataclass
 class NotificationConfig:
     """Notification preferences for the role."""
 
@@ -113,6 +138,14 @@ class RoleProfile:
     description: str = ""
     allowed_actions: list[str] = field(default_factory=list)
     blocked_actions: list[str] = field(default_factory=list)
+    # 3-tier authority model (ARA-001 §2.2)
+    authority_autonomous: list[str] = field(default_factory=list)
+    authority_requires_approval: list[str] = field(default_factory=list)
+    authority_forbidden: list[str] = field(default_factory=list)
+    competencies: list[str] = field(default_factory=list)
+    confidence_thresholds: ConfidenceThresholds = field(default_factory=ConfidenceThresholds)
+    risk_tolerance: str = "medium"
+    success_criteria: list[str] = field(default_factory=list)
     max_session_hours: float = 8.0
     max_cost_per_session: float = 5.0
     auto_checkpoint_interval_minutes: int = 15
@@ -151,6 +184,37 @@ class RoleProfile:
         if self.max_cost_per_session < 0:
             errors.append("max_cost_per_session cannot be negative")
 
+        if self.risk_tolerance not in VALID_RISK_TOLERANCES:
+            errors.append(
+                f"risk_tolerance '{self.risk_tolerance}' is invalid. "
+                f"Must be one of: {', '.join(sorted(VALID_RISK_TOLERANCES))}"
+            )
+
+        ct = self.confidence_thresholds
+        if not (0 <= ct.pause_and_ask <= ct.execute_and_flag <= ct.auto_execute <= 1):
+            errors.append(
+                "confidence_thresholds must satisfy: "
+                "0 <= pause_and_ask <= execute_and_flag <= auto_execute <= 1"
+            )
+
+        # Backward compat: migrate allowed_actions → authority_autonomous
+        if self.allowed_actions and not self.authority_autonomous:
+            self.authority_autonomous = list(self.allowed_actions)
+
+        # AEGIS: strip forbidden actions from autonomous/approval lists
+        for action in list(self.authority_autonomous):
+            if action in AEGIS_BLOCKED_ACTIONS:
+                self.authority_autonomous.remove(action)
+                logger.warning(
+                    "AEGIS: stripped blocked action '%s' from autonomous list of role '%s'",
+                    action, self.name,
+                )
+
+        # Ensure AEGIS-blocked actions are in authority_forbidden
+        for action in AEGIS_BLOCKED_ACTIONS:
+            if action not in self.authority_forbidden:
+                self.authority_forbidden.append(action)
+
         # AEGIS: strip any blocked actions from allowed list
         for action in list(self.allowed_actions):
             if action in AEGIS_BLOCKED_ACTIONS:
@@ -174,7 +238,22 @@ class RoleProfile:
             return False
         if action in self.blocked_actions:
             return False
+        if action in self.authority_forbidden:
+            return False
         return not (self.allowed_actions and action not in self.allowed_actions)
+
+    def get_action_tier(self, action: str) -> str:
+        """Return the authority tier for an action.
+
+        Returns: 'forbidden', 'requires_approval', 'autonomous', or 'unknown'.
+        """
+        if action in AEGIS_BLOCKED_ACTIONS or action in self.authority_forbidden:
+            return "forbidden"
+        if action in self.authority_requires_approval:
+            return "requires_approval"
+        if action in self.authority_autonomous:
+            return "autonomous"
+        return "unknown"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary (for saving back to YAML)."""
@@ -187,6 +266,19 @@ class RoleProfile:
             "blocked_actions": [
                 a for a in self.blocked_actions if a not in AEGIS_BLOCKED_ACTIONS
             ],
+            "authority_autonomous": self.authority_autonomous,
+            "authority_requires_approval": self.authority_requires_approval,
+            "authority_forbidden": [
+                a for a in self.authority_forbidden if a not in AEGIS_BLOCKED_ACTIONS
+            ],
+            "competencies": self.competencies,
+            "confidence_thresholds": {
+                "auto_execute": self.confidence_thresholds.auto_execute,
+                "execute_and_flag": self.confidence_thresholds.execute_and_flag,
+                "pause_and_ask": self.confidence_thresholds.pause_and_ask,
+            },
+            "risk_tolerance": self.risk_tolerance,
+            "success_criteria": self.success_criteria,
             "max_session_hours": self.max_session_hours,
             "max_cost_per_session": self.max_cost_per_session,
             "auto_checkpoint_interval_minutes": self.auto_checkpoint_interval_minutes,
@@ -224,6 +316,8 @@ class RoleProfile:
         wl_data = data.get("write_limits", {})
         notif_data = data.get("notifications", {})
 
+        ct_data = data.get("confidence_thresholds", {})
+
         return cls(
             name=data.get("name", ""),
             scope=data.get("scope", "coding"),
@@ -231,6 +325,13 @@ class RoleProfile:
             description=data.get("description", ""),
             allowed_actions=data.get("allowed_actions", []),
             blocked_actions=data.get("blocked_actions", []),
+            authority_autonomous=data.get("authority_autonomous", []),
+            authority_requires_approval=data.get("authority_requires_approval", []),
+            authority_forbidden=data.get("authority_forbidden", []),
+            competencies=data.get("competencies", []),
+            confidence_thresholds=ConfidenceThresholds.from_dict(ct_data) if ct_data else ConfidenceThresholds(),
+            risk_tolerance=data.get("risk_tolerance", "medium"),
+            success_criteria=data.get("success_criteria", []),
             max_session_hours=data.get("max_session_hours", 8.0),
             max_cost_per_session=data.get("max_cost_per_session", 5.0),
             auto_checkpoint_interval_minutes=data.get("auto_checkpoint_interval_minutes", 15),
@@ -303,3 +404,123 @@ def save_role(role: RoleProfile, path: Path) -> None:
     with open(path, "w") as f:
         yaml.dump(role.to_dict(), f, default_flow_style=False, sort_keys=False)
     logger.info("Saved role '%s' to %s", role.name, path)
+
+
+def generate_example_yaml() -> str:
+    """Return an annotated example YAML template for creating a new role."""
+    return '''# Orion ARA Role Profile
+# Copy this file to ~/.orion/roles/<role-name>.yaml and customize.
+# See ARA-001 §2 for full documentation.
+
+# REQUIRED: Unique role name (used in 'orion work --role <name>')
+name: "my-custom-role"
+
+# REQUIRED: Scope — what domain this role operates in
+# Options: coding, research, devops, full
+scope: "coding"
+
+# REQUIRED: Authentication method for promoting changes
+# Options: pin (4-8 digit PIN), totp (Google Authenticator / Authy)
+auth_method: "pin"
+
+# Optional: Human-readable description
+description: "A custom role for my specific workflow"
+
+# Competencies — what this role is skilled at (informational)
+competencies:
+  - "Code quality and best practices"
+  - "Unit and integration testing"
+  - "Git workflow and version control"
+
+# 3-tier authority model:
+# autonomous — Orion does these without asking
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "run_tests"
+  - "create_feature_branches"
+
+# requires_approval — Orion pauses and asks before doing these
+authority_requires_approval:
+  - "merge_to_main"
+  - "add_dependencies"
+  - "change_database_schema"
+
+# forbidden — Orion will NEVER do these (AEGIS blocks them)
+authority_forbidden:
+  - "deploy_to_production"
+  - "delete_repositories"
+  - "modify_ci_pipeline"
+
+# Confidence thresholds (0.0 to 1.0)
+confidence_thresholds:
+  auto_execute: 0.90      # >= this: execute without flagging
+  execute_and_flag: 0.70   # >= this: execute but mark for review
+  pause_and_ask: 0.50      # < this: pause and ask the user
+
+# Risk tolerance: low, medium, high
+risk_tolerance: "medium"
+
+# Success criteria (informational — shown in dashboard)
+success_criteria:
+  - "All tests pass"
+  - "Code coverage > 80%"
+  - "Follows project style guide"
+
+# Session limits
+max_session_hours: 8.0       # Max duration (0-24)
+max_cost_per_session: 5.0    # Max API spend in USD
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+# Working hours — when autonomous execution is allowed
+working_hours:
+  enabled: false
+  start_hour: 22
+  end_hour: 6
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+# Write limits (AEGIS enforces ceilings)
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 200
+  max_single_file_lines: 5000
+
+# Notifications
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+# Optional: Override the default LLM model
+# model_override: "gpt-4o"
+
+# Optional: Tags for organizing roles
+tags: ["custom"]
+'''
+
+
+def validate_role_file(path: Path) -> tuple[bool, list[str]]:
+    """Validate a YAML role file without loading it into the system.
+
+    Returns (valid, list_of_errors).
+    """
+    errors: list[str] = []
+    try:
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        if not data or not isinstance(data, dict):
+            return False, ["File is empty or not a valid YAML mapping"]
+        # Try to construct — validation happens in __post_init__
+        RoleProfile.from_dict(data, source_path=str(path))
+        return True, []
+    except RoleValidationError as e:
+        return False, e.errors
+    except Exception as e:
+        errors.append(str(e))
+        return False, errors
