@@ -1,0 +1,41 @@
+name: researcher
+scope: research
+auth_method: pin
+description: >
+  Research assistant. Gathers information, summarizes findings,
+  and produces documentation. No code execution, read-only workspace.
+
+allowed_actions:
+  - read_files
+  - search_code
+  - search_web
+  - write_files
+  - git_commit
+
+max_session_hours: 4
+max_cost_per_session: 3.0
+auto_checkpoint_interval_minutes: 20
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+
+write_limits:
+  max_file_size_mb: 5
+  max_files_created: 20
+  max_files_modified: 30
+  max_total_write_volume_mb: 50
+  max_single_file_lines: 2000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers:
+    - desktop
+
+tags:
+  - starter
+  - research
+  - documentation

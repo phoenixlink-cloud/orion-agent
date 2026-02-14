@@ -1,0 +1,51 @@
+name: night-coder
+scope: coding
+auth_method: pin
+description: >
+  Overnight coding assistant. Works on code tasks while you sleep.
+  Checkpoints every 15 minutes, requires morning review before promotion.
+
+allowed_actions:
+  - read_files
+  - write_files
+  - run_tests
+  - run_linter
+  - git_commit
+  - search_code
+
+max_session_hours: 8
+max_cost_per_session: 5.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: true
+  start_hour: 22
+  end_hour: 6
+  timezone: UTC
+  days:
+    - monday
+    - tuesday
+    - wednesday
+    - thursday
+    - friday
+
+write_limits:
+  max_file_size_mb: 5
+  max_files_created: 50
+  max_files_modified: 100
+  max_total_write_volume_mb: 100
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers:
+    - desktop
+
+tags:
+  - starter
+  - coding
+  - overnight

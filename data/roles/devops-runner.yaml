@@ -1,0 +1,45 @@
+name: devops-runner
+scope: devops
+auth_method: totp
+description: >
+  DevOps automation assistant. Runs CI/CD tasks, Docker builds,
+  and deployment scripts. Higher security with TOTP authentication.
+
+allowed_actions:
+  - read_files
+  - write_files
+  - run_tests
+  - run_linter
+  - git_commit
+  - docker_build
+  - docker_run
+  - search_code
+
+max_session_hours: 2
+max_cost_per_session: 2.0
+auto_checkpoint_interval_minutes: 10
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 30
+  max_files_modified: 50
+  max_total_write_volume_mb: 100
+  max_single_file_lines: 5000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: true
+  providers:
+    - desktop
+    - webhook
+
+tags:
+  - starter
+  - devops
+  - ci-cd
