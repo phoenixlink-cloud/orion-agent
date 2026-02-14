@@ -861,3 +861,510 @@ Dashboard review identified 8 enhancement areas:
 6. Sandbox indicator
 7. Time/cost budget progress bars
 8. Decision log drill-down
+
+---
+
+## Appendix C: Gap Analysis & Solutions
+
+13 gaps were identified during design review. All are addressed below
+with full design solutions and assigned to implementation phases.
+
+### C.1 Failure Recovery Paths
+
+**Problem:** Orion stops on failure but has no defined recovery behaviour.
+
+**Solution: Recovery State Machine**
+
+```
+RUNNING → INTERRUPTED → RECOVERABLE → RESUMED
+              │                          ↑
+              ├→ UNRECOVERABLE → ARCHIVED │
+              │                           │
+              └→ STALE → (user decides) ──┘
+```
+
+| Failure Type              | Detection                        | Recovery                                              | Mode          |
+|---------------------------|----------------------------------|-------------------------------------------------------|---------------|
+| LLM API down              | HTTP 5xx / timeout               | Backoff (30s→1m→5m→15m), max 3 retries → checkpoint + pause | Auto → manual |
+| Machine sleep/hibernate   | Heartbeat file stale > 2 min     | On wake: detect interrupted session, offer resume     | Manual        |
+| Docker daemon crash       | Container not found on inspect   | If overlay intact → restart container, resume. Else → rollback to checkpoint | Auto if overlay OK |
+| Disk full                 | OSError                          | Emergency checkpoint, prune oldest checkpoints, notify | Manual        |
+| Partial task failure      | Task crashes mid-write           | Atomic execution: writes go to `.staging/`, committed on success, discarded on failure | Auto          |
+| Network loss (host)       | Can't reach LLM API              | Same as LLM API down                                 | Auto → manual |
+| OOM kill                  | Container exit code 137          | Increase memory 50% (up to cap), restart, resume      | Auto once     |
+
+**Heartbeat file:** Daemon writes `~/.orion/sessions/{id}/heartbeat` every 30s.
+On startup, sessions where `state.json` says running but heartbeat > 2 min old
+are flagged `INTERRUPTED` and surfaced in `orion status`.
+
+**Atomic task execution:**
+```
+Pre-task checkpoint
+  → Task writes to /workspace-edits/.staging/
+  → Success? → mv .staging/* → /workspace-edits/
+  → Failure? → rm -rf .staging/ → state unchanged
+```
+
+**Session state addition:**
+```python
+recovery_state: str  # "normal" | "interrupted" | "recoverable" | "unrecoverable"
+last_heartbeat: float
+```
+
+**Phase:** 2
+
+---
+
+### C.2 Resource Cleanup / TTL
+
+**Problem:** Sessions, checkpoints, containers, logs accumulate without bound.
+
+**Solution: Session Lifecycle Manager**
+
+```python
+SESSION_TTL_DAYS = 30              # Auto-archive after 30 days
+MAX_CHECKPOINTS_PER_SESSION = 20   # Prune older
+MAX_TOTAL_SESSION_DISK_MB = 500    # Per session
+MAX_SESSIONS_RETAINED = 50         # Total
+LOG_ROTATION_MAX_MB = 50           # Per log file
+ORPHAN_CONTAINER_TTL_HOURS = 24    # Kill containers with no active session
+```
+
+| Trigger                       | What Gets Cleaned                                  |
+|-------------------------------|----------------------------------------------------|
+| Session promoted              | Sandbox branch, overlay, staging. Checkpoints → last 3 |
+| Session rejected              | All artifacts deleted                              |
+| TTL expires (30 days)         | Archive to `~/.orion/archive/`, then delete        |
+| `orion sessions cleanup`      | Interactive: user picks what to purge              |
+| Disk pressure (>80%)          | Auto-prune oldest checkpoints, then oldest archives |
+| Orphan containers (hourly)    | Kill containers with no matching active session    |
+
+**Checkpoint pruning strategy:**
+- Last hour: keep all
+- Last 24 hours: keep every 5th
+- Older than 24h: keep first and last only
+- After promotion: keep last 3 total
+
+**Git branch cleanup:** Orphaned `orion-ara/*` branches (no matching session)
+cleaned via `orion sessions cleanup --branches`.
+
+**Phase:** 1
+
+---
+
+### C.3 Learning From Outcomes
+
+**Problem:** Orion doesn't improve from user approval/rejection patterns.
+
+**Solution: Outcome Feedback Store**
+
+```python
+@dataclass
+class TaskOutcome:
+    task_type: str              # "write_code", "write_tests", "refactor", "docs"
+    role: str
+    confidence: float           # Orion's confidence at execution
+    approved: bool
+    revision_requested: bool
+    rejection_reason: str | None
+    estimated_duration: int     # Predicted (seconds)
+    actual_duration: int        # Actual (seconds)
+    timestamp: float
+```
+
+Stored in `~/.orion/feedback/outcomes.jsonl` (append-only, one JSON per line).
+
+**Usage:**
+
+1. **Confidence calibration:**
+   `calibrated_confidence = raw_confidence × historical_approval_rate`
+
+2. **Goal decomposition improvement:** Prompt includes last 5 rejections
+   with reasons for the active role.
+
+3. **Estimation calibration:**
+   `calibrated_estimate = raw_estimate × (avg_actual / avg_estimated)`
+
+4. **Dashboard surfacing:** "Orion's accuracy: 94% approval rate this month
+   (was 87% last month)"
+
+**Privacy:** All data local-only. `orion feedback reset` clears history.
+Feedback is per-role.
+
+**Phase:** 4
+
+---
+
+### C.4 Task Estimation Calibration
+
+**Problem:** Time/cost estimates are guesswork with no data.
+
+**Solution:** Integrated with C.3 feedback store.
+
+**Phase 1 (no history):**
+- LLM provides raw estimate during decomposition
+- Display as range: "Est. 15-30 min" (2× uncertainty band)
+- Show "No historical data — estimates are approximate"
+
+**Phase 2+ (with history):**
+```python
+def calibrate(task_type, role, raw_estimate_seconds):
+    history = get_outcomes(task_type=task_type, role=role)
+    if len(history) < 5:
+        return (raw_estimate_seconds, raw_estimate_seconds * 2)
+    ratio = mean(o.actual / o.estimated for o in history)
+    std = stdev(...)
+    calibrated = raw_estimate_seconds * ratio
+    return (int(calibrated - std), int(calibrated + std))
+```
+
+**Cost estimation:** Track LLM calls per task type from history.
+Apply current model pricing: "Est. cost: $0.12-0.25 (based on 8 similar tasks)"
+
+**Phase:** 3
+
+---
+
+### C.5 Goal Queuing / Priority Interrupts
+
+**Problem:** One goal at a time is limiting.
+
+**Solution: Goal Queue**
+
+```python
+@dataclass
+class GoalQueue:
+    workspace: str
+    active_goal: str | None
+    queued_goals: list[QueuedGoal]     # FIFO, user can reorder
+    paused_goals: list[PausedGoal]     # Interrupted, resumable
+
+@dataclass
+class QueuedGoal:
+    goal_id: str
+    description: str
+    role: str
+    priority: str           # "normal" | "urgent"
+    depends_on: str | None  # goal_id of prerequisite
+    added_at: float
+```
+
+**CLI:**
+```bash
+orion work --role "SE" "Implement auth module"
+orion work --queue --role "TW" "Write docs for auth module"
+orion work --urgent --role "SE" "Fix critical login bug"
+orion queue                # View queue
+orion queue move 3 1       # Reorder
+```
+
+**Priority interrupt:** Current goal checkpointed + paused → urgent starts →
+on completion → previous resumes.
+
+**Goal dependencies:** B `depends_on` A means B stays queued until A is
+promoted. If A is rejected, B is flagged for review.
+
+**Phase:** 4
+
+---
+
+### C.6 Stale Workspace Detection
+
+**Problem:** External changes during autonomous work make sandbox stale.
+
+**Solution: Drift Monitor**
+
+```python
+class WorkspaceDriftMonitor:
+    def check_drift(self, session) -> DriftReport:
+        base_commit = session.sandbox_base_commit
+        current_commit = get_workspace_head(session.workspace_path)
+        if base_commit == current_commit:
+            return DriftReport(drifted=False)
+        changed_files = git_diff_names(base_commit, current_commit)
+        orion_files = session.modified_files
+        conflicts = set(changed_files) & set(orion_files)
+        return DriftReport(
+            drifted=True,
+            workspace_changes=len(changed_files),
+            conflict_files=list(conflicts),
+            severity="high" if conflicts else "low"
+        )
+```
+
+**When to check:**
+- Every 5 tasks → low severity: log + continue; high severity: pause + notify
+- Before promotion → always; show conflicts in promotion UI
+- On `orion resume` → warn if workspace moved since pause
+
+**Session state addition:**
+```python
+sandbox_base_commit: str       # Git HEAD when sandbox created
+drift_checks: list[dict]       # History of drift results
+```
+
+**Phase:** 2
+
+---
+
+### C.7 Secrets Scanner Pre-Promotion
+
+**Problem:** LLM-generated code may contain hardcoded secrets.
+
+**Solution: AEGIS Secret Scanner**
+
+Runs automatically before every promotion. Part of the AEGIS traffic gate.
+
+```python
+class SecretScanner:
+    PATTERNS = {
+        "aws_access_key":    r"AKIA[0-9A-Z]{16}",
+        "aws_secret_key":    r"[0-9a-zA-Z/+]{40}",
+        "github_token":      r"gh[pousr]_[A-Za-z0-9_]{36,}",
+        "jwt_token":         r"eyJ[A-Za-z0-9-_]+\.eyJ[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+",
+        "generic_api_key":   r"(?i)(api[_-]?key|apikey)\s*[:=]\s*['\"][A-Za-z0-9]{20,}['\"]",
+        "generic_password":  r"(?i)(password|passwd|pwd)\s*[:=]\s*['\"][^'\"]{8,}['\"]",
+        "private_key":       r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----",
+        "connection_string": r"(?i)(mongodb|postgres|mysql|redis):\/\/[^\s]+@[^\s]+",
+        "slack_webhook":     r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+",
+        "generic_secret":    r"(?i)(secret|token|credential)\s*[:=]\s*['\"][A-Za-z0-9+/=]{20,}['\"]",
+    }
+```
+
+**Enforcement:**
+- 0 findings → proceed to PIN/TOTP
+- 1+ findings → **BLOCK** promotion, show findings with redacted values
+- User options: mark false positive / edit file / add to allowlist / cancel
+
+**User-managed allowlist:** `~/.orion/secrets_allowlist.yaml`
+```yaml
+allowlist:
+  - pattern: "EXAMPLE_API_KEY"
+    reason: "Used in documentation"
+  - file: "tests/**"
+    reason: "Test fixtures use fake credentials"
+```
+
+**Phase:** 1
+
+---
+
+### C.8 Output Size Limits
+
+**Problem:** Runaway generation could fill disk or produce unusable output.
+
+**Solution: AEGIS Write Limits**
+
+```python
+MAX_SINGLE_FILE_SIZE_MB = 10
+MAX_FILES_CREATED_PER_SESSION = 100
+MAX_FILES_MODIFIED_PER_SESSION = 200
+MAX_TOTAL_WRITE_VOLUME_MB = 200
+MAX_SINGLE_FILE_LINES = 5000
+```
+
+Enforced before every file write in the sandbox. Any violation → block write,
+log to decision log, continue to next task.
+
+User can lower limits per role but cannot exceed AEGIS ceilings:
+```yaml
+roles:
+  software_engineer:
+    write_limits:
+      max_file_size_mb: 5       # User can lower, not raise above 10
+      max_files_created: 50
+```
+
+**Phase:** 1
+
+---
+
+### C.9 Post-Promotion Rollback
+
+**Problem:** User promotes, then realizes work is wrong.
+
+**Solution: Promotion Tagging + Undo**
+
+On every promotion:
+```bash
+git tag orion-pre-promote/{session_id} HEAD       # Tag pre-state
+git add . && git commit -m "orion(ara): {goal}"   # Apply changes
+git tag orion-post-promote/{session_id} HEAD       # Tag post-state
+```
+
+Undo:
+```bash
+$ orion undo-promote {session_id}
+# Creates a revert commit (non-destructive, history preserved)
+# Original work preserved on tag orion-post-promote/{session_id}
+```
+
+Key: revert commit, not force-push. User can cherry-pick individual files.
+
+**Phase:** 4
+
+---
+
+### C.10 Multi-User Isolation
+
+**Problem:** Shared machines — users shouldn't see each other's data.
+
+**Solution: OS-User Scoping**
+
+All artifacts scoped to `~/.orion/` (per OS user home directory).
+
+```python
+class UserIsolation:
+    def validate_session_access(self, session_path: Path) -> bool:
+        user_orion_dir = Path.home() / ".orion"
+        return session_path.resolve().is_relative_to(user_orion_dir.resolve())
+```
+
+- Containers named `orion-ara-{username}-{session_id}`
+- PIN/TOTP per-user (different keychain entries)
+- Shared workspace → each user gets own sandbox branch:
+  `orion-ara/{username}/{session_id}`
+
+**Phase:** 4
+
+---
+
+### C.11 Webhook / Chat Notifications
+
+**Problem:** Email-only is limiting. Teams use Slack, Discord, Teams.
+
+**Solution: Notification Provider Interface**
+
+```python
+class NotificationProvider(ABC):
+    @abstractmethod
+    async def send(self, notification: Notification) -> bool: ...
+    @abstractmethod
+    def validate_config(self) -> list[str]: ...
+
+class EmailProvider(NotificationProvider): ...     # Already designed
+class WebhookProvider(NotificationProvider): ...   # Slack, Discord, Teams, generic
+class DesktopProvider(NotificationProvider): ...   # OS-native toast/notification
+```
+
+Same AEGIS rules for all providers:
+- Single destination per provider
+- Template-only payloads
+- Rate-limited: max 5 per session
+- Changing destination requires PIN/TOTP
+- Send-only (never read responses)
+
+Settings UI allows enabling multiple channels and selecting trigger events
+(session complete, approval needed, error, cost limit 80%).
+
+**Phase:** 3
+
+---
+
+### C.12 Dashboard WebSocket Channel
+
+**Problem:** Dashboard needs real-time updates, not polling.
+
+**Solution: ARA WebSocket Protocol**
+
+New route: `/ws/ara/{session_id}`
+
+Events:
+```
+status_change    — Session status changed
+task_started     — New task began
+task_completed   — Task finished (with result + confidence)
+activity         — Human-readable activity update
+progress         — Progress percentage updated
+consent_request  — New approval needed (pushes to UI)
+consent_resolved — Approval granted/denied
+checkpoint       — Checkpoint created
+drift_warning    — Workspace drift detected
+cost_update      — Cost tracker updated
+error            — Error occurred
+session_complete — All work done
+```
+
+Message format:
+```json
+{
+    "event": "task_completed",
+    "session_id": "4f2a...",
+    "timestamp": 1739512800,
+    "data": {
+        "task_id": "task-003",
+        "task_name": "Create login endpoint",
+        "confidence": 0.88,
+        "duration_seconds": 340,
+        "files_modified": ["src/auth/endpoints.py"],
+        "next_task": "task-004"
+    }
+}
+```
+
+Fallback: If WebSocket drops, dashboard polls
+`GET /api/ara/session/{id}/status` every 5 seconds.
+
+**Phase:** 3
+
+---
+
+### C.13 ARA Integration Testing Strategy
+
+**Problem:** Can't test autonomous workflows without hours and LLM credits.
+
+**Solution: 5-Layer Test Strategy**
+
+**Layer 1 — Unit tests (no LLM, no Docker):**
+- Role validation, confidence gates, secret scanner, write limits,
+  PIN/TOTP verification, session state serialization.
+- Fast, run in CI on every commit.
+
+**Layer 2 — Mock LLM integration tests:**
+- `MockLLMProvider` returns pre-recorded responses.
+- Tests goal decomposition, execution loop, checkpoint/restore.
+- No API credits consumed.
+
+**Layer 3 — Sandbox escape tests (Docker required):**
+- Verify: can't access host filesystem, can't make network requests,
+  can't escalate privileges, can't write to read-only workspace,
+  PID/memory limits enforced.
+- Run in CI with Docker.
+
+**Layer 4 — Role boundary tests:**
+- Verify AEGIS blocks forbidden actions, requires approval for
+  restricted actions, base restrictions can't be overridden.
+
+**Layer 5 — End-to-end smoke test:**
+- Full session: goal → decompose → execute → checkpoint → review → promote.
+- Uses mock LLM + real Docker sandbox.
+- Verifies complete lifecycle including cleanup.
+
+**CI integration:**
+```yaml
+test-ara-unit:     pytest tests/ara/ -m "not docker and not e2e"
+test-ara-sandbox:  pytest tests/ara/ -m "docker" --timeout=120
+test-ara-e2e:      pytest tests/ara/ -m "e2e" --timeout=300
+```
+
+**Phase:** 0 (escape tests), 1 (unit + role), 2 (mock LLM + e2e)
+
+---
+
+### Gap Summary
+
+| # | Gap                          | Severity   | Phase |
+|---|------------------------------|------------|-------|
+| 1 | Failure recovery paths       | **High**   | 2     |
+| 2 | Resource cleanup / TTL       | **High**   | 1     |
+| 3 | Learning from outcomes       | Medium     | 4     |
+| 4 | Task estimation calibration  | Medium     | 3     |
+| 5 | Goal queuing / interrupts    | Medium     | 4     |
+| 6 | Stale workspace detection    | Medium     | 2     |
+| 7 | Secrets scanner              | **High**   | 1     |
+| 8 | Output size limits           | Medium     | 1     |
+| 9 | Post-promotion rollback      | Low        | 4     |
+| 10| Multi-user isolation         | Low        | 4     |
+| 11| Webhook notifications        | Low        | 3     |
+| 12| Dashboard WebSocket          | Medium     | 3     |
+| 13| ARA testing strategy         | **High**   | 0     |
