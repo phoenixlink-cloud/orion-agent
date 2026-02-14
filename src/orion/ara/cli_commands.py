@@ -33,7 +33,13 @@ from typing import Any
 from orion.ara.aegis_gate import AegisGate
 from orion.ara.auth import RoleAuthenticator
 from orion.ara.daemon import DaemonControl
-from orion.ara.role_profile import RoleProfile, load_role
+from orion.ara.role_profile import (
+    RoleProfile,
+    generate_example_yaml,
+    load_role,
+    save_role,
+    validate_role_file,
+)
 from orion.ara.session import SessionState, SessionStatus
 
 logger = logging.getLogger("orion.ara.cli_commands")
@@ -332,3 +338,214 @@ def _find_role(role_name: str, roles_dir: Path | None = None) -> RoleProfile | N
                 except Exception:
                     pass
     return None
+
+
+# ---------------------------------------------------------------------------
+# Role management commands
+# ---------------------------------------------------------------------------
+
+
+def cmd_role_list(roles_dir: Path | None = None) -> CommandResult:
+    """List all available roles with summary info."""
+    user_dir = roles_dir or DEFAULT_ROLES_DIR
+    roles: list[dict[str, Any]] = []
+
+    for search_dir, source in [(user_dir, "user"), (STARTER_ROLES_DIR, "starter")]:
+        if not search_dir.exists():
+            continue
+        for ext in ("*.yaml", "*.yml"):
+            for p in search_dir.glob(ext):
+                try:
+                    r = load_role(p)
+                    if not any(role["name"] == r.name for role in roles):
+                        roles.append({
+                            "name": r.name,
+                            "scope": r.scope,
+                            "auth": r.auth_method,
+                            "source": source,
+                            "description": r.description[:60] if r.description else "",
+                            "path": str(p),
+                        })
+                except Exception:
+                    pass
+
+    roles.sort(key=lambda x: x["name"])
+
+    if not roles:
+        return CommandResult(
+            success=True,
+            message="No roles found. Run `orion role example` to see how to create one.",
+            data={"roles": []},
+        )
+
+    lines = ["Available roles:", ""]
+    for r in roles:
+        tag = "[starter]" if r["source"] == "starter" else "[user]"
+        lines.append(f"  {r['name']:20s} {r['scope']:10s} {r['auth']:5s} {tag}")
+        if r["description"]:
+            lines.append(f"  {'':20s} {r['description']}")
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data={"roles": roles},
+    )
+
+
+def cmd_role_show(role_name: str, roles_dir: Path | None = None) -> CommandResult:
+    """Show full details of a role."""
+    role = _find_role(role_name, roles_dir)
+    if role is None:
+        return CommandResult(
+            success=False,
+            message=f"Role '{role_name}' not found.",
+        )
+
+    d = role.to_dict()
+    lines = [
+        f"Role: {role.name}",
+        f"Scope: {role.scope}",
+        f"Auth: {role.auth_method}",
+        f"Description: {role.description or '(none)'}",
+        f"Risk tolerance: {role.risk_tolerance}",
+        f"Source: {role.source_path or 'in-memory'}",
+        "",
+    ]
+    if role.competencies:
+        lines.append("Competencies:")
+        for c in role.competencies:
+            lines.append(f"  - {c}")
+        lines.append("")
+
+    if role.authority_autonomous:
+        lines.append("Autonomous actions:")
+        for a in role.authority_autonomous:
+            lines.append(f"  - {a}")
+        lines.append("")
+
+    if role.authority_requires_approval:
+        lines.append("Requires approval:")
+        for a in role.authority_requires_approval:
+            lines.append(f"  - {a}")
+        lines.append("")
+
+    if role.success_criteria:
+        lines.append("Success criteria:")
+        for s in role.success_criteria:
+            lines.append(f"  - {s}")
+        lines.append("")
+
+    ct = role.confidence_thresholds
+    lines.append(f"Confidence: auto={ct.auto_execute}, flag={ct.execute_and_flag}, pause={ct.pause_and_ask}")
+    lines.append(f"Limits: {role.max_session_hours}h, ${role.max_cost_per_session} max cost")
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data=d,
+    )
+
+
+def cmd_role_create(
+    name: str,
+    scope: str = "coding",
+    auth_method: str = "pin",
+    description: str = "",
+    roles_dir: Path | None = None,
+    **kwargs: Any,
+) -> CommandResult:
+    """Create a new role and save it to the user roles directory."""
+    user_dir = roles_dir or DEFAULT_ROLES_DIR
+
+    # Check if role already exists
+    existing = _find_role(name, roles_dir)
+    if existing is not None:
+        return CommandResult(
+            success=False,
+            message=f"Role '{name}' already exists at {existing.source_path}",
+        )
+
+    try:
+        role = RoleProfile(
+            name=name,
+            scope=scope,
+            auth_method=auth_method,
+            description=description,
+            **kwargs,
+        )
+    except Exception as e:
+        return CommandResult(success=False, message=f"Invalid role configuration: {e}")
+
+    path = user_dir / f"{name}.yaml"
+    save_role(role, path)
+
+    return CommandResult(
+        success=True,
+        message=f"Role '{name}' created at {path}",
+        data={"name": name, "path": str(path)},
+    )
+
+
+def cmd_role_delete(role_name: str, roles_dir: Path | None = None) -> CommandResult:
+    """Delete a user role. Starter templates cannot be deleted."""
+    user_dir = roles_dir or DEFAULT_ROLES_DIR
+
+    # Check starter templates first — can't delete those
+    if STARTER_ROLES_DIR.exists():
+        for p in STARTER_ROLES_DIR.glob("*.yaml"):
+            try:
+                r = load_role(p)
+                if r.name == role_name:
+                    return CommandResult(
+                        success=False,
+                        message=f"Cannot delete starter template '{role_name}'.",
+                    )
+            except Exception:
+                pass
+
+    # Find in user roles
+    if user_dir.exists():
+        for ext in ("*.yaml", "*.yml"):
+            for p in user_dir.glob(ext):
+                try:
+                    r = load_role(p)
+                    if r.name == role_name:
+                        p.unlink()
+                        return CommandResult(
+                            success=True,
+                            message=f"Role '{role_name}' deleted ({p}).",
+                            data={"name": role_name, "path": str(p)},
+                        )
+                except Exception:
+                    pass
+
+    return CommandResult(success=False, message=f"Role '{role_name}' not found.")
+
+
+def cmd_role_example() -> CommandResult:
+    """Return an annotated YAML example for creating a new role."""
+    return CommandResult(
+        success=True,
+        message=generate_example_yaml(),
+        data={"format": "yaml"},
+    )
+
+
+def cmd_role_validate(path: str) -> CommandResult:
+    """Validate a YAML role file."""
+    file_path = Path(path)
+    if not file_path.exists():
+        return CommandResult(success=False, message=f"File not found: {path}")
+
+    valid, errors = validate_role_file(file_path)
+    if valid:
+        return CommandResult(
+            success=True,
+            message=f"Role file '{path}' is valid.",
+            data={"valid": True, "path": path},
+        )
+    return CommandResult(
+        success=False,
+        message=f"Role file '{path}' has errors:\n" + "\n".join(f"  - {e}" for e in errors),
+        data={"valid": False, "errors": errors, "path": path},
+    )
