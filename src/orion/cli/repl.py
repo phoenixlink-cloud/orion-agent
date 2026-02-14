@@ -15,7 +15,7 @@
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- Interactive REPL (v7.4.0)
+Orion Agent -- Interactive REPL (v9.0.0)
 
 Main entry point workflow:
     USER REQUEST
@@ -118,6 +118,32 @@ class OrionConsole:
     /doctor                  Run a full system health check
     /health                  Check integration status
     /settings                View or change settings
+
+  AUTONOMOUS ROLE ARCHITECTURE (ARA)
+    /setup                   Run first-time ARA setup wizard
+    /work <role> <goal>      Start an autonomous background session
+    /pause                   Pause the running session
+    /resume                  Resume a paused session
+    /cancel                  Cancel the running session
+    /review [session_id]     Review sandbox changes for promotion
+    /sessions                List all sessions
+    /sessions cleanup [days] Clean up old sessions
+    /dashboard               Show morning dashboard (overview, approvals, tasks)
+    /rollback <id>           Roll back to a checkpoint
+    /plan-review             Review current task plan
+
+  ROLE MANAGEMENT
+    /role list               List all available roles
+    /role show <name>        Show full role details
+    /role create <name>      Create a new role
+    /role delete <name>      Delete a user role
+    /role example            Show annotated YAML example
+    /role validate <path>    Validate a role YAML file
+
+  ARA SETTINGS & AUTH
+    /ara-settings            View ARA-specific settings
+    /ara-settings key=value  Update ARA settings
+    /auth-switch <method> <cred>  Switch auth method (pin/totp/none)
 
   OTHER
     /help                    Show this help
