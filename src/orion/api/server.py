@@ -15,7 +15,7 @@
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- API Server (v7.1.0)
+Orion Agent -- API Server (v9.0.0)
 
 FastAPI server for web UI integration.
 Routes are organized into modules under orion.api.routes/.
@@ -235,6 +235,7 @@ async def respond_to_approval(approval_id: str, response: AegisApprovalResponse)
 # INCLUDE ROUTE MODULES
 # =============================================================================
 
+from orion.api.routes.ara import router as ara_router
 from orion.api.routes.auth import router as auth_router
 from orion.api.routes.chat import router as chat_router
 from orion.api.routes.gdpr import router as gdpr_router
@@ -254,6 +255,7 @@ app.include_router(platforms_router)
 app.include_router(tools_router)
 app.include_router(training_router)
 app.include_router(gdpr_router)
+app.include_router(ara_router)
 
 
 # =============================================================================

@@ -53,8 +53,11 @@ export default function Hero() {
             <Link href="/chat">
               <Button variant="primary">Ask Orion</Button>
             </Link>
+            <Link href="/ara">
+              <Button variant="secondary">Autonomous Roles →</Button>
+            </Link>
             <Link href="/aegis">
-              <Button variant="secondary">How Aegis keeps control →</Button>
+              <Button variant="secondary">AEGIS Governance →</Button>
             </Link>
           </div>
         </div>

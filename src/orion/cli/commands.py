@@ -15,10 +15,12 @@
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- CLI Slash Command Handler (v7.4.0)
+Orion Agent -- CLI Slash Command Handler (v9.0.0)
 
 Handles all /slash commands: /workspace, /add, /drop, /clear, /undo,
-/diff, /commit, /map, /mode, /status, /help, /settings, /tasks, /task.
+/diff, /commit, /map, /mode, /status, /help, /settings, /tasks, /task,
+/work, /pause, /resume, /cancel, /review, /role, /sessions, /setup,
+/dashboard, /rollback, /plan-review, /ara-settings, /auth-switch.
 """
 
 import os
@@ -160,6 +162,43 @@ def handle_command(
         except Exception:
             console.print_info("Activity log not available")
         return {}
+
+    # =====================================================================
+    # ARA Commands (Autonomous Role Architecture)
+    # =====================================================================
+
+    elif command == "/work":
+        return _handle_ara_work(parts, console, workspace_path)
+
+    elif command in ("/pause", "/resume", "/cancel"):
+        return _handle_ara_session_control(command, console)
+
+    elif command == "/review":
+        return _handle_ara_review(parts, console)
+
+    elif command == "/role":
+        return _handle_ara_role(parts, console)
+
+    elif command == "/sessions":
+        return _handle_ara_sessions(parts, console)
+
+    elif command == "/setup":
+        return _handle_ara_setup(console)
+
+    elif command == "/dashboard":
+        return _handle_ara_dashboard(console, workspace_path)
+
+    elif command == "/rollback":
+        return _handle_ara_rollback(parts, console)
+
+    elif command == "/plan-review":
+        return _handle_ara_plan_review(parts, console)
+
+    elif command == "/ara-settings":
+        return _handle_ara_settings(parts, console)
+
+    elif command == "/auth-switch":
+        return _handle_ara_auth_switch(parts, console)
 
     else:
         console.print_error(f"Unknown command: {command}")
@@ -715,4 +754,319 @@ def _handle_bridge(parts, console):
 
     except Exception as e:
         console.print_error(f"Bridge error: {e}")
+    return {}
+
+
+# =============================================================================
+# ARA COMMAND HANDLERS (Autonomous Role Architecture)
+# =============================================================================
+
+
+def _handle_ara_work(parts, console, workspace_path):
+    """Handle /work <role> <goal> -- Start an autonomous session."""
+    if len(parts) < 3:
+        console.print_info("Usage: /work <role> <goal>")
+        console.print_info("  Example: /work software-engineer \"Add error handling to api.py\"")
+        try:
+            from orion.ara.cli_commands import list_available_roles
+
+            roles = list_available_roles()
+            if roles:
+                console.print_info(f"  Available roles: {', '.join(roles)}")
+        except Exception:
+            pass
+        return {}
+
+    role_name = parts[1]
+    goal = " ".join(parts[2:]).strip('"').strip("'")
+    try:
+        from orion.ara.cli_commands import cmd_work
+
+        result = cmd_work(role_name, goal, workspace_path=workspace_path)
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA work failed: {e}")
+    return {}
+
+
+def _handle_ara_session_control(command, console):
+    """Handle /pause, /resume, /cancel -- Session control."""
+    cmd_map = {
+        "/pause": "cmd_pause",
+        "/resume": "cmd_resume",
+        "/cancel": "cmd_cancel",
+    }
+    try:
+        from orion.ara import cli_commands as ara
+
+        func = getattr(ara, cmd_map[command])
+        result = func()
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA {command} failed: {e}")
+    return {}
+
+
+def _handle_ara_review(parts, console):
+    """Handle /review [session_id] -- Review sandbox changes for promotion."""
+    session_id = parts[1] if len(parts) > 1 else None
+    try:
+        from orion.ara.cli_commands import cmd_review
+
+        result = cmd_review(session_id=session_id)
+        if result.success:
+            console.print_success(result.message)
+            if result.data:
+                for key, val in result.data.items():
+                    if key != "raw":
+                        console._print(f"    {key}: {val}")
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA review failed: {e}")
+    return {}
+
+
+def _handle_ara_role(parts, console):
+    """Handle /role <subcommand> -- Role management."""
+    if len(parts) < 2:
+        console.print_info("Usage:")
+        console.print_info("  /role list              -- List all roles")
+        console.print_info("  /role show <name>       -- Show role details")
+        console.print_info("  /role create <name>     -- Create a new role")
+        console.print_info("  /role delete <name>     -- Delete a user role")
+        console.print_info("  /role example           -- Show example YAML")
+        console.print_info("  /role validate <path>   -- Validate a role file")
+        return {}
+
+    sub = parts[1].lower()
+    try:
+        from orion.ara import cli_commands as ara
+
+        if sub == "list":
+            result = ara.cmd_role_list()
+            if result.success:
+                console.print_info(result.message)
+                if result.data and result.data.get("roles"):
+                    for r in result.data["roles"]:
+                        source = r.get("source", "")
+                        tag = " (starter)" if source == "starter" else ""
+                        console._print(f"    {r['name']}{tag} — scope: {r.get('scope', '?')}, auth: {r.get('auth_method', '?')}")
+            else:
+                console.print_error(result.message)
+
+        elif sub == "show":
+            if len(parts) < 3:
+                console.print_info("Usage: /role show <name>")
+                return {}
+            result = ara.cmd_role_show(parts[2])
+            if result.success:
+                console.print_info(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "create":
+            if len(parts) < 3:
+                console.print_info("Usage: /role create <name> [--scope coding] [--auth pin]")
+                return {}
+            name = parts[2]
+            scope = "coding"
+            auth = "pin"
+            for i, p in enumerate(parts[3:], 3):
+                if p == "--scope" and i + 1 < len(parts):
+                    scope = parts[i + 1]
+                elif p == "--auth" and i + 1 < len(parts):
+                    auth = parts[i + 1]
+            result = ara.cmd_role_create(name, scope=scope, auth_method=auth)
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "delete":
+            if len(parts) < 3:
+                console.print_info("Usage: /role delete <name>")
+                return {}
+            result = ara.cmd_role_delete(parts[2])
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "example":
+            result = ara.cmd_role_example()
+            console._print(result.message)
+
+        elif sub == "validate":
+            if len(parts) < 3:
+                console.print_info("Usage: /role validate <path-to-yaml>")
+                return {}
+            result = ara.cmd_role_validate(parts[2])
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        else:
+            console.print_error(f"Unknown role subcommand: {sub}")
+
+    except Exception as e:
+        console.print_error(f"ARA role failed: {e}")
+    return {}
+
+
+def _handle_ara_sessions(parts, console):
+    """Handle /sessions [cleanup] -- List or clean up sessions."""
+    try:
+        from orion.ara import cli_commands as ara
+
+        if len(parts) > 1 and parts[1].lower() == "cleanup":
+            max_age = 30
+            if len(parts) > 2:
+                try:
+                    max_age = int(parts[2])
+                except ValueError:
+                    pass
+            result = ara.cmd_sessions_cleanup(max_age_days=max_age)
+        else:
+            result = ara.cmd_sessions()
+
+        if result.success:
+            console.print_info(result.message)
+            if result.data and result.data.get("sessions"):
+                for s in result.data["sessions"]:
+                    status_icon = {"running": "▶", "paused": "⏸", "completed": "✓", "failed": "✗", "cancelled": "⊘"}.get(s.get("status", ""), "?")
+                    console._print(f"    {status_icon} {s['session_id'][:8]}  {s.get('role', '?')} — {s.get('goal', '?')[:60]}")
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA sessions failed: {e}")
+    return {}
+
+
+def _handle_ara_setup(console):
+    """Handle /setup -- Run ARA first-time setup wizard."""
+    try:
+        from orion.ara.cli_commands import cmd_setup
+
+        result = cmd_setup()
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_info(result.message)
+
+        if result.data and result.data.get("dry_run_scenarios"):
+            console._print("\n  Dry-run scenarios:")
+            for s in result.data["dry_run_scenarios"]:
+                console._print(f"    {s['action']}: {s['result']}")
+    except Exception as e:
+        console.print_error(f"ARA setup failed: {e}")
+    return {}
+
+
+def _handle_ara_dashboard(console, workspace_path):
+    """Handle /dashboard -- Show ARA morning dashboard."""
+    try:
+        from orion.ara.dashboard import MorningDashboard
+
+        dash = MorningDashboard(workspace_path=workspace_path or ".")
+        data = dash.gather_data()
+        output = dash.render(data)
+        console._print(output)
+    except Exception as e:
+        console.print_error(f"ARA dashboard failed: {e}")
+    return {}
+
+
+def _handle_ara_rollback(parts, console):
+    """Handle /rollback <checkpoint_id> [session_id] -- Rollback to checkpoint."""
+    if len(parts) < 2:
+        console.print_info("Usage: /rollback <checkpoint_id> [session_id]")
+        return {}
+    checkpoint_id = parts[1]
+    session_id = parts[2] if len(parts) > 2 else None
+    try:
+        from orion.ara.cli_commands import cmd_rollback
+
+        result = cmd_rollback(checkpoint_id, session_id=session_id)
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA rollback failed: {e}")
+    return {}
+
+
+def _handle_ara_plan_review(parts, console):
+    """Handle /plan-review [session_id] -- Review the current task plan."""
+    session_id = parts[1] if len(parts) > 1 else None
+    try:
+        from orion.ara.cli_commands import cmd_plan_review
+
+        result = cmd_plan_review(session_id=session_id)
+        if result.success:
+            console.print_info(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA plan-review failed: {e}")
+    return {}
+
+
+def _handle_ara_settings(parts, console):
+    """Handle /ara-settings [key=value ...] -- View or update ARA settings."""
+    try:
+        from orion.ara.cli_commands import cmd_settings_ara
+
+        settings = None
+        if len(parts) > 1:
+            settings = {}
+            for part in parts[1:]:
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    # Auto-convert booleans and numbers
+                    if v.lower() in ("true", "false"):
+                        v = v.lower() == "true"
+                    else:
+                        try:
+                            v = int(v)
+                        except ValueError:
+                            try:
+                                v = float(v)
+                            except ValueError:
+                                pass
+                    settings[k] = v
+
+        result = cmd_settings_ara(settings=settings)
+        if result.success:
+            console.print_info(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA settings failed: {e}")
+    return {}
+
+
+def _handle_ara_auth_switch(parts, console):
+    """Handle /auth-switch <method> <current_credential> -- Switch auth method."""
+    if len(parts) < 3:
+        console.print_info("Usage: /auth-switch <pin|totp|none> <current_credential>")
+        return {}
+    try:
+        from orion.ara.cli_commands import cmd_auth_switch
+
+        result = cmd_auth_switch(parts[1], parts[2])
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"ARA auth-switch failed: {e}")
     return {}

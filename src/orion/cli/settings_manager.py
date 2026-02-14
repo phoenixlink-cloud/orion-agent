@@ -15,7 +15,7 @@
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- /settings CLI Management Module (v7.4.0)
+Orion Agent -- /settings CLI Management Module (v9.0.0)
 
 Interactive CLI settings viewer and editor.
 
@@ -174,6 +174,56 @@ SETTING_CATEGORIES = {
             "type": "str",
             "default": "qwen2.5-coder:14b",
             "description": "Model for code generation tasks",
+        },
+    },
+    "Autonomous Roles (ARA)": {
+        "ara_enabled": {
+            "label": "ARA Enabled",
+            "type": "bool",
+            "default": True,
+            "description": "Enable the Autonomous Role Architecture for background tasks",
+        },
+        "ara_default_auth": {
+            "label": "Default Auth Method",
+            "type": "choice",
+            "choices": ["pin", "totp", "none"],
+            "default": "pin",
+            "description": "Authentication method for autonomous sessions",
+        },
+        "ara_max_cost_usd": {
+            "label": "Max Cost Per Session",
+            "type": "int",
+            "default": 5,
+            "min": 1,
+            "max": 100,
+            "description": "Maximum USD cost per autonomous session",
+        },
+        "ara_max_session_hours": {
+            "label": "Max Session Duration",
+            "type": "int",
+            "default": 8,
+            "min": 1,
+            "max": 24,
+            "description": "Maximum hours an autonomous session can run",
+        },
+        "ara_sandbox_mode": {
+            "label": "ARA Sandbox",
+            "type": "choice",
+            "choices": ["docker", "branch", "local"],
+            "default": "branch",
+            "description": "Isolation strategy for autonomous work (docker, branch, or local)",
+        },
+        "ara_prompt_guard": {
+            "label": "Prompt Guard",
+            "type": "bool",
+            "default": True,
+            "description": "Enable prompt injection defence for ARA sessions",
+        },
+        "ara_audit_log": {
+            "label": "Audit Log",
+            "type": "bool",
+            "default": True,
+            "description": "Enable tamper-proof audit logging for ARA sessions",
         },
     },
 }

@@ -40,6 +40,7 @@ export default function StatusRow() {
       }}
     >
       <StatusItem label="Multi-model AI reasoning" />
+      <StatusItem label="Autonomous Role Architecture" />
       <StatusItem label="Aegis safety governance" />
       <StatusItem label="Human-in-the-loop approval" />
     </div>

@@ -1,9 +1,9 @@
 @echo off
 cd /d "%~dp0"
-title Orion - Governed AI Coding Agent v6.4.0
+title Orion - Governed AI Coding Agent v9.0.0
 
 REM ============================================
-REM  ORION - Single Launcher (v6.4.0)
+REM  ORION - Single Launcher (v9.0.0)
 REM  Usage:
 REM    Orion.bat          (interactive menu)
 REM    Orion.bat cli      (terminal interface)

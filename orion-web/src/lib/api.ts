@@ -265,6 +265,169 @@ export async function getAuditLog(limit: number = 100): Promise<{ audit_log: Aud
 }
 
 // =============================================================================
+// ARA (Autonomous Role Architecture)
+// =============================================================================
+
+export interface ARAStatus {
+  success: boolean
+  message: string
+  data: Record<string, any> | null
+}
+
+export interface ARARole {
+  name: string
+  scope: string
+  auth_method: string
+  source: string
+}
+
+export interface ARASession {
+  session_id: string
+  role: string
+  goal: string
+  status: string
+}
+
+export interface ARADashboard {
+  success: boolean
+  rendered: string
+  data: {
+    sections: { title: string; content: string; style: string }[]
+    pending_count: number
+  }
+}
+
+/**
+ * Get ARA session status
+ */
+export async function getARAStatus(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/status`)
+  if (!res.ok) throw new Error('Failed to get ARA status')
+  return res.json()
+}
+
+/**
+ * Start an autonomous work session
+ */
+export async function startARAWork(roleName: string, goal: string, workspacePath?: string): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/work`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role_name: roleName, goal, workspace_path: workspacePath })
+  })
+  if (!res.ok) {
+    const error = await res.json()
+    throw new Error(error.detail || 'Failed to start work session')
+  }
+  return res.json()
+}
+
+/**
+ * Pause the running ARA session
+ */
+export async function pauseARASession(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/pause`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to pause session')
+  return res.json()
+}
+
+/**
+ * Resume a paused ARA session
+ */
+export async function resumeARASession(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/resume`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to resume session')
+  return res.json()
+}
+
+/**
+ * Cancel the running ARA session
+ */
+export async function cancelARASession(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/cancel`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to cancel session')
+  return res.json()
+}
+
+/**
+ * List all ARA sessions
+ */
+export async function getARASessions(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/sessions`)
+  if (!res.ok) throw new Error('Failed to get sessions')
+  return res.json()
+}
+
+/**
+ * List all ARA roles
+ */
+export async function getARARoles(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/roles`)
+  if (!res.ok) throw new Error('Failed to get roles')
+  return res.json()
+}
+
+/**
+ * Get ARA role details
+ */
+export async function getARARole(roleName: string): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/roles/${encodeURIComponent(roleName)}`)
+  if (!res.ok) throw new Error('Failed to get role details')
+  return res.json()
+}
+
+/**
+ * Get ARA morning dashboard
+ */
+export async function getARADashboard(workspacePath?: string): Promise<ARADashboard> {
+  const params = workspacePath ? `?workspace_path=${encodeURIComponent(workspacePath)}` : ''
+  const res = await fetch(`${API_BASE}/api/ara/dashboard${params}`)
+  if (!res.ok) throw new Error('Failed to get dashboard')
+  return res.json()
+}
+
+/**
+ * Get ARA setup status
+ */
+export async function getARASetup(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/setup`)
+  if (!res.ok) throw new Error('Failed to get setup status')
+  return res.json()
+}
+
+/**
+ * Get ARA-specific settings
+ */
+export async function getARASettings(): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/settings`)
+  if (!res.ok) throw new Error('Failed to get ARA settings')
+  return res.json()
+}
+
+/**
+ * Update ARA-specific settings
+ */
+export async function updateARASettings(settings: Record<string, any>): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings })
+  })
+  if (!res.ok) throw new Error('Failed to update ARA settings')
+  return res.json()
+}
+
+/**
+ * Review sandbox changes for promotion
+ */
+export async function reviewARASession(sessionId?: string): Promise<ARAStatus> {
+  const params = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''
+  const res = await fetch(`${API_BASE}/api/ara/review${params}`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to review session')
+  return res.json()
+}
+
+// =============================================================================
 // RUNTIME INFO
 // =============================================================================
 
