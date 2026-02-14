@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orion · AI Employee Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a24;
+            --bg-elevated: #22222e;
+            --border: #2a2a3a;
+            --border-subtle: #1e1e2a;
+            --text-primary: #f0f0f5;
+            --text-secondary: #8888a0;
+            --text-muted: #5a5a70;
+            --accent-blue: #3b82f6;
+            --accent-green: #22c55e;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #a855f7;
+            --glow-blue: rgba(59, 130, 246, 0.15);
+            --glow-green: rgba(34, 197, 94, 0.15);
+            --glow-amber: rgba(245, 158, 11, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(var(--border-subtle) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+            background-size: 40px 40px;
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 280px 1fr 360px;
+            grid-template-rows: 70px 1fr;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Header */
+        .header {
+            grid-column: 1 / -1;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 18px;
+            box-shadow: 0 0 20px var(--glow-blue);
+        }
+
+        .logo-text {
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text span {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .header-status {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-tertiary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-green); }
+            50% { opacity: 0.7; box-shadow: 0 0 0 8px transparent; }
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            background: var(--bg-tertiary);
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav-section {
+            margin-bottom: 24px;
+        }
+
+        .nav-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            padding: 0 12px;
+            margin-bottom: 12px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--glow-blue);
+            color: var(--accent-blue);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            opacity: 0.7;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            background: var(--accent-amber);
+            color: var(--bg-primary);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* Main Content */
+        .main {
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Status Hero Card */
+        .status-hero {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+        }
+
+        .status-main h2 {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .status-task {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            line-height: 1.3;
+        }
+
+        .status-meta {
+            display: flex;
+            gap: 24px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .meta-item svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.6;
+        }
+
+        .status-visual {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .progress-ring {
+            width: 100px;
+            height: 100px;
+            position: relative;
+        }
+
+        .progress-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .progress-ring circle {
+            fill: none;
+            stroke-width: 8;
+        }
+
+        .progress-ring .bg {
+            stroke: var(--bg-tertiary);
+        }
+
+        .progress-ring .progress {
+            stroke: var(--accent-green);
+            stroke-linecap: round;
+            stroke-dasharray: 264;
+            stroke-dashoffset: 66;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .progress-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* Activity Feed */
+        .activity-feed {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .section-action {
+            font-size: 13px;
+            color: var(--accent-blue);
+            cursor: pointer;
+        }
+
+        .activity-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .activity-item {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 16px;
+            transition: background 0.2s ease;
+        }
+
+        .activity-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .activity-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.code { background: var(--glow-blue); color: var(--accent-blue); }
+        .activity-icon.search { background: var(--glow-amber); color: var(--accent-amber); }
+        .activity-icon.write { background: var(--glow-green); color: var(--accent-green); }
+
+        .activity-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .activity-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .activity-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .activity-time {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            flex-shrink: 0;
+        }
+
+        /* Task Queue */
+        .task-queue {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .task-tabs {
+            display: flex;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .task-tab {
+            padding: 16px 0;
+            margin-right: 24px;
+            font-size: 14px;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .task-tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--accent-blue);
+        }
+
+        .task-tab span {
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .task-list {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .task-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .task-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+        }
+
+        .task-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .task-title {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .task-priority {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .task-priority.high { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+        .task-priority.medium { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+        .task-priority.low { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
+
+        .task-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .task-progress-bar {
+            flex: 1;
+            height: 4px;
+            background: var(--bg-elevated);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .task-progress-fill {
+            height: 100%;
+            background: var(--accent-blue);
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        /* Right Panel */
+        .right-panel {
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Consent Gates */
+        .consent-section {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .consent-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .consent-badge {
+            background: var(--accent-amber);
+            color: var(--bg-primary);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+
+        .consent-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .consent-card {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .consent-card-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .consent-card-title svg {
+            width: 18px;
+            height: 18px;
+            color: var(--accent-amber);
+        }
+
+        .consent-card-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .consent-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-approve {
+            background: var(--accent-green);
+            color: var(--bg-primary);
+        }
+
+        .btn-approve:hover {
+            background: #16a34a;
+        }
+
+        .btn-deny {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-deny:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        /* Chat Panel */
+        .chat-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chat-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .chat-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .chat-message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .chat-message.ai {
+            background: var(--bg-tertiary);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-message.user {
+            background: var(--accent-blue);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-input-wrapper {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+        }
+
+        .chat-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            color: var(--accent-green);
+            margin-top: 8px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .status-hero, .activity-feed, .task-queue, .stat-card {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        .activity-feed { animation-delay: 0.1s; }
+        .task-queue { animation-delay: 0.2s; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">O</div>
+                <div class="logo-text">Orion <span>Agent</span></div>
+            </div>
+            <div class="header-status">
+                <div class="live-indicator">
+                    <div class="live-dot"></div>
+                    <span>WORKING</span>
+                </div>
+                <div class="live-indicator">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span>02:34:17</span>
+                </div>
+                <div class="user-avatar">JA</div>
+            </div>
+        </header>
+
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="nav-section">
+                <div class="nav-label">Overview</div>
+                <div class="nav-item active">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="9"/>
+                        <rect x="14" y="3" width="7" height="5"/>
+                        <rect x="14" y="12" width="7" height="9"/>
+                        <rect x="3" y="16" width="7" height="5"/>
+                    </svg>
+                    Dashboard
+                </div>
+                <div class="nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    Activity
+                </div>
+            </div>
+            <div class="nav-section">
+                <div class="nav-label">Work</div>
+                <div class="nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 11l3 3L22 4"/>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    Tasks
+                    <span class="nav-badge">5</span>
+                </div>
+                <div class="nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Deliverables
+                </div>
+                <div class="nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v6m0 6v10"/>
+                        <path d="M1 12h6m6 0h10"/>
+                    </svg>
+                    Consent Gates
+                    <span class="nav-badge">2</span>
+                </div>
+            </div>
+            <div class="nav-section">
+                <div class="nav-label">Configuration</div>
+                <div class="nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    Job Role
+                </div>
+                <div class="nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                        <polyline points="22,6 12,13 2,6"/>
+                    </svg>
+                    Memory
+                </div>
+                <div class="nav-item">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    Settings
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Tasks Completed Today</div>
+                    <div class="stat-value">12</div>
+                    <div class="stat-change">↑ 33% from yesterday</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Hours Active</div>
+                    <div class="stat-value">6.5</div>
+                    <div class="stat-change">2.5 hrs focused work</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Success Rate</div>
+                    <div class="stat-value">94%</div>
+                    <div class="stat-change">↑ 2% this week</div>
+                </div>
+            </div>
+
+            <!-- Status Hero -->
+            <div class="status-hero">
+                <div class="status-main">
+                    <h2>Currently Working On</h2>
+                    <div class="status-task">Implementing NLU parser for conversation intent extraction</div>
+                    <div class="status-meta">
+                        <div class="meta-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                            Started 47 min ago
+                        </div>
+                        <div class="meta-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                            Est. 15 min remaining
+                        </div>
+                        <div class="meta-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            </svg>
+                            Orion Core
+                        </div>
+                    </div>
+                </div>
+                <div class="status-visual">
+                    <div class="progress-ring">
+                        <svg width="100" height="100">
+                            <circle class="bg" cx="50" cy="50" r="42"/>
+                            <circle class="progress" cx="50" cy="50" r="42"/>
+                        </svg>
+                        <div class="progress-text">75%</div>
+                    </div>
+                    <div class="progress-label">Task Progress</div>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="activity-feed">
+                <div class="section-header">
+                    <div class="section-title">Real-time Activity</div>
+                    <div class="section-action">View All</div>
+                </div>
+                <div class="activity-list">
+                    <div class="activity-item">
+                        <div class="activity-icon code">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 18 22 12 16 6"/>
+                                <polyline points="8 6 2 12 8 18"/>
+                            </svg>
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-title">Writing parser module</div>
+                            <div class="activity-desc">nlu/parser/intent_classifier.py - implementing transformer-based classification</div>
+                        </div>
+                        <div class="activity-time">Just now</div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon search">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                            </svg>
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-title">Research: BERT fine-tuning strategies</div>
+                            <div class="activity-desc">Analyzed 3 papers on domain-specific intent classification</div>
+                        </div>
+                        <div class="activity-time">12 min ago</div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon write">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-title">Created architecture document</div>
+                            <div class="activity-desc">docs/nlu-architecture.md - 847 words</div>
+                        </div>
+                        <div class="activity-time">28 min ago</div>
+                    </div>
+                    <div class="activity-item">
+                        <div class="activity-icon code">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 18 22 12 16 6"/>
+                                <polyline points="8 6 2 12 8 18"/>
+                            </svg>
+                        </div>
+                        <div class="activity-content">
+                            <div class="activity-title">Completed: Memory context retrieval</div>
+                            <div class="activity-desc">core/memory/retrieval.py - semantic search implementation</div>
+                        </div>
+                        <div class="activity-time">1 hr ago</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Queue -->
+            <div class="task-queue">
+                <div class="task-tabs">
+                    <div class="task-tab active">In Progress <span>2</span></div>
+                    <div class="task-tab">Queued <span>3</span></div>
+                    <div class="task-tab">Completed <span>12</span></div>
+                    <div class="task-tab">Needs Review <span>1</span></div>
+                </div>
+                <div class="task-list">
+                    <div class="task-card">
+                        <div class="task-card-header">
+                            <div class="task-title">Implement NLU parser for conversation intent extraction</div>
+                            <div class="task-priority high">High</div>
+                        </div>
+                        <div class="task-meta">
+                            <div class="task-progress-bar">
+                                <div class="task-progress-fill" style="width: 75%"></div>
+                            </div>
+                            <span>75%</span>
+                            <span>~15 min</span>
+                        </div>
+                    </div>
+                    <div class="task-card">
+                        <div class="task-card-header">
+                            <div class="task-title">Write unit tests for memory retrieval module</div>
+                            <div class="task-priority medium">Medium</div>
+                        </div>
+                        <div class="task-meta">
+                            <div class="task-progress-bar">
+                                <div class="task-progress-fill" style="width: 30%"></div>
+                            </div>
+                            <span>30%</span>
+                            <span>~45 min</span>
+                        </div>
+                    </div>
+                    <div class="task-card">
+                        <div class="task-card-header">
+                            <div class="task-title">Refactor Docker sandbox initialization</div>
+                            <div class="task-priority low">Low</div>
+                        </div>
+                        <div class="task-meta">
+                            <div class="task-progress-bar">
+                                <div class="task-progress-fill" style="width: 0%"></div>
+                            </div>
+                            <span>Queued</span>
+                            <span>~30 min</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel -->
+        <aside class="right-panel">
+            <!-- Consent Gates -->
+            <div class="consent-section">
+                <div class="consent-header">
+                    <span class="consent-badge">2</span>
+                    <span class="consent-title">Awaiting Approval</span>
+                </div>
+                <div class="consent-card">
+                    <div class="consent-card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        Push to GitHub
+                    </div>
+                    <div class="consent-card-desc">
+                        Ready to commit and push 4 files to <code>orion-agent/main</code> branch.
+                    </div>
+                    <div class="consent-actions">
+                        <button class="btn btn-approve">Approve</button>
+                        <button class="btn btn-deny">Review First</button>
+                    </div>
+                </div>
+                <div class="consent-card">
+                    <div class="consent-card-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        Install npm package
+                    </div>
+                    <div class="consent-card-desc">
+                        Requesting to install <code>@xenova/transformers</code> for local inference.
+                    </div>
+                    <div class="consent-actions">
+                        <button class="btn btn-approve">Approve</button>
+                        <button class="btn btn-deny">Deny</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Panel -->
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <div class="chat-title">Talk to Orion</div>
+                    <div class="chat-subtitle">Ask questions or give instructions</div>
+                </div>
+                <div class="chat-messages">
+                    <div class="chat-message ai">
+                        I've finished the memory retrieval module. The semantic search is now working with cosine similarity matching. Ready to move on to the NLU parser—any specific intent categories you want prioritized?
+                    </div>
+                    <div class="chat-message user">
+                        Focus on task delegation intents first. Those are critical for the job title feature.
+                    </div>
+                    <div class="chat-message ai">
+                        Got it. I'll prioritize: assign_task, check_status, modify_deadline, and cancel_task intents. I'll also add context-awareness for multi-turn delegation conversations. ETA ~1 hour.
+                    </div>
+                </div>
+                <div class="chat-input-wrapper">
+                    <textarea class="chat-input" placeholder="Ask Orion something..." rows="2"></textarea>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // Simulate live activity updates
+        const activities = [
+            { icon: 'code', title: 'Refactoring intent classifier', desc: 'Optimizing inference speed for production', time: 'Just now' },
+            { icon: 'search', title: 'Analyzing test coverage', desc: 'Identifying missing edge cases in parser', time: 'Just now' },
+            { icon: 'write', title: 'Updating documentation', desc: 'Adding examples for new intent types', time: 'Just now' },
+        ];
+
+        // Tab switching
+        document.querySelectorAll('.task-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.task-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+            });
+        });
+
+        // Nav item switching
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+
+        // Consent button interactions
+        document.querySelectorAll('.btn-approve').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const card = btn.closest('.consent-card');
+                card.style.opacity = '0.5';
+                card.style.transform = 'scale(0.95)';
+                setTimeout(() => card.remove(), 300);
+            });
+        });
+
+        // Progress animation
+        let progress = 75;
+        setInterval(() => {
+            if (progress < 100) {
+                progress += Math.random() * 2;
+                if (progress > 100) progress = 100;
+                const circle = document.querySelector('.progress-ring .progress');
+                const offset = 264 - (264 * progress / 100);
+                circle.style.strokeDashoffset = offset;
+                document.querySelector('.progress-text').textContent = Math.round(progress) + '%';
+                
+                // Update task card progress too
+                const taskFill = document.querySelector('.task-progress-fill');
+                taskFill.style.width = progress + '%';
+                taskFill.parentElement.nextElementSibling.textContent = Math.round(progress) + '%';
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
