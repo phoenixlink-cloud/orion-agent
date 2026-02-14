@@ -482,6 +482,18 @@ export default function SettingsPanel() {
     enabled: false,
     cacheTTL: 3600,
   })
+
+  // ARA Settings
+  const [araSettings, setAraSettings] = useState({
+    enabled: true,
+    defaultAuth: 'pin',
+    maxCostUsd: 5,
+    maxSessionHours: 8,
+    sandboxMode: 'branch',
+    promptGuard: true,
+    auditLog: true,
+  })
+
   const [allowedDomains, setAllowedDomains] = useState(
     'github.com, raw.githubusercontent.com, api.github.com, pypi.org, docs.python.org, stackoverflow.com'
   )
@@ -756,6 +768,17 @@ export default function SettingsPanel() {
           ledgerFile: s.ledger_file ?? 'data/ledger.jsonl',
         })
         if (s.workspace) setWorkspace(s.workspace)
+        // Load ARA settings
+        if (s.ara_enabled !== undefined) setAraSettings(prev => ({
+          ...prev,
+          enabled: s.ara_enabled ?? prev.enabled,
+          defaultAuth: s.ara_default_auth ?? prev.defaultAuth,
+          maxCostUsd: s.ara_max_cost_usd ?? prev.maxCostUsd,
+          maxSessionHours: s.ara_max_session_hours ?? prev.maxSessionHours,
+          sandboxMode: s.ara_sandbox_mode ?? prev.sandboxMode,
+          promptGuard: s.ara_prompt_guard ?? prev.promptGuard,
+          auditLog: s.ara_audit_log ?? prev.auditLog,
+        }))
       })
       .catch(() => {})
     loadOAuthStatus()
@@ -1060,6 +1083,13 @@ export default function SettingsPanel() {
           data_dir: paths.dataDir,
           ledger_file: paths.ledgerFile,
           workspace: workspace,
+          ara_enabled: araSettings.enabled,
+          ara_default_auth: araSettings.defaultAuth,
+          ara_max_cost_usd: araSettings.maxCostUsd,
+          ara_max_session_hours: araSettings.maxSessionHours,
+          ara_sandbox_mode: araSettings.sandboxMode,
+          ara_prompt_guard: araSettings.promptGuard,
+          ara_audit_log: araSettings.auditLog,
         }),
       })
       await handleSaveModelConfig()
@@ -1973,6 +2003,81 @@ export default function SettingsPanel() {
         </button>
       </CollapsibleSection>
 
+      {/* Autonomous Roles (ARA) */}
+      <CollapsibleSection title="Autonomous Roles (ARA)" description="Configure background task execution with configurable roles, AEGIS-gated promotion, and session controls.">
+        <div style={{ padding: '12px 16px', background: 'rgba(59, 130, 246, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+          <div style={{ fontSize: 13, color: 'var(--glow)' }}>
+            ARA lets Orion work autonomously in the background with configurable roles, security gates, and human-in-the-loop promotion. <a href="/ara" style={{ color: 'var(--glow)', textDecoration: 'underline' }}>Open ARA Dashboard →</a>
+          </div>
+        </div>
+        <FeatureToggle
+          label="ARA Enabled"
+          description="Enable the Autonomous Role Architecture for background tasks"
+          enabled={araSettings.enabled}
+          onToggle={() => setAraSettings(p => ({ ...p, enabled: !p.enabled }))}
+        />
+        <SelectInput
+          label="Default Auth Method"
+          description="Authentication method for autonomous sessions"
+          value={araSettings.defaultAuth}
+          onChange={(v) => setAraSettings(p => ({ ...p, defaultAuth: v }))}
+          options={[
+            { value: 'pin', label: 'PIN (4-digit)' },
+            { value: 'totp', label: 'TOTP (authenticator app)' },
+            { value: 'none', label: 'None (no auth)' },
+          ]}
+        />
+        <NumberInput
+          label="Max Cost Per Session (USD)"
+          description="Maximum USD cost per autonomous session before auto-stop"
+          value={araSettings.maxCostUsd}
+          onChange={(v) => setAraSettings(p => ({ ...p, maxCostUsd: v }))}
+          min={1}
+          max={100}
+        />
+        <NumberInput
+          label="Max Session Duration (hours)"
+          description="Maximum hours an autonomous session can run"
+          value={araSettings.maxSessionHours}
+          onChange={(v) => setAraSettings(p => ({ ...p, maxSessionHours: v }))}
+          min={1}
+          max={24}
+        />
+        <SelectInput
+          label="ARA Sandbox Mode"
+          description="Isolation strategy for autonomous work"
+          value={araSettings.sandboxMode}
+          onChange={(v) => setAraSettings(p => ({ ...p, sandboxMode: v }))}
+          options={[
+            { value: 'docker', label: 'Docker (full isolation)' },
+            { value: 'branch', label: 'Branch (git branch sandbox)' },
+            { value: 'local', label: 'Local (temp directory)' },
+          ]}
+        />
+        <FeatureToggle
+          label="Prompt Guard"
+          description="Enable prompt injection defence for ARA sessions (12 patterns)"
+          enabled={araSettings.promptGuard}
+          onToggle={() => setAraSettings(p => ({ ...p, promptGuard: !p.promptGuard }))}
+        />
+        <FeatureToggle
+          label="Audit Log"
+          description="Enable tamper-proof HMAC-SHA256 audit logging for ARA sessions"
+          enabled={araSettings.auditLog}
+          onToggle={() => setAraSettings(p => ({ ...p, auditLog: !p.auditLog }))}
+        />
+
+        <div style={{ marginTop: 16, marginBottom: 8, fontSize: 13, color: 'var(--muted)' }}>ARA CLI Commands</div>
+        <CommandItem command="/setup" description="Run first-time ARA setup wizard" />
+        <CommandItem command="/work <role> <goal>" description="Start an autonomous background session" />
+        <CommandItem command="/pause / /resume / /cancel" description="Control the running session" />
+        <CommandItem command="/review" description="Review sandbox changes for promotion" />
+        <CommandItem command="/sessions" description="List all sessions" />
+        <CommandItem command="/dashboard" description="Show morning dashboard TUI" />
+        <CommandItem command="/role list | show | create | delete" description="Manage roles" />
+        <CommandItem command="/ara-settings" description="View or update ARA-specific settings" />
+      </CollapsibleSection>
+
       {/* Paths */}
       <CollapsibleSection title="Storage Paths" description="Where Orion keeps its data files. Usually you don't need to change these.">
         <TextInput
@@ -2100,6 +2205,20 @@ export default function SettingsPanel() {
         <div style={{ marginTop: 16, marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>Settings</div>
         <CommandItem command="/settings api <provider> <key>" description="Set API key securely" />
         <CommandItem command="/settings show" description="Show current configuration" />
+
+        <div style={{ marginTop: 16, marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>Autonomous Roles (ARA)</div>
+        <CommandItem command="/setup" description="Run first-time ARA setup wizard" />
+        <CommandItem command="/work <role> <goal>" description="Start autonomous background session" />
+        <CommandItem command="/pause" description="Pause the running session" />
+        <CommandItem command="/resume" description="Resume a paused session" />
+        <CommandItem command="/cancel" description="Cancel the running session" />
+        <CommandItem command="/review [session_id]" description="Review sandbox changes for promotion" />
+        <CommandItem command="/sessions" description="List all ARA sessions" />
+        <CommandItem command="/dashboard" description="Show morning dashboard" />
+        <CommandItem command="/role list | show | create | delete" description="Manage ARA roles" />
+        <CommandItem command="/rollback [session_id]" description="Rollback promoted changes" />
+        <CommandItem command="/ara-settings" description="View/update ARA settings" />
+        <CommandItem command="/auth-switch <method>" description="Switch auth method (pin/totp)" />
       </CollapsibleSection>
 
       {/* Save Button */}
