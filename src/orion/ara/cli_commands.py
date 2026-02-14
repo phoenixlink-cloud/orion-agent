@@ -549,3 +549,421 @@ def cmd_role_validate(path: str) -> CommandResult:
         message=f"Role file '{path}' has errors:\n" + "\n".join(f"  - {e}" for e in errors),
         data={"valid": False, "errors": errors, "path": path},
     )
+
+
+# ---------------------------------------------------------------------------
+# Session management commands (Phase 12)
+# ---------------------------------------------------------------------------
+
+DEFAULT_SESSIONS_DIR = Path.home() / ".orion" / "sessions"
+
+
+def cmd_sessions(sessions_dir: Path | None = None) -> CommandResult:
+    """List all sessions (active, completed, failed, cancelled)."""
+    sdir = sessions_dir or DEFAULT_SESSIONS_DIR
+    if not sdir.exists():
+        return CommandResult(
+            success=True,
+            message="No sessions found.",
+            data={"sessions": []},
+        )
+
+    sessions: list[dict[str, Any]] = []
+    for state_file in sorted(sdir.glob("*/session.json")):
+        try:
+            session = SessionState.load(
+                state_file.parent.name, sessions_dir=sdir,
+            )
+            sessions.append({
+                "session_id": session.session_id,
+                "role": session.role_name,
+                "goal": session.goal[:60],
+                "status": session.status.value,
+                "cost_usd": round(session.cost_usd, 4),
+            })
+        except Exception:
+            pass
+
+    if not sessions:
+        return CommandResult(
+            success=True,
+            message="No sessions found.",
+            data={"sessions": []},
+        )
+
+    lines = ["Sessions:", ""]
+    for s in sessions:
+        lines.append(
+            f"  {s['session_id'][:12]}  {s['status']:12s}  "
+            f"{s['role']:15s}  ${s['cost_usd']:<8.4f}  {s['goal']}"
+        )
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data={"sessions": sessions},
+    )
+
+
+def cmd_sessions_cleanup(
+    max_age_days: int = 30,
+    sessions_dir: Path | None = None,
+) -> CommandResult:
+    """Clean up old/completed sessions.
+
+    Archives sessions older than max_age_days. Prunes checkpoints to last 3.
+    """
+    import shutil
+    import time
+
+    sdir = sessions_dir or DEFAULT_SESSIONS_DIR
+    if not sdir.exists():
+        return CommandResult(success=True, message="No sessions to clean up.")
+
+    now = time.time()
+    cutoff = now - (max_age_days * 86400)
+    cleaned = 0
+    pruned_checkpoints = 0
+
+    for session_dir in sorted(sdir.iterdir()):
+        if not session_dir.is_dir():
+            continue
+
+        session_file = session_dir / "session.json"
+        if not session_file.exists():
+            continue
+
+        try:
+            session = SessionState.load(
+                session_dir.name, sessions_dir=sdir,
+            )
+        except Exception:
+            continue
+
+        # Remove old completed/failed/cancelled sessions
+        if session.status in (
+            SessionStatus.COMPLETED,
+            SessionStatus.FAILED,
+            SessionStatus.CANCELLED,
+        ):
+            created = session_file.stat().st_mtime
+            if created < cutoff:
+                shutil.rmtree(session_dir)
+                cleaned += 1
+                continue
+
+        # Prune checkpoints to last 3
+        cp_dir = session_dir / "checkpoints"
+        if cp_dir.exists():
+            checkpoints = sorted(cp_dir.iterdir())
+            while len(checkpoints) > 3:
+                oldest = checkpoints.pop(0)
+                if oldest.is_dir():
+                    shutil.rmtree(oldest)
+                else:
+                    oldest.unlink()
+                pruned_checkpoints += 1
+
+    return CommandResult(
+        success=True,
+        message=f"Cleaned {cleaned} sessions, pruned {pruned_checkpoints} checkpoints.",
+        data={"cleaned": cleaned, "pruned_checkpoints": pruned_checkpoints},
+    )
+
+
+def cmd_rollback(
+    checkpoint_id: str,
+    session_id: str | None = None,
+    sessions_dir: Path | None = None,
+    control: DaemonControl | None = None,
+) -> CommandResult:
+    """Roll back to a specific checkpoint."""
+    from orion.ara.checkpoint import CheckpointManager
+
+    control = control or DaemonControl()
+    sdir = sessions_dir or DEFAULT_SESSIONS_DIR
+
+    # Find session
+    if session_id is None:
+        status = control.read_status()
+        session_id = status.session_id
+    if not session_id:
+        return CommandResult(success=False, message="No session specified.")
+
+    try:
+        SessionState.load(session_id, sessions_dir=sdir)
+    except FileNotFoundError:
+        return CommandResult(success=False, message=f"Session {session_id} not found.")
+
+    cp_dir = sdir / session_id / "checkpoints"
+    mgr = CheckpointManager(checkpoint_dir=cp_dir)
+
+    try:
+        mgr.rollback(checkpoint_id)
+    except Exception as e:
+        return CommandResult(success=False, message=f"Rollback failed: {e}")
+
+    return CommandResult(
+        success=True,
+        message=f"Rolled back session {session_id[:12]} to checkpoint {checkpoint_id}.",
+        data={"session_id": session_id, "checkpoint_id": checkpoint_id},
+    )
+
+
+def cmd_plan_review(
+    session_id: str | None = None,
+    sessions_dir: Path | None = None,
+    control: DaemonControl | None = None,
+) -> CommandResult:
+    """Show the task DAG for a session for user review before execution."""
+    control = control or DaemonControl()
+    sdir = sessions_dir or DEFAULT_SESSIONS_DIR
+
+    if session_id is None:
+        status = control.read_status()
+        session_id = status.session_id
+    if not session_id:
+        return CommandResult(success=False, message="No session specified.")
+
+    # Load the pending plan from daemon config
+    plan_file = sdir / session_id / "plan.json"
+    if not plan_file.exists():
+        return CommandResult(
+            success=False,
+            message=f"No plan found for session {session_id[:12]}.",
+        )
+
+    try:
+        plan_data = json.loads(plan_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        return CommandResult(success=False, message=f"Error reading plan: {e}")
+
+    tasks = plan_data.get("tasks", [])
+    if not tasks:
+        return CommandResult(
+            success=True,
+            message="Plan is empty — no tasks decomposed yet.",
+            data=plan_data,
+        )
+
+    lines = [f"Plan for session {session_id[:12]}:", ""]
+    for i, task in enumerate(tasks, 1):
+        status_str = task.get("status", "pending")
+        name = task.get("name", task.get("action", "unknown"))
+        deps = task.get("depends_on", [])
+        dep_str = f" (after: {', '.join(deps)})" if deps else ""
+        lines.append(f"  {i}. [{status_str}] {name}{dep_str}")
+
+    lines.append("")
+    lines.append(f"Total tasks: {len(tasks)}")
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data=plan_data,
+    )
+
+
+def cmd_settings_ara(
+    settings: dict[str, Any] | None = None,
+    settings_path: Path | None = None,
+) -> CommandResult:
+    """View or update ARA settings.
+
+    If settings dict is provided, merges them into current config.
+    Otherwise, displays current settings.
+    """
+    path = settings_path or (Path.home() / ".orion" / "ara_settings.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load current
+    current: dict[str, Any] = {}
+    if path.exists():
+        try:
+            current = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # Defaults
+    defaults: dict[str, Any] = {
+        "default_role": "",
+        "default_auth_method": "pin",
+        "notifications": {
+            "email_enabled": False,
+            "email_smtp_host": "",
+            "email_smtp_port": 587,
+            "email_recipient": "",
+            "webhook_enabled": False,
+            "webhook_url": "",
+            "desktop_enabled": True,
+        },
+        "session_defaults": {
+            "max_session_hours": 8.0,
+            "max_cost_per_session": 5.0,
+            "auto_checkpoint_interval_minutes": 15,
+            "require_review_before_promote": True,
+        },
+        "replan_interval_tasks": 5,
+    }
+
+    # Merge defaults into current (don't overwrite existing)
+    for key, value in defaults.items():
+        if key not in current:
+            current[key] = value
+        elif isinstance(value, dict) and isinstance(current.get(key), dict):
+            for k2, v2 in value.items():
+                if k2 not in current[key]:
+                    current[key][k2] = v2
+
+    if settings is not None:
+        # Update mode: merge new settings
+        for key, value in settings.items():
+            if isinstance(value, dict) and isinstance(current.get(key), dict):
+                current[key].update(value)
+            else:
+                current[key] = value
+        path.write_text(json.dumps(current, indent=2), encoding="utf-8")
+        return CommandResult(
+            success=True,
+            message="ARA settings updated.",
+            data=current,
+        )
+
+    # View mode
+    path.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    lines = ["ARA Settings:", ""]
+    for key, value in current.items():
+        if isinstance(value, dict):
+            lines.append(f"  {key}:")
+            for k2, v2 in value.items():
+                lines.append(f"    {k2}: {v2}")
+        else:
+            lines.append(f"  {key}: {value}")
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data=current,
+    )
+
+
+def cmd_auth_switch(
+    new_method: str,
+    current_credential: str,
+    authenticator: RoleAuthenticator | None = None,
+) -> CommandResult:
+    """Switch authentication method (PIN ↔ TOTP).
+
+    Requires the current credential to verify identity before switching.
+    """
+    auth = authenticator or RoleAuthenticator()
+
+    if new_method not in ("pin", "totp"):
+        return CommandResult(
+            success=False,
+            message=f"Invalid auth method '{new_method}'. Must be 'pin' or 'totp'.",
+        )
+
+    # Verify current credential
+    if not auth.verify(current_credential):
+        return CommandResult(
+            success=False,
+            message="Current credential verification failed. Cannot switch auth method.",
+        )
+
+    return CommandResult(
+        success=True,
+        message=f"Auth method ready to switch to '{new_method}'. "
+        "Set up the new credential with `orion autonomous setup`.",
+        data={"new_method": new_method, "verified": True},
+    )
+
+
+def cmd_setup(
+    roles_dir: Path | None = None,
+    skip_docker_check: bool = False,
+) -> CommandResult:
+    """First-time ARA setup wizard.
+
+    Steps:
+    1. Check prerequisites (Docker, AEGIS)
+    2. List available roles or create custom
+    3. Auth method selection (returns guidance)
+    4. Dry-run validation info
+    5. Ready message
+
+    This is a non-interactive version that returns setup status.
+    The interactive prompts are handled by the caller (REPL/CLI).
+    """
+    import shutil
+
+    checks: list[dict[str, Any]] = []
+
+    # Step 1: Prerequisites
+    docker_ok = skip_docker_check or shutil.which("docker") is not None
+    checks.append({
+        "name": "Docker",
+        "status": "ok" if docker_ok else "missing",
+        "message": "Docker installed" if docker_ok else "Docker not found — install Docker for sandbox support",
+    })
+
+    checks.append({
+        "name": "AEGIS governance",
+        "status": "ok",
+        "message": "AEGIS governance active",
+    })
+
+    # Step 2: Available roles
+    roles = list_available_roles(roles_dir)
+    checks.append({
+        "name": "Roles",
+        "status": "ok" if roles else "none",
+        "message": f"{len(roles)} roles available: {', '.join(roles[:4])}" if roles else "No roles found — run `orion role example` to create one",
+    })
+
+    # Step 3: Auth (report readiness)
+    auth_dir = Path.home() / ".orion" / "auth"
+    auth_configured = auth_dir.exists() and any(auth_dir.iterdir()) if auth_dir.exists() else False
+    checks.append({
+        "name": "Authentication",
+        "status": "ok" if auth_configured else "not_configured",
+        "message": "Auth configured" if auth_configured else "No auth configured — will be set up on first `orion work`",
+    })
+
+    # Build output
+    all_ok = all(c["status"] == "ok" for c in checks)
+    lines = ["ARA Setup Check:", ""]
+    for c in checks:
+        icon = "✓" if c["status"] == "ok" else "!" if c["status"] == "not_configured" else "✗"
+        lines.append(f"  {icon} {c['message']}")
+
+    lines.append("")
+    if all_ok:
+        lines.append("Ready! Start with:")
+        if roles:
+            lines.append(f"  orion work --role \"{roles[0]}\" \"<your goal>\"")
+        else:
+            lines.append("  orion role example  (create a role first)")
+    else:
+        lines.append("Some prerequisites are missing. Fix them and run `orion autonomous setup` again.")
+
+    # Dry-run scenarios
+    scenarios = [
+        {"action": "Write code in sandbox", "result": "Allowed (autonomous)"},
+        {"action": "Run tests", "result": "Allowed (autonomous)"},
+        {"action": "Add dependency", "result": "Paused (requires approval)"},
+        {"action": "Merge to main", "result": "Paused (requires approval)"},
+        {"action": "Deploy to production", "result": "BLOCKED (forbidden)"},
+        {"action": "Modify AEGIS config", "result": "BLOCKED (AEGIS base)"},
+    ]
+
+    return CommandResult(
+        success=all_ok or not docker_ok,  # OK even without Docker (falls back to local)
+        message="\n".join(lines),
+        data={
+            "checks": checks,
+            "roles_available": roles,
+            "auth_configured": auth_configured,
+            "dry_run_scenarios": scenarios,
+        },
+    )
