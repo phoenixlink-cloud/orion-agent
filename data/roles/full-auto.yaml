@@ -1,0 +1,49 @@
+name: full-auto
+scope: full
+auth_method: totp
+description: >
+  Full autonomy role with maximum permissions. TOTP required.
+  Suitable for trusted, well-defined tasks where Orion has broad
+  latitude. Still bounded by AEGIS ceilings.
+
+allowed_actions:
+  - read_files
+  - write_files
+  - run_tests
+  - run_linter
+  - git_commit
+  - search_code
+  - search_web
+  - docker_build
+  - docker_run
+  - install_packages
+  - run_scripts
+
+max_session_hours: 12
+max_cost_per_session: 10.0
+auto_checkpoint_interval_minutes: 10
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 200
+  max_single_file_lines: 5000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: true
+  providers:
+    - desktop
+    - email
+
+tags:
+  - starter
+  - full-access
+  - advanced
