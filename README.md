@@ -6,9 +6,9 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1004%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1205%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![Status: Beta](https://img.shields.io/badge/status-8.0.0--beta-orange.svg)](#)
+[![Status: Stable](https://img.shields.io/badge/status-9.0.0-brightgreen.svg)](#)
 
 [Getting Started](#-quick-start) |
 [NLA](#-natural-language-architecture) |
@@ -19,7 +19,7 @@
 
 </div>
 
-> **Beta Software** -- Orion Agent is under active development. Core features are functional and tested (1,004 passing tests), but you may encounter rough edges, incomplete integrations, or breaking changes between versions. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+> **v9.0.0** -- Orion Agent is under active development. Core features are functional and tested (1,205 passing tests). The Autonomous Role Architecture (ARA) is complete with all 23 design gaps closed. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
 
 ---
 
@@ -56,20 +56,27 @@ Orion understands *what you mean*, not just what you type:
 
 ### Autonomous Role Architecture (ARA)
 
-Orion can work autonomously in the background with configurable roles:
+Orion can work autonomously in the background with configurable roles (22 modules, 528 tests):
 
 | Component | Purpose |
 |-----------|----------|
-| **RoleProfile** | YAML-based role configuration with scope, auth, limits, and working hours |
+| **RoleProfile** | YAML-based role configuration with 3-tier authority, confidence thresholds, competencies, risk tolerance |
 | **AegisGate** | Pre-promotion security: secret scanning, write limits, scope checks, auth |
 | **SessionEngine** | State machine with heartbeat, cost tracking, and 5 stop conditions |
 | **GoalEngine** | LLM-powered task DAG decomposition with action validation |
 | **ExecutionLoop** | Sequential task runner with confidence gating and checkpointing |
-| **Daemon + CLI** | Background process with `work`, `status`, `pause`, `resume`, `cancel`, `review` |
+| **PromotionManager** | Sandbox branch creation, file diff, conflict detection, git-tagged promote/reject/undo |
+| **GoalQueue** | Multi-goal FIFO queue with priority interrupts, dependencies, and reorder |
+| **MorningDashboard** | 7-section CLI TUI: overview, approvals, tasks, files, budget, AEGIS, actions |
+| **PromptGuard** | 12-pattern prompt injection defence with sanitization |
+| **AuditLog** | HMAC-SHA256 hash chain, append-only JSONL, tamper detection |
+| **KeychainStore** | OS-native credential storage (Windows/macOS) with encrypted fallback |
+| **UserIsolation** | Multi-user OS-user scoping, per-user containers and branches |
+| **Daemon + CLI** | Background process with 13 commands including setup wizard |
 | **Notifications** | Email (SMTP), webhook, and desktop toast delivery with rate limiting |
 | **REST + WebSocket API** | 8 endpoints for dashboard integration and real-time updates |
 
-**Starter roles included:** `night-coder`, `researcher`, `devops-runner`, `full-auto`
+**Starter roles included:** `software-engineer`, `technical-writer`, `devops-engineer`, `qa-engineer`
 
 ### Multi-Agent Deliberation
 
@@ -263,6 +270,7 @@ Orion connects to 79+ external services:
 │                    AEGIS GOVERNANCE GATE                         │
 │  Workspace Confinement │ Secret Scanning │ Write Limits          │
 │  Mode Enforcement │ Risk Validation │ Auth (PIN/TOTP)           │
+│  PromptGuard │ AuditLog (HMAC) │ KeychainStore               │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐
@@ -270,8 +278,8 @@ Orion connects to 79+ external services:
 ┌─────────────┐   ┌─────────────┐   ┌─────────────────────┐
 │  LLM Layer  │   │   Memory    │   │  ARA Engine          │
 │ (11 provs)  │   │  (3-tier)   │   │  Sessions │ Goals    │
-│             │   │             │   │  Daemon │ Recovery   │
-│             │   │             │   │  Checkpoints │ Drift  │
+│             │   │             │   │  Daemon │ Promotion  │
+│             │   │             │   │  Dashboard │ Queue   │
 └─────────────┘   └─────────────┘   └─────────────────────┘
 ```
 
@@ -294,15 +302,22 @@ src/orion/
 │   ├── governance/    # AEGIS safety gate, execution authority
 │   ├── llm/           # Provider routing, model config, slim persona prompts
 │   └── production/    # Health probes, metrics, shutdown, logging
-├── ara/               # Autonomous Role Architecture
-│   ├── role_profile   # YAML role configuration + 4 starter templates
+├── ara/               # Autonomous Role Architecture (22 modules)
+│   ├── role_profile   # YAML role configuration + 3-tier authority + 4 starter templates
 │   ├── auth           # PIN + TOTP authentication
 │   ├── aegis_gate     # Pre-promotion security gate
 │   ├── session        # State machine with heartbeat + cost tracking
 │   ├── goal_engine    # LLM-powered task DAG decomposition
 │   ├── execution      # Sequential task runner with checkpointing
 │   ├── daemon         # Background process + IPC control
-│   ├── cli_commands   # work/status/pause/resume/cancel/review
+│   ├── cli_commands   # 13 commands: work/status/pause/resume/cancel/review/sessions/setup/...
+│   ├── promotion      # Sandbox → workspace merge with git tags + undo
+│   ├── dashboard      # Morning Dashboard TUI (7 sections)
+│   ├── goal_queue     # Multi-goal FIFO queue with priority interrupts
+│   ├── prompt_guard   # Prompt injection defence (12 patterns)
+│   ├── audit_log      # HMAC-SHA256 hash chain tamper-proof log
+│   ├── keychain       # OS-native credential storage
+│   ├── user_isolation  # Multi-user OS-user scoping
 │   ├── notifications  # Email, webhook, desktop providers
 │   ├── feedback_store # Outcome recording + confidence calibration
 │   ├── api            # REST + WebSocket for dashboard
