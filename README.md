@@ -2,23 +2,24 @@
 
 # Orion Agent
 
-**Self-improving, multi-agent AI coding assistant with persistent memory, governed execution, and continuous learning.**
+**Self-improving, multi-agent AI coding assistant with natural language understanding, autonomous role execution, persistent memory, and governed security.**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-412%20passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1004%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![Status: Beta](https://img.shields.io/badge/status-beta-orange.svg)](#)
+[![Status: Beta](https://img.shields.io/badge/status-8.0.0--beta-orange.svg)](#)
 
 [Getting Started](#-quick-start) |
-[Documentation](docs/README.md) |
+[NLA](#-natural-language-architecture) |
+[ARA](#-autonomous-role-architecture) |
 [AEGIS Governance](#-aegis-governance) |
-[Contributing](CONTRIBUTING.md) |
-[Support Development](#-support-orion-development)
+[Documentation](docs/README.md) |
+[Contributing](CONTRIBUTING.md)
 
 </div>
 
-> **Beta Software** -- Orion Agent is under active development. Core features are functional and tested (412 passing tests), but you may encounter rough edges, incomplete integrations, or breaking changes between versions. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+> **Beta Software** -- Orion Agent is under active development. Core features are functional and tested (1,004 passing tests), but you may encounter rough edges, incomplete integrations, or breaking changes between versions. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
 
 ---
 
@@ -26,16 +27,49 @@
 
 Orion is an **AI coding assistant** that goes beyond simple code generation. It combines:
 
-- **Multi-Agent Architecture** -- Three specialized agents deliberate on every task
+- **Natural Language Architecture (NLA)** -- Intent classification, clarification detection, and adaptive prompt engineering
+- **Autonomous Role Architecture (ARA)** -- Background task execution with configurable roles, AEGIS-gated promotion, and daemon management
+- **Multi-Agent Deliberation** -- Three specialized agents deliberate on every task
 - **Persistent Memory** -- Learns and remembers across sessions, projects, and time
 - **AEGIS Governance** -- Hardened security gate that prevents unsafe operations
-- **Continuous Learning** -- Improves from your feedback, building institutional knowledge
+- **Slim Persona System** -- Tiered prompt engineering (50–120 tokens) matched to intent complexity
 
 Unlike single-shot AI tools, Orion develops understanding of your codebase, your patterns, and your preferences over time.
 
 ---
 
 ## Key Features
+
+### Natural Language Architecture (NLA)
+
+Orion understands *what you mean*, not just what you type:
+
+| Component | Purpose |
+|-----------|----------|
+| **ExemplarBank** | 200+ seed exemplars for intent matching with cosine similarity |
+| **IntentClassifier** | Embedding + keyword hybrid classification (coding, question, conversational) |
+| **ClarificationDetector** | Detects ambiguous requests and generates targeted follow-up questions |
+| **BriefBuilder** | Converts natural language into structured `TaskBrief` objects |
+| **RequestAnalyzer** | Full pipeline: classify → clarify → brief → route |
+| **EnglishFoundation** | Linguistic pre-processing (contractions, negation, entity extraction) |
+| **LearningBridge** | Feedback loop: user ratings → new exemplars → improved classification |
+
+### Autonomous Role Architecture (ARA)
+
+Orion can work autonomously in the background with configurable roles:
+
+| Component | Purpose |
+|-----------|----------|
+| **RoleProfile** | YAML-based role configuration with scope, auth, limits, and working hours |
+| **AegisGate** | Pre-promotion security: secret scanning, write limits, scope checks, auth |
+| **SessionEngine** | State machine with heartbeat, cost tracking, and 5 stop conditions |
+| **GoalEngine** | LLM-powered task DAG decomposition with action validation |
+| **ExecutionLoop** | Sequential task runner with confidence gating and checkpointing |
+| **Daemon + CLI** | Background process with `work`, `status`, `pause`, `resume`, `cancel`, `review` |
+| **Notifications** | Email (SMTP), webhook, and desktop toast delivery with rate limiting |
+| **REST + WebSocket API** | 8 endpoints for dashboard integration and real-time updates |
+
+**Starter roles included:** `night-coder`, `researcher`, `devops-runner`, `full-auto`
 
 ### Multi-Agent Deliberation
 
@@ -86,6 +120,8 @@ Orion learns from every interaction:
 
 | Feature | Orion |
 |---------|-------|
+| Natural language understanding | NLA: intent classification, clarification, adaptive prompts |
+| Autonomous background tasks | ARA: roles, daemon, checkpoints, drift detection, recovery |
 | Multi-agent deliberation | 3 specialized agents (Builder, Reviewer, Governor) |
 | Persistent memory | 3 tiers (session, project, institutional) |
 | Learns from feedback | Evolves based on your approval/rejection patterns |
@@ -199,41 +235,44 @@ Orion connects to 79+ external services:
 
 ## Architecture
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      USER INTERFACES                         │
-│   ┌─────────┐    ┌─────────────┐    ┌─────────────────┐     │
-│   │   CLI   │    │  REST API   │    │   Web Frontend  │     │
-│   │  (REPL) │    │  (FastAPI)  │    │    (Next.js)    │     │
-│   └────┬────┘    └──────┬──────┘    └────────┬────────┘     │
-└────────┼────────────────┼────────────────────┼──────────────┘
-         │                │                    │
-         ▼                ▼                    ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     REQUEST ROUTER                           │
-│   Scout analyzes complexity -> routes to appropriate path    │
-│   FastPath (simple) | Council (complex) | Escalation (risky) │
-└────────────────────────────┬────────────────────────────────┘
-                             │
-         ┌───────────────────┼───────────────────┐
-         ▼                   ▼                   ▼
-┌─────────────┐    ┌─────────────────┐    ┌─────────────┐
-│  FastPath   │    │  Table of Three │    │  Escalation │
-│  (direct)   │    │    (council)    │    │  (human)    │
-└──────┬──────┘    └────────┬────────┘    └──────┬──────┘
-       │                    │                    │
-       └────────────────────┼────────────────────┘
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    AEGIS GOVERNANCE GATE                     │
-│   Workspace Confinement | Mode Enforcement | Risk Validation │
-└────────────────────────────┬────────────────────────────────┘
-                             │
-         ┌───────────────────┼───────────────────┐
-         ▼                   ▼                   ▼
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  LLM Layer  │    │   Memory    │    │  Learning   │
-│ (11 provs)  │    │  (3-tier)   │    │ (KD + Evo)  │
-└─────────────┘    └─────────────┘    └─────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       USER INTERFACES                           │
+│  ┌─────────┐  ┌───────────┐  ┌───────────┐  ┌──────────────┐   │
+│  │  CLI    │  │ REST API  │  │ WebSocket │  │ ARA Daemon   │   │
+│  │ (REPL)  │  │ (FastAPI) │  │ (realtime)│  │ (background) │   │
+│  └────┬────┘  └─────┬─────┘  └─────┬─────┘  └──────┬───────┘   │
+└───────┼─────────────┼──────────────┼───────────────┼───────────┘
+        │             │              │               │
+        ▼             ▼              ▼               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              NATURAL LANGUAGE ARCHITECTURE (NLA)                 │
+│  ExemplarBank → IntentClassifier → ClarificationDetector        │
+│  → BriefBuilder → RequestAnalyzer → Slim Persona Router         │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌─────────────┐   ┌─────────────────┐   ┌─────────────┐
+│  FastPath   │   │  Table of Three │   │  Escalation │
+│  (direct)   │   │    (council)    │   │  (human)    │
+└──────┬──────┘   └────────┬────────┘   └──────┬──────┘
+       │                   │                   │
+       └───────────────────┼───────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    AEGIS GOVERNANCE GATE                         │
+│  Workspace Confinement │ Secret Scanning │ Write Limits          │
+│  Mode Enforcement │ Risk Validation │ Auth (PIN/TOTP)           │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌─────────────┐   ┌─────────────┐   ┌─────────────────────┐
+│  LLM Layer  │   │   Memory    │   │  ARA Engine          │
+│ (11 provs)  │   │  (3-tier)   │   │  Sessions │ Goals    │
+│             │   │             │   │  Daemon │ Recovery   │
+│             │   │             │   │  Checkpoints │ Drift  │
+└─────────────┘   └─────────────┘   └─────────────────────┘
 ```
 
 [Complete architecture documentation ->](docs/ARCHITECTURE.md)
@@ -247,16 +286,33 @@ src/orion/
 ├── cli/               # Interactive REPL and commands
 ├── core/
 │   ├── agents/        # Builder, Reviewer, Governor, Table of Three
-│   ├── memory/        # Three-tier memory engine
-│   ├── learning/      # Evolution engine, feedback, patterns
+│   ├── understanding/ # NLA: intent, clarification, brief, analyzer, english
+│   ├── memory/        # Three-tier memory engine + conversation buffer
+│   ├── learning/      # Evolution engine, feedback, patterns, learning bridge
 │   ├── editing/       # Edit validator, format selector, git safety
 │   ├── context/       # Repo map (tree-sitter), Python AST, code quality
 │   ├── governance/    # AEGIS safety gate, execution authority
-│   ├── llm/           # Provider routing, model config, prompts
+│   ├── llm/           # Provider routing, model config, slim persona prompts
 │   └── production/    # Health probes, metrics, shutdown, logging
+├── ara/               # Autonomous Role Architecture
+│   ├── role_profile   # YAML role configuration + 4 starter templates
+│   ├── auth           # PIN + TOTP authentication
+│   ├── aegis_gate     # Pre-promotion security gate
+│   ├── session        # State machine with heartbeat + cost tracking
+│   ├── goal_engine    # LLM-powered task DAG decomposition
+│   ├── execution      # Sequential task runner with checkpointing
+│   ├── daemon         # Background process + IPC control
+│   ├── cli_commands   # work/status/pause/resume/cancel/review
+│   ├── notifications  # Email, webhook, desktop providers
+│   ├── feedback_store # Outcome recording + confidence calibration
+│   ├── api            # REST + WebSocket for dashboard
+│   ├── checkpoint     # Git-based session snapshots
+│   ├── drift_monitor  # External workspace change detection
+│   ├── recovery       # Failure handling + retry policy
+│   └── lifecycle      # Session cleanup + health reporting
 ├── integrations/      # 79 connectors (LLM, voice, image, messaging, ...)
 ├── api/               # FastAPI REST + WebSocket server
-├── security/          # Encrypted store, Docker sandbox
+├── security/          # Encrypted store, Docker sandbox, secret scanner
 └── plugins/           # Plugin lifecycle API (8 hooks)
 ```
 
