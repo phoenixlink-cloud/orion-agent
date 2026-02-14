@@ -1,9 +1,9 @@
 # ARA-003: Completion Plan — Status & Remaining Work
 
-**Status:** Active
+**Status:** Complete ✅ (all 23 gaps closed — see ARA-004)
 **Author:** Jaco / Orion Design Sessions
 **Date:** 2026-02-14
-**Version:** 8.0.0-beta → targets 9.0.0
+**Version:** 9.0.0 (was 8.0.0-beta → target met)
 **Related:** ARA-001 (design spec), ARA-002 (original implementation plan), NLA-001
 
 ---
