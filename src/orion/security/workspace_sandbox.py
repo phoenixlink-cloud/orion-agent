@@ -573,7 +573,17 @@ class WorkspaceSandbox:
     # ═════════════════════════════════════════════════════════════════
 
     def _start_docker_container(self, session: SandboxSession) -> str | None:
-        """Start a persistent Docker container for the session."""
+        """Start a persistent Docker container for the session.
+
+        Security hardening (ARA-001 §3.4):
+        - --cap-drop ALL: drop all Linux capabilities
+        - --no-new-privileges: prevent privilege escalation
+        - --user 1000:1000: run as non-root
+        - --read-only: read-only root filesystem
+        - --tmpfs /tmp: writable temp with noexec
+        - --security-opt no-new-privileges: kernel-level enforcement
+        - Workspace mounted read-write (sandbox copy, not real workspace)
+        """
         container_name = f"orion-ws-{session.session_id[:12]}"
         try:
             cmd = [
@@ -582,12 +592,23 @@ class WorkspaceSandbox:
                 "-d",
                 "--name",
                 container_name,
+                # Resource limits
                 "--memory",
                 self.memory_limit,
                 "--cpus",
                 self.cpu_limit,
                 "--pids-limit",
                 "128",
+                # Security hardening
+                "--cap-drop",
+                "ALL",
+                "--no-new-privileges",
+                "--security-opt",
+                "no-new-privileges",
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,noexec,nosuid,size=64m",
+                # Workspace mount (sandbox copy, safe to write)
                 "-v",
                 f"{session.sandbox_path}:/workspace",
                 "-w",
@@ -699,18 +720,32 @@ class WorkspaceSandbox:
         lang: str,
         timeout: int,
     ) -> dict[str, Any]:
-        """Run a one-shot container with the correct image."""
+        """Run a one-shot container with the correct image.
+
+        Security hardening (ARA-001 §3.4): same as persistent container.
+        """
         try:
             docker_cmd = [
                 "docker",
                 "run",
                 "--rm",
+                # Resource limits
                 "--memory",
                 self.memory_limit,
                 "--cpus",
                 self.cpu_limit,
                 "--pids-limit",
                 "64",
+                # Security hardening
+                "--cap-drop",
+                "ALL",
+                "--no-new-privileges",
+                "--security-opt",
+                "no-new-privileges",
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,noexec,nosuid,size=64m",
+                # Workspace mount (sandbox copy)
                 "-v",
                 f"{session.sandbox_path}:/workspace",
                 "-w",
