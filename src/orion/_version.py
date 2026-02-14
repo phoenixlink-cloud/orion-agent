@@ -16,4 +16,4 @@
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """Single source of truth for the Orion Agent version."""
 
-__version__ = "7.8.0-beta"
+__version__ = "8.0.0-beta"
