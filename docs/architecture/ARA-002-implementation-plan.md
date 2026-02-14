@@ -24,6 +24,81 @@
 5. **No push to GitHub until all phases complete + CI validated**
 6. **README update is second-to-last step**
 7. **Version bump + `_version.py` update is THE LAST step**
+8. **Local LLM for all development and testing** — use Ollama throughout to save API costs
+
+## Local LLM Testing Strategy
+
+All ARA development and testing uses **Ollama** (local LLM) instead of paid
+API providers. This eliminates API costs during the entire design-build-test cycle.
+
+### Setup
+
+Orion already has full Ollama support wired in (`core/llm/providers.py`):
+- `_call_ollama()` — non-streaming
+- `_call_ollama_streaming()` — streaming
+- `is_ollama_available()` — health check
+- Base URL: `http://localhost:11434`
+
+### Recommended Models
+
+| Use Case                    | Model              | Size  | Why                                     |
+|-----------------------------|--------------------|-------|-----------------------------------------|
+| Goal decomposition          | `llama3:8b`        | ~4.7GB | Good reasoning, fast locally            |
+| Code generation (tasks)     | `codellama:13b`    | ~7.4GB | Purpose-built for code tasks            |
+| Quick classification/routing| `llama3:8b`        | ~4.7GB | Fast inference for confidence scoring   |
+| Fallback / lightweight      | `phi3:mini`        | ~2.3GB | Smallest option, good for unit tests    |
+
+### Three-Tier Testing Approach
+
+**Tier 1 — Unit tests (MockLLMProvider, no LLM at all):**
+- Pre-recorded responses in JSON fixtures
+- Zero cost, zero latency, deterministic
+- Used for: DAG validation, role auth, confidence gates, serialization
+- Runs in CI (no Ollama required)
+
+**Tier 2 — Integration tests (Ollama, local LLM):**
+- Real LLM inference via Ollama on developer machine
+- Tests actual goal decomposition quality, task execution, re-planning
+- Marked `@pytest.mark.ollama` — skipped if Ollama not running
+- NOT run in CI (CI uses MockLLMProvider only)
+
+**Tier 3 — Production validation (paid API, one-time):**
+- Final check with the production LLM (OpenAI/Anthropic) before release
+- Run once manually at Phase 6 (E2E) to verify real-world quality
+- Not automated — human reviews output quality
+
+### Configuration for Dev/Test
+
+```bash
+# Set Ollama as default during development
+orion
+> /settings provider ollama
+> /settings model llama3:8b
+```
+
+Or via environment:
+```bash
+ORION_LLM_PROVIDER=ollama ORION_LLM_MODEL=llama3:8b pytest tests/ara/ -m ollama
+```
+
+### ARA Code Must Be Provider-Agnostic
+
+All ARA modules call Orion's existing `call_provider()` function — they never
+call Ollama directly. This means:
+- Works with any provider the user has configured
+- Development uses Ollama (free)
+- Production uses whatever the user prefers
+- Switching is a settings change, not a code change
+
+### Cost Summary
+
+| Activity              | Without Ollama        | With Ollama |
+|-----------------------|-----------------------|-------------|
+| Phase 1-6 development | ~$15-30 in API calls  | **$0**      |
+| Unit tests (CI)       | $0 (MockLLMProvider)  | $0          |
+| Integration tests     | ~$5-10 per run        | **$0**      |
+| Final validation      | ~$2-5 (one-time)      | ~$2-5       |
+| **Total**             | **~$22-45**           | **~$2-5**   |
 
 ---
 
@@ -194,7 +269,16 @@ on GitHub before we start building ARA.
      - Confidence collapse (3+ consecutive < 50%)
      - Error threshold (5+ consecutive failures)
 3.8. Create `MockLLMProvider` for testing: `tests/ara/conftest.py`
-3.9. Tests:
+     - Pre-recorded JSON responses for deterministic unit tests (Tier 1)
+     - Returns known task DAGs, confidence scores, code outputs
+3.9. Create Ollama integration tests: `tests/ara/test_goal_engine_ollama.py`
+     - Marked `@pytest.mark.ollama` — skipped if Ollama not running
+     - Tests real goal decomposition with `llama3:8b` (Tier 2)
+     - Validates LLM output structure matches expected DAG schema
+     - Validates re-planning produces coherent updated plans
+     - Tests code generation quality with `codellama:13b`
+     - Zero API cost — all inference runs locally
+3.10. Tests (Tier 1 — MockLLMProvider, runs in CI):
      - `tests/ara/test_session.py` (state serialization, heartbeat, directory management)
      - `tests/ara/test_goal_engine.py` (decomposition, DAG validation, AEGIS plan-time gate)
      - `tests/ara/test_execution.py` (loop, confidence gating, atomic tasks, stop conditions)
@@ -204,7 +288,8 @@ on GitHub before we start building ARA.
 
 ### Test Gate
 - [ ] All existing tests pass
-- [ ] All new engine tests pass (using MockLLMProvider)
+- [ ] All new Tier 1 tests pass (MockLLMProvider, deterministic)
+- [ ] Ollama Tier 2 tests pass locally (goal decomposition + code gen quality)
 - [ ] Session create → execute → checkpoint → rollback round-trip works
 - [ ] Drift monitor detects real git changes
 - [ ] Lint clean
@@ -305,6 +390,8 @@ on GitHub before we start building ARA.
 
 ### Steps
 
+**Tier 1 — E2E with MockLLMProvider (runs in CI):**
+
 6.1. Create `tests/ara/test_e2e.py`:
      - Full session: goal → decompose → execute → checkpoint → review → promote
      - Uses MockLLMProvider + real Docker sandbox
@@ -313,13 +400,39 @@ on GitHub before we start building ARA.
      - Verify forbidden actions blocked end-to-end
      - Verify secrets scanner blocks tainted promotion
      - Verify write limits prevent runaway output
-6.3. Fix any integration issues discovered
-6.4. Run full test suite: `pytest tests/ -q`
+
+**Tier 2 — E2E with Ollama (local, zero cost):**
+
+6.3. Create `tests/ara/test_e2e_ollama.py`:
+     - Marked `@pytest.mark.ollama` — skipped if Ollama not running
+     - Full session using real local LLM (`llama3:8b` for planning, `codellama:13b` for code)
+     - Validates that Ollama-generated task DAGs are executable
+     - Validates that Ollama-generated code is syntactically correct
+     - Tests re-planning when a task fails (does Ollama adapt?)
+     - Tests confidence scoring with real LLM output
+     - Measures: decomposition quality, code correctness, response latency
+     - This is the primary development feedback loop — run frequently, costs nothing
+
+**Tier 3 — Production validation (one-time, paid API):**
+
+6.4. Manual test with production provider (OpenAI/Anthropic):
+     - Same E2E scenario as 6.3 but with production LLM
+     - Compare output quality: Ollama vs production
+     - Verify no provider-specific assumptions in code
+     - Document any quality differences for README
+     - Run ONCE before Phase 8 push — estimated cost: ~$2-5
+
+**Cleanup:**
+
+6.5. Fix any integration issues discovered across all tiers
+6.6. Run full test suite: `pytest tests/ -q`
 
 ### Test Gate
-- [ ] All unit tests pass
-- [ ] All E2E tests pass (with Docker)
+- [ ] All unit tests pass (Tier 1, MockLLM)
+- [ ] All E2E tests pass with Docker (Tier 1)
 - [ ] E2E security tests pass
+- [ ] Ollama E2E tests pass locally (Tier 2) — decomposition + code gen + re-planning
+- [ ] Production validation passed manually (Tier 3) — one-time, quality confirmed
 - [ ] No regressions in existing 678 tests
 - [ ] Lint clean
 - [ ] Merge to main locally
@@ -415,18 +528,24 @@ on GitHub before we start building ARA.
 
 ## Summary Timeline
 
-| Phase | Name                         | New Files (est.) | New Tests (est.) | Depends On |
-|-------|------------------------------|------------------|------------------|------------|
-| 0     | Pre-flight (push existing)   | 0                | 0                | —          |
-| 1     | Hard sandbox                 | 3                | ~20              | Phase 0    |
-| 2     | Role profiles + auth         | 6 + 4 templates  | ~35              | Phase 1    |
-| 3     | Session engine + goals       | 7                | ~40              | Phase 2    |
-| 4     | Daemon + CLI commands        | 4                | ~20              | Phase 3    |
-| 5     | Notifications + API          | 4                | ~25              | Phase 4    |
-| 6     | E2E integration tests        | 2                | ~15              | Phase 5    |
-| 7     | README update                | 0                | 0                | Phase 6    |
-| 8     | Version bump + CI (FINAL)    | 0                | 0                | Phase 7    |
-| **Total** |                          | **~26 files**    | **~155 tests**   |            |
+| Phase | Name                         | New Files (est.) | New Tests (est.) | LLM Tier | Depends On |
+|-------|------------------------------|------------------|------------------|----------|------------|
+| 0     | Pre-flight (push existing)   | 0                | 0                | —        | —          |
+| 1     | Hard sandbox                 | 3                | ~20              | None     | Phase 0    |
+| 2     | Role profiles + auth         | 6 + 4 templates  | ~35              | None     | Phase 1    |
+| 3     | Session engine + goals       | 8                | ~50              | Tier 1+2 | Phase 2    |
+| 4     | Daemon + CLI commands        | 4                | ~20              | Tier 1   | Phase 3    |
+| 5     | Notifications + API          | 4                | ~25              | None     | Phase 4    |
+| 6     | E2E integration tests        | 3                | ~20              | Tier 1+2+3 | Phase 5  |
+| 7     | README update                | 0                | 0                | —        | Phase 6    |
+| 8     | Version bump + CI (FINAL)    | 0                | 0                | —        | Phase 7    |
+| **Total** |                          | **~28 files**    | **~170 tests**   |          |            |
 
-Final expected test count: **~833 tests** (678 existing + ~155 new)
+**LLM Tier key:**
+- **Tier 1** = MockLLMProvider (CI, deterministic, $0)
+- **Tier 2** = Ollama local (dev machine, real inference, $0)
+- **Tier 3** = Production API (one-time manual, ~$2-5)
+
+Final expected test count: **~848 tests** (678 existing + ~170 new)
 Final version: **8.0.0-beta**
+Total API cost for entire build: **~$2-5** (one Tier 3 validation run)
