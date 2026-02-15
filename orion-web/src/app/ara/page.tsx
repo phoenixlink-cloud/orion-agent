@@ -76,7 +76,7 @@ export default function ARAPage() {
         fetch(`${API}/api/ara/sessions`),
         fetch(`${API}/api/ara/status`),
         fetch(`${API}/api/ara/dashboard`),
-        fetch(`${API}/api/ara/settings`),
+        fetch(`${API}/api/settings`),
       ])
       if (setupR.status === 'fulfilled' && setupR.value.ok) {
         const d = await setupR.value.json(); setSetupChecks(d.data?.checks || [])
@@ -97,7 +97,16 @@ export default function ARAPage() {
       }
       if (settingsR.status === 'fulfilled' && settingsR.value.ok) {
         const d = await settingsR.value.json()
-        if (d.data) setAraSettings(d.data)
+        const s = d.settings || d
+        setAraSettings({
+          ara_enabled: s.ara_enabled ?? true,
+          ara_default_auth: s.ara_default_auth ?? 'pin',
+          ara_max_cost_usd: s.ara_max_cost_usd ?? 5,
+          ara_max_session_hours: s.ara_max_session_hours ?? 8,
+          ara_sandbox_mode: s.ara_sandbox_mode ?? 'branch',
+          ara_prompt_guard: s.ara_prompt_guard ?? true,
+          ara_audit_log: s.ara_audit_log ?? true,
+        })
       }
       setError(null)
       setLastRefresh(new Date())
@@ -105,7 +114,7 @@ export default function ARAPage() {
     setRefreshing(false)
   }, [API])
 
-  useEffect(() => { loadData(); const t = setInterval(loadData, 5000); return () => clearInterval(t) }, [loadData])
+  useEffect(() => { loadData(); const t = setInterval(loadData, 10000); return () => clearInterval(t) }, [loadData])
 
   // Build activities from sessions
   useEffect(() => {
@@ -175,9 +184,9 @@ export default function ARAPage() {
   const handleSaveAraSettings = async () => {
     setAraSaving(true); setAraSaveMsg('')
     try {
-      const res = await fetch(`${API}/api/ara/settings`, {
+      const res = await fetch(`${API}/api/settings`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: araSettings }),
+        body: JSON.stringify(araSettings),
       })
       if (res.ok) { setAraSaveMsg('Saved!'); setTimeout(() => setAraSaveMsg(''), 3000) }
       else setAraSaveMsg('Save failed')
@@ -661,9 +670,9 @@ export default function ARAPage() {
                   e.preventDefault()
                   setChatMessages(prev => [...prev, { role: 'user', text: chatInput.trim() }])
                   const msg = chatInput.trim(); setChatInput('')
-                  fetch(`${API}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) })
+                  fetch(`${API}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg, workspace: '.' }) })
                     .then(r => r.ok ? r.json() : null)
-                    .then(d => { if (d?.reply) setChatMessages(prev => [...prev, { role: 'ai', text: d.reply }]) })
+                    .then(d => { if (d?.response) setChatMessages(prev => [...prev, { role: 'ai', text: d.response }]) })
                     .catch(() => setChatMessages(prev => [...prev, { role: 'ai', text: 'Could not reach the API server.' }]))
                 }
               }} placeholder="Ask Orion something..." rows={2} style={{ width: '100%', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'none' }} />

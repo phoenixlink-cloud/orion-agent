@@ -199,6 +199,14 @@ class SettingsUpdate(BaseModel):
     ledger_file: str | None = None
     # Workspace
     workspace: str | None = None
+    # ARA (Autonomous Role Architecture)
+    ara_enabled: bool | None = None
+    ara_default_auth: str | None = None
+    ara_max_cost_usd: float | None = None
+    ara_max_session_hours: float | None = None
+    ara_sandbox_mode: str | None = None
+    ara_prompt_guard: bool | None = None
+    ara_audit_log: bool | None = None
 
 
 class AegisApprovalResponse(BaseModel):

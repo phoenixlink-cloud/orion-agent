@@ -244,23 +244,44 @@ async def delete_role(role_name: str):
 
 
 @router.get("/dashboard")
-async def get_dashboard(workspace_path: str = "."):
+async def get_dashboard(session_id: str | None = None):
     """Get morning dashboard data."""
     try:
         from orion.ara.dashboard import MorningDashboard
 
-        dash = MorningDashboard(workspace_path=workspace_path)
-        data = dash.gather_data()
-        rendered = dash.render(data)
+        dash = MorningDashboard()
+        pending = dash.check_pending_reviews()
+
+        sections: list[dict[str, Any]] = []
+        rendered = ""
+
+        if session_id:
+            data = dash.gather_data(session_id)
+            rendered = dash.render_data(data)
+            sections = [
+                {
+                    "title": s.title,
+                    "content": "\n".join(s.content) if isinstance(s.content, list) else str(s.content),
+                    "style": "info",
+                }
+                for s in data.sections
+            ]
+        elif pending:
+            # Show pending reviews as sections
+            for p in pending:
+                sections.append({
+                    "title": f"Pending Review: {p.get('goal', 'Unknown')}",
+                    "content": f"Session {p['session_id'][:12]} by role '{p.get('role', '?')}' — {p.get('tasks', 0)} tasks completed.",
+                    "style": "warning",
+                })
+            rendered = dash.get_startup_message() or ""
+
         return {
             "success": True,
             "rendered": rendered,
             "data": {
-                "sections": [
-                    {"title": s.title, "content": s.content, "style": s.style}
-                    for s in data.sections
-                ],
-                "pending_count": data.pending_count,
+                "sections": sections,
+                "pending_count": len(pending),
             },
         }
     except Exception as e:

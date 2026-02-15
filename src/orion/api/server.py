@@ -90,7 +90,7 @@ app.add_middleware(RequestLoggingMiddleware)
 # Rate limiting + optional auth (W7)
 from orion.api.middleware import OptionalAuthMiddleware, RateLimitMiddleware
 
-app.add_middleware(RateLimitMiddleware, requests_per_minute=120, burst=20)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=300, burst=40)
 app.add_middleware(OptionalAuthMiddleware)
 
 
