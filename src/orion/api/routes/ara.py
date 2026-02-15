@@ -43,6 +43,13 @@ class FeedbackRequest(BaseModel):
     comment: str | None = None
 
 
+class RoleCreateRequest(BaseModel):
+    name: str
+    scope: str = "coding"
+    auth_method: str = "pin"
+    description: str = ""
+
+
 class ARASettingsUpdate(BaseModel):
     settings: dict[str, Any]
 
@@ -190,6 +197,43 @@ async def get_role_example():
 
         result = cmd_role_example()
         return {"success": True, "yaml": result.message}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/roles")
+async def create_role(req: RoleCreateRequest):
+    """Create a new role."""
+    try:
+        from orion.ara.cli_commands import cmd_role_create
+
+        result = cmd_role_create(
+            name=req.name,
+            scope=req.scope,
+            auth_method=req.auth_method,
+            description=req.description,
+        )
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=409, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/roles/{role_name}")
+async def delete_role(role_name: str):
+    """Delete a user role."""
+    try:
+        from orion.ara.cli_commands import cmd_role_delete
+
+        result = cmd_role_delete(role_name)
+        if result.success:
+            return {"success": True, "message": result.message}
+        raise HTTPException(status_code=404, detail=result.message)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

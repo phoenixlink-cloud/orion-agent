@@ -427,6 +427,46 @@ export async function reviewARASession(sessionId?: string): Promise<ARAStatus> {
   return res.json()
 }
 
+/**
+ * Create a new ARA role
+ */
+export async function createARARole(name: string, scope: string, authMethod: string, description: string): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/roles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, scope, auth_method: authMethod, description })
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || 'Failed to create role')
+  }
+  return res.json()
+}
+
+/**
+ * Delete an ARA role
+ */
+export async function deleteARARole(roleName: string): Promise<ARAStatus> {
+  const res = await fetch(`${API_BASE}/api/ara/roles/${encodeURIComponent(roleName)}`, {
+    method: 'DELETE'
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || 'Failed to delete role')
+  }
+  return res.json()
+}
+
+/**
+ * Get morning dashboard structured data
+ */
+export async function getARADashboardData(workspacePath?: string): Promise<ARADashboard> {
+  const params = workspacePath ? `?workspace_path=${encodeURIComponent(workspacePath)}` : ''
+  const res = await fetch(`${API_BASE}/api/ara/dashboard${params}`)
+  if (!res.ok) throw new Error('Failed to get dashboard data')
+  return res.json()
+}
+
 // =============================================================================
 // RUNTIME INFO
 // =============================================================================
