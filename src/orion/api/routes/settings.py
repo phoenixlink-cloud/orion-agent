@@ -80,6 +80,14 @@ async def get_all_settings() -> dict[str, Any]:
         "ledger_file": "data/ledger.jsonl",
         # Workspace
         "workspace": "",
+        # ARA (Autonomous Role Architecture)
+        "ara_enabled": True,
+        "ara_default_auth": "pin",
+        "ara_max_cost_usd": 5.0,
+        "ara_max_session_hours": 8.0,
+        "ara_sandbox_mode": "branch",
+        "ara_prompt_guard": True,
+        "ara_audit_log": True,
     }
     merged = {**defaults, **user_settings}
     return merged
