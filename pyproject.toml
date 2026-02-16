@@ -106,6 +106,7 @@ markers = [
     "integration: marks tests requiring external services",
     "e2e: marks end-to-end tests",
     "asyncio: marks async tests",
+    "docker: marks tests requiring Docker runtime",
 ]
 
 [tool.pytest-asyncio]
