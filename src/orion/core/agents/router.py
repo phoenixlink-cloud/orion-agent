@@ -80,6 +80,14 @@ class RequestRouter:
         self.model = model
         self.memory_engine = memory_engine
 
+        # Tier 3: Institutional memory (teach-student cycle: READ path)
+        self._institutional = None
+        try:
+            from orion.core.memory.institutional import InstitutionalMemory
+            self._institutional = InstitutionalMemory()
+        except Exception:
+            pass  # Institutional memory is optional
+
         # Logger
         self._log = None
         try:
@@ -297,13 +305,37 @@ class RequestRouter:
             return {"error": f"FastPath error: {e}"}
 
     def _get_memory_context(self, request: str) -> str:
-        """Retrieve relevant memories to inject into LLM evidence."""
-        if not self.memory_engine:
-            return ""
-        try:
-            return self.memory_engine.recall_for_prompt(request, max_tokens=1500)
-        except Exception:
-            return ""
+        """Retrieve relevant memories to inject into LLM evidence.
+
+        Merges two sources:
+        - MemoryEngine: session/project memories (Tier 1+2 + its own Tier 3)
+        - InstitutionalMemory: seed knowledge, teaching corrections,
+          ARA debugging lessons (true Tier 3 institutional wisdom)
+        """
+        parts = []
+
+        # MemoryEngine context (session/project/global)
+        if self.memory_engine:
+            try:
+                engine_ctx = self.memory_engine.recall_for_prompt(request, max_tokens=1200)
+                if engine_ctx:
+                    parts.append(engine_ctx)
+            except Exception:
+                pass
+
+        # Institutional wisdom (seed patterns, corrections, anti-patterns)
+        if self._institutional:
+            try:
+                from orion.core.learning.patterns import get_learnings_for_prompt
+                inst_ctx = get_learnings_for_prompt(
+                    self._institutional, request, max_items=5
+                )
+                if inst_ctx:
+                    parts.append(inst_ctx)
+            except Exception:
+                pass
+
+        return "\n\n".join(parts) if parts else ""
 
     def record_interaction(self, request: str, response: str, route: str):
         """Record an interaction in session memory (Tier 1)."""

@@ -180,6 +180,9 @@ def get_learnings_for_prompt(
     """
     Get relevant learnings formatted for LLM prompt injection.
 
+    Includes: learned patterns, anti-patterns, user preferences,
+    AND confirmed feedback (teaching corrections from Q&A lessons).
+
     Returns a markdown string to include in the system/user prompt,
     or empty string if no relevant learnings exist.
     """
@@ -199,6 +202,18 @@ def get_learnings_for_prompt(
         lines.append("\n## Known Anti-Patterns (Avoid)")
         for ap in anti_patterns[:max_items]:
             lines.append(f"- {ap['description'][:150]}: {ap['reason'][:100]}")
+
+    # Include confirmed feedback / teaching corrections
+    try:
+        feedback = institutional.get_relevant_feedback(
+            domain="institutional_learning"
+        )
+        if feedback:
+            lines.append("\n## Corrections From Previous Lessons")
+            for fb in feedback[:max_items]:
+                lines.append(f"- {fb['principle'][:200]}")
+    except Exception:
+        pass
 
     if prefs:
         lines.append("\n## User Preferences")

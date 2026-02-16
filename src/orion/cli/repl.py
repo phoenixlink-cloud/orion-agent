@@ -35,6 +35,7 @@ Main entry point workflow:
     RESULT + RECEIPT
 """
 
+import asyncio
 import os
 
 from orion._version import __version__
@@ -407,8 +408,6 @@ def start_repl():
 
             # Handle slash commands
             if user_input.startswith("/train"):
-                import asyncio
-
                 from orion.cli.commands_training import handle_train_command
 
                 try:

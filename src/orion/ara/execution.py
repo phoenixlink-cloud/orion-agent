@@ -77,13 +77,19 @@ class ExecutionLoop:
         session: SessionState,
         dag: TaskDAG,
         task_executor: Callable[..., Any] | None = None,
+        task_executor_ref: Any = None,
         on_checkpoint: Callable[[], None] | None = None,
+        on_task_complete: Callable[[], None] | None = None,
+        on_control_check: Callable[[], None] | None = None,
         checkpoint_interval_minutes: float = 15.0,
     ):
         self._session = session
         self._dag = dag
         self._executor = task_executor or self._default_executor
+        self._task_executor_ref = task_executor_ref
         self._on_checkpoint = on_checkpoint
+        self._on_task_complete = on_task_complete
+        self._on_control_check = on_control_check
         self._checkpoint_interval = checkpoint_interval_minutes * 60
         self._low_confidence_streak = 0
         self._error_streak = 0
@@ -101,6 +107,19 @@ class ExecutionLoop:
     def stop(self) -> None:
         """Signal the loop to stop after the current task."""
         self._stopped = True
+
+    def _learn_from_outcome(self, task: Any, success: bool) -> None:
+        """Feed task outcome to institutional memory (teach-student WRITE path)."""
+        ref = self._task_executor_ref
+        if ref and hasattr(ref, 'learn_from_task_outcome'):
+            ref.learn_from_task_outcome(
+                task_id=task.task_id,
+                action_type=getattr(task, 'action_type', 'unknown'),
+                title=getattr(task, 'title', ''),
+                success=success,
+                output=getattr(task, 'output', '') or getattr(task, 'error', ''),
+                confidence=getattr(task, 'confidence', 0.5),
+            )
 
     async def run(self) -> ExecutionResult:
         """Execute the full loop until completion or stop condition."""
@@ -161,6 +180,19 @@ class ExecutionLoop:
                     result.tasks_completed += 1
                     self._error_streak = 0
 
+                    # Feed completed task context to executor for next tasks
+                    if hasattr(self._executor, '__self__') and hasattr(self._executor.__self__, 'add_task_context'):
+                        self._executor.__self__.add_task_context(
+                            task.task_id, task.title, task.output,
+                        )
+                    elif hasattr(self, '_task_executor_ref') and hasattr(self._task_executor_ref, 'add_task_context'):
+                        self._task_executor_ref.add_task_context(
+                            task.task_id, task.title, task.output,
+                        )
+
+                    # Teach-student WRITE path: feed success to institutional memory
+                    self._learn_from_outcome(task, success=True)
+
                     if task.confidence < CONFIDENCE_COLLAPSE_THRESHOLD:
                         self._low_confidence_streak += 1
                     else:
@@ -172,6 +204,9 @@ class ExecutionLoop:
                     self._error_streak += 1
                     self._low_confidence_streak = 0
                     result.errors.append(f"{task.task_id}: {task.error}")
+
+                    # Teach-student WRITE path: feed failure to institutional memory
+                    self._learn_from_outcome(task, success=False)
 
             except Exception as e:
                 task.status = TaskStatus.FAILED
@@ -190,6 +225,14 @@ class ExecutionLoop:
             self._session.progress.total_tasks = self._dag.total_tasks
             self._session.progress.completed_tasks = self._dag.completed_tasks
             self._session.progress.failed_tasks = self._dag.failed_tasks
+
+            # Notify daemon of task completion (status update + save)
+            if self._on_task_complete:
+                self._on_task_complete()
+
+            # Process control commands (pause/cancel/resume)
+            if self._on_control_check:
+                self._on_control_check()
 
             # Checkpoint if interval reached
             now = time.time()

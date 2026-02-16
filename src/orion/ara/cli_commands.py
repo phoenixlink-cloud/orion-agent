@@ -46,6 +46,8 @@ logger = logging.getLogger("orion.ara.cli_commands")
 
 DEFAULT_ROLES_DIR = Path.home() / ".orion" / "roles"
 STARTER_ROLES_DIR = Path(__file__).resolve().parents[3] / "data" / "roles"
+DEFAULT_SKILLS_DIR = Path.home() / ".orion" / "skills"
+SEED_SKILLS_DIR = Path(__file__).resolve().parents[3] / "data" / "seed" / "skills"
 
 
 @dataclass
@@ -64,19 +66,39 @@ class CommandResult:
         }
 
 
+def _scan_workspace(workspace: Path) -> list[str]:
+    """Scan workspace for existing project files (non-hidden, non-git)."""
+    if not workspace.exists():
+        return []
+    skip = {".git", ".orion-archive", "__pycache__", "node_modules", ".venv", ".env"}
+    files = []
+    for f in sorted(workspace.rglob("*")):
+        if f.is_file() and not any(part.startswith(".") or part in skip for part in f.relative_to(workspace).parts):
+            rel = str(f.relative_to(workspace))
+            files.append(rel)
+    return files[:50]  # Cap to avoid overwhelming output
+
+
 def cmd_work(
     role_name: str,
     goal: str,
     workspace_path: str | None = None,
     roles_dir: Path | None = None,
     control: DaemonControl | None = None,
+    project_mode: str = "auto",
 ) -> CommandResult:
     """Start an autonomous work session.
 
     1. Load the role profile
     2. Validate configuration
-    3. Create session state
-    4. Signal daemon to start
+    3. Scan workspace for existing files (project continuity check)
+    4. Create session state
+    5. Signal daemon to start
+
+    project_mode:
+        'auto'     - If workspace has files, return needs_decision (ask user)
+        'new'      - Start fresh, ignore workspace files
+        'continue' - Seed sandbox with workspace files (build on existing work)
 
     The actual execution is handled by the daemon process.
     """
@@ -99,11 +121,60 @@ def cmd_work(
             message=f"Role '{role_name}' not found. Available: {', '.join(available)}",
         )
 
+    # Ensure auth method is configured before starting
+    auth_warning = ""
+    if role.auth_method in ("pin", "totp"):
+        auth = RoleAuthenticator()
+        if not auth.is_configured(role.auth_method):
+            if role.auth_method == "pin":
+                # Auto-provision a default PIN and warn the user
+                default_pin = "1234"
+                auth.setup_pin(default_pin)
+                auth_warning = (
+                    f"\n⚠ PIN auth was not configured. Default PIN '{default_pin}' set.\n"
+                    f"  Change it with: /auth-switch pin {default_pin}"
+                )
+                logger.info("Auto-provisioned default PIN for role '%s'", role.name)
+            else:
+                return CommandResult(
+                    success=False,
+                    message=f"Role '{role.name}' requires {role.auth_method} auth but it is not configured.\n"
+                    f"Run: /auth-switch {role.auth_method} to set it up first.",
+                )
+
+    # Resolve workspace
+    resolved_workspace = workspace_path or str(Path.cwd())
+    ws = Path(resolved_workspace)
+
+    # Project continuity check
+    if project_mode == "auto":
+        existing_files = _scan_workspace(ws)
+        if existing_files:
+            file_list = "\n".join(f"  - {f}" for f in existing_files[:15])
+            more = f"\n  ... and {len(existing_files) - 15} more" if len(existing_files) > 15 else ""
+            return CommandResult(
+                success=False,
+                message=(
+                    f"Found {len(existing_files)} existing files in workspace:\n"
+                    f"{file_list}{more}\n\n"
+                    "Is this a **new project** or are you **continuing** an existing one?\n"
+                    "- New project: I'll start fresh (existing files untouched)\n"
+                    "- Continue: I'll build on these files"
+                ),
+                data={
+                    "needs_decision": True,
+                    "workspace_files": existing_files,
+                    "role_name": role_name,
+                    "goal": goal,
+                    "workspace_path": resolved_workspace,
+                },
+            )
+
     # Create session
     session = SessionState(
         role_name=role.name,
         goal=goal,
-        workspace_path=workspace_path or str(Path.cwd()),
+        workspace_path=resolved_workspace,
         max_cost_usd=role.max_cost_per_session,
         max_duration_hours=role.max_session_hours,
     )
@@ -118,18 +189,42 @@ def cmd_work(
         "goal": goal,
         "workspace_path": session.workspace_path,
         "role_source": role.source_path,
+        "project_mode": project_mode,
     }
     config_path = Path.home() / ".orion" / "daemon" / "pending.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps(session_config, indent=2), encoding="utf-8")
 
     logger.info("Work session created: %s (role=%s)", session.session_id, role.name)
+
+    # Spawn daemon as background subprocess
+    try:
+        import subprocess
+        import sys
+
+        daemon_cmd = [
+            sys.executable, "-m", "orion.ara.daemon_launcher",
+        ]
+        subprocess.Popen(
+            daemon_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            cwd=session.workspace_path,
+        )
+        logger.info("Daemon subprocess spawned for session %s", session.session_id)
+    except Exception as e:
+        logger.warning("Failed to spawn daemon subprocess: %s", e)
+
     return CommandResult(
         success=True,
         message=f"Session {session.session_id} created.\n"
         f"Role: {role.name} | Scope: {role.scope}\n"
         f"Goal: {goal}\n"
-        f"Auth: {role.auth_method} required before execution",
+        f"Auth: {role.auth_method} required before promotion\n"
+        f"Daemon: spawning background process..."
+        + auth_warning
+        + "\n\nUse '/status' to monitor, '/notifications' when done.",
         data={"session_id": session.session_id, "role_name": role.name},
     )
 
@@ -289,6 +384,429 @@ def cmd_review(
     )
 
 
+def cmd_promote(
+    session_id: str | None = None,
+    credential: str | None = None,
+    control: DaemonControl | None = None,
+    authenticator: RoleAuthenticator | None = None,
+    roles_dir: Path | None = None,
+    sessions_dir: Path | None = None,
+) -> CommandResult:
+    """Promote sandbox files to workspace after AEGIS approval.
+
+    Runs AEGIS gate check, then uses PromotionManager to copy files
+    from sandbox to workspace with git tagging.
+    """
+    from orion.ara.promotion import PromotionManager
+
+    control = control or DaemonControl()
+    sessions_dir = sessions_dir or DEFAULT_SESSIONS_DIR
+
+    # Find session
+    if session_id is None:
+        status = control.read_status()
+        session_id = status.session_id
+    if not session_id:
+        return CommandResult(success=False, message="No session to promote.")
+
+    # Load session
+    try:
+        session = SessionState.load(session_id, sessions_dir=sessions_dir)
+    except FileNotFoundError:
+        return CommandResult(success=False, message=f"Session {session_id} not found.")
+
+    if session.status not in (SessionStatus.COMPLETED, SessionStatus.PAUSED):
+        return CommandResult(
+            success=False,
+            message=f"Session {session_id} is {session.status.value}. "
+            "Can only promote completed or paused sessions.",
+        )
+
+    # Load role for gate check
+    role = _find_role(session.role_name, roles_dir)
+    if role is None:
+        return CommandResult(success=False, message=f"Role '{session.role_name}' not found.")
+
+    # Check sandbox path
+    sandbox_path = sessions_dir / session_id / "sandbox"
+    if not sandbox_path.exists():
+        return CommandResult(success=False, message="No sandbox directory found for this session.")
+
+    # Run AEGIS gate
+    auth = authenticator or RoleAuthenticator()
+    gate = AegisGate(role=role, authenticator=auth)
+    decision = gate.evaluate(sandbox_path=sandbox_path, credential=credential)
+
+    if not decision.approved:
+        failed_str = "\n".join(f"  ✗ {c}" for c in decision.checks_failed)
+        return CommandResult(
+            success=False,
+            message=f"AEGIS Gate: BLOCKED. Cannot promote.\n{failed_str}",
+            data=decision.to_dict(),
+        )
+
+    # Promote via PromotionManager
+    workspace = Path(session.workspace_path)
+    pm = PromotionManager(workspace=workspace)
+
+    # Create PM sandbox and copy daemon sandbox files into it
+    pm.create_sandbox(session_id)
+    file_count = 0
+    for f in sandbox_path.iterdir():
+        if f.is_file():
+            content = f.read_text(encoding="utf-8")
+            pm.add_file(session_id, f.name, content)
+            file_count += 1
+
+    if file_count == 0:
+        return CommandResult(success=False, message="Sandbox is empty — nothing to promote.")
+
+    result = pm.promote(session_id, goal=session.goal)
+
+    if result.success:
+        # Update feedback store with promotion status
+        try:
+            from orion.ara.feedback_store import FeedbackStore
+            store = FeedbackStore()
+            outcomes = store.get_session_outcomes()
+            for o in outcomes:
+                if o.session_id == session_id:
+                    o.promoted = True
+            store._rewrite_sessions(outcomes)
+        except Exception:
+            pass
+
+        return CommandResult(
+            success=True,
+            message=f"✓ Promoted {result.files_promoted} files to {workspace}.\n"
+            f"  Pre-tag: {result.pre_tag}\n"
+            f"  Post-tag: {result.post_tag}"
+            + (f"\n  Conflicts skipped: {', '.join(result.conflicts)}" if result.conflicts else ""),
+            data={
+                "files_promoted": result.files_promoted,
+                "pre_tag": result.pre_tag,
+                "post_tag": result.post_tag,
+                "conflicts": result.conflicts,
+            },
+        )
+
+    return CommandResult(success=False, message=f"Promotion failed: {result.message}")
+
+
+def cmd_review_diff(
+    session_id: str | None = None,
+    control: DaemonControl | None = None,
+    sessions_dir: Path | None = None,
+) -> CommandResult:
+    """Return structured file diffs for a session's sandbox changes.
+
+    Returns per-file unified diffs, original/new content, and summary stats
+    so a UI can render a GitHub-PR-style review experience.
+    """
+    import difflib
+    from orion.ara.promotion import PromotionManager
+
+    control = control or DaemonControl()
+    sessions_dir = sessions_dir or DEFAULT_SESSIONS_DIR
+
+    if session_id is None:
+        status = control.read_status()
+        session_id = status.session_id
+    if not session_id:
+        return CommandResult(success=False, message="No session to review.")
+
+    # Support partial session ID matching (UI often shows truncated IDs)
+    try:
+        session = SessionState.load(session_id, sessions_dir=sessions_dir)
+    except FileNotFoundError:
+        # Try prefix match against sessions directory
+        resolved = None
+        if sessions_dir and sessions_dir.exists():
+            for d in sessions_dir.iterdir():
+                if d.is_dir() and d.name.startswith(session_id):
+                    resolved = d.name
+                    break
+        if resolved:
+            session_id = resolved
+            try:
+                session = SessionState.load(session_id, sessions_dir=sessions_dir)
+            except FileNotFoundError:
+                return CommandResult(success=False, message=f"Session {session_id} not found.")
+        else:
+            return CommandResult(success=False, message=f"Session {session_id} not found.")
+
+    workspace = Path(session.workspace_path)
+    sandbox_path = sessions_dir / session_id / "sandbox"
+
+    # Try PromotionManager sandbox first, fall back to daemon sandbox
+    pm = PromotionManager(workspace=workspace)
+    pm_sandbox = pm.get_sandbox_path(session_id)
+
+    files: list[dict] = []
+    total_add = 0
+    total_del = 0
+
+    if pm_sandbox is not None:
+        # Use PromotionManager diffs (structured)
+        diffs = pm.get_diff(session_id)
+        conflicts = {c.path for c in pm.check_conflicts(session_id)}
+
+        for d in diffs:
+            original = ""
+            if d.status == "modified":
+                ws_file = workspace / d.path
+                if ws_file.exists():
+                    try:
+                        original = ws_file.read_text(encoding="utf-8")
+                    except Exception:
+                        original = ""
+
+            # Generate unified diff
+            if d.status == "added":
+                diff_lines = list(difflib.unified_diff(
+                    [], d.content.splitlines(keepends=True),
+                    fromfile="/dev/null", tofile=d.path, lineterm="",
+                ))
+            elif d.status == "modified":
+                diff_lines = list(difflib.unified_diff(
+                    original.splitlines(keepends=True),
+                    d.content.splitlines(keepends=True),
+                    fromfile=f"a/{d.path}", tofile=f"b/{d.path}", lineterm="",
+                ))
+            else:  # deleted
+                diff_lines = list(difflib.unified_diff(
+                    original.splitlines(keepends=True), [],
+                    fromfile=d.path, tofile="/dev/null", lineterm="",
+                ))
+
+            total_add += d.additions
+            total_del += d.deletions
+
+            files.append({
+                "path": d.path,
+                "status": d.status,
+                "additions": d.additions,
+                "deletions": d.deletions,
+                "diff": "\n".join(diff_lines),
+                "content": d.content[:50000],  # cap at 50k chars
+                "original": original[:50000] if original else "",
+                "conflict": d.path in conflicts,
+            })
+
+    # If PM sandbox was empty or didn't exist, try daemon sandbox
+    if not files and sandbox_path.exists():
+        # Fall back to daemon sandbox (recursive — files may be nested)
+        unchanged_files: list[dict] = []
+        for f in sorted(sandbox_path.rglob("*")):
+            if not f.is_file():
+                continue
+            rel = str(f.relative_to(sandbox_path)).replace("\\", "/")
+            # Skip hidden files and metadata
+            if any(part.startswith(".") for part in rel.split("/")):
+                continue
+
+            try:
+                content = f.read_text(encoding="utf-8")
+            except Exception:
+                continue  # skip binary files
+
+            ws_file = workspace / rel
+            original = ""
+            status = "added"
+            additions = content.count("\n") + (1 if content else 0)
+            deletions = 0
+
+            if ws_file.exists():
+                try:
+                    original = ws_file.read_text(encoding="utf-8")
+                except Exception:
+                    original = ""
+                if original != content:
+                    status = "modified"
+                    new_lines = set(content.splitlines())
+                    old_lines = set(original.splitlines())
+                    additions = len(new_lines - old_lines)
+                    deletions = len(old_lines - new_lines)
+                else:
+                    # Track unchanged files in case ALL are unchanged (already promoted)
+                    unchanged_files.append({
+                        "path": rel,
+                        "status": "unchanged",
+                        "additions": 0,
+                        "deletions": 0,
+                        "diff": "",
+                        "content": content[:50000],
+                        "original": "",
+                        "conflict": False,
+                    })
+                    continue
+
+            if status == "added":
+                diff_lines = list(difflib.unified_diff(
+                    [], content.splitlines(keepends=True),
+                    fromfile="/dev/null", tofile=rel, lineterm="",
+                ))
+            else:
+                diff_lines = list(difflib.unified_diff(
+                    original.splitlines(keepends=True),
+                    content.splitlines(keepends=True),
+                    fromfile=f"a/{rel}", tofile=f"b/{rel}", lineterm="",
+                ))
+
+            total_add += additions
+            total_del += deletions
+
+            files.append({
+                "path": rel,
+                "status": status,
+                "additions": additions,
+                "deletions": deletions,
+                "diff": "\n".join(diff_lines),
+                "content": content[:50000],
+                "original": original[:50000] if original else "",
+                "conflict": False,
+            })
+
+        # If no changed files but sandbox has unchanged files (already promoted),
+        # show them so the user can still review what was generated
+        if not files and unchanged_files:
+            files = unchanged_files
+    elif not sandbox_path.exists() and pm_sandbox is None:
+        return CommandResult(
+            success=False,
+            message="No sandbox found for this session.",
+        )
+
+    if not files:
+        return CommandResult(
+            success=True,
+            message="No file changes in sandbox.",
+            data={"files": [], "summary": {"total_files": 0, "additions": 0, "deletions": 0, "conflicts": 0}},
+        )
+
+    conflict_count = sum(1 for f in files if f["conflict"])
+    summary = {
+        "total_files": len(files),
+        "added": sum(1 for f in files if f["status"] == "added"),
+        "modified": sum(1 for f in files if f["status"] == "modified"),
+        "deleted": sum(1 for f in files if f["status"] == "deleted"),
+        "additions": total_add,
+        "deletions": total_del,
+        "conflicts": conflict_count,
+    }
+
+    return CommandResult(
+        success=True,
+        message=f"{len(files)} files changed (+{total_add} −{total_del})"
+        + (f", {conflict_count} conflicts" if conflict_count else ""),
+        data={"files": files, "summary": summary, "session_id": session_id},
+    )
+
+
+def cmd_reject(
+    session_id: str | None = None,
+    control: DaemonControl | None = None,
+    sessions_dir: Path | None = None,
+) -> CommandResult:
+    """Reject sandbox changes — preserves sandbox for reference."""
+    from orion.ara.promotion import PromotionManager
+
+    control = control or DaemonControl()
+    sessions_dir = sessions_dir or DEFAULT_SESSIONS_DIR
+
+    if session_id is None:
+        status = control.read_status()
+        session_id = status.session_id
+    if not session_id:
+        return CommandResult(success=False, message="No session to reject.")
+
+    try:
+        session = SessionState.load(session_id, sessions_dir=sessions_dir)
+    except FileNotFoundError:
+        return CommandResult(success=False, message=f"Session {session_id} not found.")
+
+    workspace = Path(session.workspace_path)
+    pm = PromotionManager(workspace=workspace)
+    pm.reject(session_id)
+
+    return CommandResult(
+        success=True,
+        message=f"Session {session_id[:12]} rejected. Sandbox preserved for reference.",
+        data={"session_id": session_id},
+    )
+
+
+def cmd_feedback(
+    session_id: str,
+    rating: int,
+    comment: str | None = None,
+) -> CommandResult:
+    """Submit user feedback (1-5 rating) for a completed session."""
+    from orion.ara.feedback_store import FeedbackStore
+
+    if not (1 <= rating <= 5):
+        return CommandResult(success=False, message="Rating must be 1-5.")
+
+    store = FeedbackStore()
+    updated = store.add_user_feedback(session_id, rating, comment)
+
+    if updated:
+        return CommandResult(
+            success=True,
+            message=f"Feedback recorded for session {session_id[:12]}: {rating}/5"
+            + (f" — \"{comment}\"" if comment else ""),
+            data={"session_id": session_id, "rating": rating, "comment": comment},
+        )
+
+    return CommandResult(
+        success=False,
+        message=f"Session {session_id} not found in feedback store. "
+        "Feedback can only be submitted for sessions that have completed execution.",
+    )
+
+
+def cmd_notifications(
+    mark_read: bool = False,
+    control: DaemonControl | None = None,
+) -> CommandResult:
+    """Show pending notifications from daemon. Optionally mark all as read."""
+    control = control or DaemonControl()
+    notif_dir = control._dir / "notifications"
+
+    if not notif_dir.exists():
+        return CommandResult(success=True, message="No notifications.", data={"notifications": []})
+
+    notifications = []
+    for f in sorted(notif_dir.glob("*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            if not data.get("read", False):
+                notifications.append(data)
+                if mark_read:
+                    data["read"] = True
+                    f.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    if not notifications:
+        return CommandResult(success=True, message="No unread notifications.", data={"notifications": []})
+
+    lines = [f"📬 {len(notifications)} notification(s):", ""]
+    for n in notifications:
+        event = n.get("event", "unknown")
+        msg = n.get("message", "")
+        lines.append(f"  [{event}] {msg}")
+
+    if mark_read:
+        lines.append(f"\n  (Marked {len(notifications)} as read)")
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data={"notifications": notifications},
+    )
+
+
 def list_available_roles(roles_dir: Path | None = None) -> list[str]:
     """List all available role names (user + starter)."""
     names: list[str] = []
@@ -361,10 +879,12 @@ def cmd_role_list(roles_dir: Path | None = None) -> CommandResult:
                         roles.append({
                             "name": r.name,
                             "scope": r.scope,
-                            "auth": r.auth_method,
+                            "auth_method": r.auth_method,
                             "source": source,
-                            "description": r.description[:60] if r.description else "",
+                            "description": r.description or "",
                             "path": str(p),
+                            "assigned_skills": list(r.assigned_skills) if r.assigned_skills else [],
+                            "assigned_skill_groups": list(r.assigned_skill_groups) if r.assigned_skill_groups else [],
                         })
                 except Exception:
                     pass
@@ -381,7 +901,7 @@ def cmd_role_list(roles_dir: Path | None = None) -> CommandResult:
     lines = ["Available roles:", ""]
     for r in roles:
         tag = "[starter]" if r["source"] == "starter" else "[user]"
-        lines.append(f"  {r['name']:20s} {r['scope']:10s} {r['auth']:5s} {tag}")
+        lines.append(f"  {r['name']:20s} {r['scope']:10s} {r['auth_method']:5s} {tag}")
         if r["description"]:
             lines.append(f"  {'':20s} {r['description']}")
 
@@ -433,6 +953,18 @@ def cmd_role_show(role_name: str, roles_dir: Path | None = None) -> CommandResul
         lines.append("Success criteria:")
         for s in role.success_criteria:
             lines.append(f"  - {s}")
+        lines.append("")
+
+    if role.assigned_skills:
+        lines.append("Assigned skills:")
+        for sk in role.assigned_skills:
+            lines.append(f"  - {sk}")
+        lines.append("")
+
+    if role.assigned_skill_groups:
+        lines.append("Assigned skill groups:")
+        for sg in role.assigned_skill_groups:
+            lines.append(f"  - {sg}")
         lines.append("")
 
     ct = role.confidence_thresholds
@@ -520,6 +1052,107 @@ def cmd_role_delete(role_name: str, roles_dir: Path | None = None) -> CommandRes
                     pass
 
     return CommandResult(success=False, message=f"Role '{role_name}' not found.")
+
+
+def cmd_role_update(
+    role_name: str,
+    scope: str | None = None,
+    auth_method: str | None = None,
+    description: str | None = None,
+    roles_dir: Path | None = None,
+) -> CommandResult:
+    """Update an existing user role. Starter templates are copied to user dir first."""
+    user_dir = roles_dir or DEFAULT_ROLES_DIR
+
+    # Find the role
+    role = _find_role(role_name, roles_dir)
+    if role is None:
+        return CommandResult(success=False, message=f"Role '{role_name}' not found.")
+
+    # If it's a starter template, copy to user dir first
+    source_path = Path(role.source_path) if role.source_path else None
+    is_starter = source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+
+    if is_starter:
+        user_dir.mkdir(parents=True, exist_ok=True)
+        target_path = user_dir / f"{role_name}.yaml"
+    else:
+        target_path = source_path if source_path else user_dir / f"{role_name}.yaml"
+
+    # Apply updates
+    if scope is not None:
+        role.scope = scope
+    if auth_method is not None:
+        role.auth_method = auth_method
+    if description is not None:
+        role.description = description
+
+    # Re-validate
+    try:
+        role._validate()
+    except Exception as e:
+        return CommandResult(success=False, message=f"Invalid configuration: {e}")
+
+    save_role(role, target_path)
+    role.source_path = str(target_path)
+
+    return CommandResult(
+        success=True,
+        message=f"Role '{role_name}' updated at {target_path}",
+        data={
+            "name": role_name,
+            "path": str(target_path),
+            "scope": role.scope,
+            "auth_method": role.auth_method,
+            "description": role.description,
+        },
+    )
+
+
+def cmd_sessions_clear(
+    sessions_dir: Path | None = None,
+) -> CommandResult:
+    """Clear all completed, failed, and cancelled sessions from the dashboard.
+
+    Running sessions are preserved. This is a user-facing reset for between work sessions.
+    """
+    import shutil
+
+    sdir = sessions_dir or DEFAULT_SESSIONS_DIR
+    if not sdir.exists():
+        return CommandResult(success=True, message="No sessions to clear.", data={"cleared": 0})
+
+    cleared = 0
+    preserved = 0
+
+    for session_dir in sorted(sdir.iterdir()):
+        if not session_dir.is_dir():
+            continue
+
+        session_file = session_dir / "session.json"
+        if not session_file.exists():
+            continue
+
+        try:
+            session = SessionState.load(session_dir.name, sessions_dir=sdir)
+        except Exception:
+            continue
+
+        if session.status in (
+            SessionStatus.COMPLETED,
+            SessionStatus.FAILED,
+            SessionStatus.CANCELLED,
+        ):
+            shutil.rmtree(session_dir)
+            cleared += 1
+        else:
+            preserved += 1
+
+    return CommandResult(
+        success=True,
+        message=f"Cleared {cleared} session(s). {preserved} active session(s) preserved.",
+        data={"cleared": cleared, "preserved": preserved},
+    )
 
 
 def cmd_role_example() -> CommandResult:
@@ -966,4 +1599,314 @@ def cmd_setup(
             "auth_configured": auth_configured,
             "dry_run_scenarios": scenarios,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Skill management commands (ARA-006)
+# ---------------------------------------------------------------------------
+
+
+def _get_skill_library(skills_dir: Path | None = None):
+    """Get or create a SkillLibrary instance."""
+    from orion.ara.skill_library import SkillLibrary
+
+    user_dir = skills_dir or DEFAULT_SKILLS_DIR
+    groups_file = user_dir / "skill_groups.yaml"
+    lib = SkillLibrary(skills_dir=user_dir, groups_file=groups_file)
+
+    # Load user skills
+    loaded, warnings = lib.load_all()
+
+    # Also load seed/bundled skills
+    if SEED_SKILLS_DIR.exists():
+        for item in sorted(SEED_SKILLS_DIR.iterdir()):
+            if item.is_dir() and (item / "SKILL.md").exists():
+                if lib.get_skill(item.name) is None:
+                    try:
+                        lib.import_skill(item)
+                    except Exception:
+                        pass
+
+    return lib, warnings
+
+
+def cmd_skill_list(
+    skills_dir: Path | None = None,
+    tag: str | None = None,
+    approved_only: bool = False,
+) -> CommandResult:
+    """List all available skills."""
+    lib, _ = _get_skill_library(skills_dir)
+    skills = lib.list_skills(tag=tag, approved_only=approved_only)
+
+    if not skills:
+        return CommandResult(
+            success=True,
+            message="No skills found. Use /skill create <name> to create one.",
+            data={"skills": []},
+        )
+
+    skill_list = []
+    lines = ["Available skills:", ""]
+    for s in sorted(skills, key=lambda x: x.name):
+        trust_icon = {"verified": "✓", "trusted": "●", "unreviewed": "?", "blocked": "✗"}.get(s.trust_level, "?")
+        approved_icon = "✓" if s.aegis_approved else "✗"
+        tag_str = ", ".join(s.tags[:3]) if s.tags else ""
+        lines.append(f"  {trust_icon} {s.name:24s} {s.source:10s} [{approved_icon}] {tag_str}")
+        if s.description:
+            lines.append(f"    {s.description[:70]}")
+        skill_list.append({
+            "name": s.name,
+            "description": s.description,
+            "version": s.version,
+            "source": s.source,
+            "trust_level": s.trust_level,
+            "aegis_approved": s.aegis_approved,
+            "tags": s.tags,
+        })
+
+    lines.append(f"\n  Total: {len(skills)} skills ({sum(1 for s in skills if s.aegis_approved)} approved)")
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data={"skills": skill_list},
+    )
+
+
+def cmd_skill_show(skill_name: str, skills_dir: Path | None = None) -> CommandResult:
+    """Show full details of a skill."""
+    lib, _ = _get_skill_library(skills_dir)
+    skill = lib.get_skill(skill_name)
+    if skill is None:
+        return CommandResult(success=False, message=f"Skill '{skill_name}' not found.")
+
+    lines = [
+        f"Skill: {skill.name}",
+        f"Description: {skill.description or '(none)'}",
+        f"Version: {skill.version}",
+        f"Author: {skill.author or '(unknown)'}",
+        f"Source: {skill.source}",
+        f"Trust: {skill.trust_level}",
+        f"AEGIS Approved: {'Yes' if skill.aegis_approved else 'No'}",
+        f"Tags: {', '.join(skill.tags) if skill.tags else '(none)'}",
+        f"Directory: {skill.directory or '(none)'}",
+        f"Supporting files: {', '.join(skill.supporting_files) if skill.supporting_files else '(none)'}",
+        f"Hash: {skill.content_hash[:16]}..." if skill.content_hash else "Hash: (none)",
+        "",
+    ]
+    if skill.instructions:
+        lines.append("Instructions (first 500 chars):")
+        lines.append(skill.instructions[:500])
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data=skill.to_dict(),
+    )
+
+
+def cmd_skill_create(
+    name: str,
+    description: str = "",
+    instructions: str = "",
+    tags: list[str] | None = None,
+    skills_dir: Path | None = None,
+) -> CommandResult:
+    """Create a new skill."""
+    lib, _ = _get_skill_library(skills_dir)
+    try:
+        skill, scan = lib.create_skill(
+            name=name,
+            description=description,
+            instructions=instructions or f"## {name}\n\nAdd instructions here.",
+            tags=tags or [],
+        )
+    except Exception as e:
+        return CommandResult(success=False, message=f"Failed to create skill: {e}")
+
+    return CommandResult(
+        success=True,
+        message=f"Skill '{name}' created (approved={skill.aegis_approved}, trust={skill.trust_level})",
+        data={
+            "name": skill.name,
+            "aegis_approved": skill.aegis_approved,
+            "trust_level": skill.trust_level,
+            "scan_findings": len(scan.findings),
+            "directory": str(skill.directory),
+        },
+    )
+
+
+def cmd_skill_delete(skill_name: str, skills_dir: Path | None = None) -> CommandResult:
+    """Delete a skill."""
+    lib, _ = _get_skill_library(skills_dir)
+    if lib.delete_skill(skill_name):
+        return CommandResult(success=True, message=f"Skill '{skill_name}' deleted.")
+    return CommandResult(success=False, message=f"Skill '{skill_name}' not found.")
+
+
+def cmd_skill_scan(skill_name: str, skills_dir: Path | None = None) -> CommandResult:
+    """Re-scan a skill with SkillGuard."""
+    lib, _ = _get_skill_library(skills_dir)
+    result = lib.rescan_skill(skill_name)
+    if result is None:
+        return CommandResult(success=False, message=f"Skill '{skill_name}' not found.")
+
+    return CommandResult(
+        success=True,
+        message=result.summary(),
+        data=result.to_dict(),
+    )
+
+
+def cmd_skill_assign(
+    skill_name: str,
+    role_name: str,
+    roles_dir: Path | None = None,
+    skills_dir: Path | None = None,
+) -> CommandResult:
+    """Assign a skill to a role."""
+    lib, _ = _get_skill_library(skills_dir)
+    skill = lib.get_skill(skill_name)
+    if skill is None:
+        return CommandResult(success=False, message=f"Skill '{skill_name}' not found.")
+
+    role = _find_role(role_name, roles_dir)
+    if role is None:
+        return CommandResult(success=False, message=f"Role '{role_name}' not found.")
+
+    if skill_name in role.assigned_skills:
+        return CommandResult(success=False, message=f"Skill '{skill_name}' already assigned to role '{role_name}'.")
+
+    role.assigned_skills.append(skill_name)
+
+    # Save role (copy starter to user dir if needed)
+    user_dir = roles_dir or DEFAULT_ROLES_DIR
+    source_path = Path(role.source_path) if role.source_path else None
+    is_starter = source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    if is_starter:
+        user_dir.mkdir(parents=True, exist_ok=True)
+        target_path = user_dir / f"{role_name}.yaml"
+    else:
+        target_path = source_path if source_path else user_dir / f"{role_name}.yaml"
+
+    save_role(role, target_path)
+    return CommandResult(
+        success=True,
+        message=f"Skill '{skill_name}' assigned to role '{role_name}'.",
+        data={"skill": skill_name, "role": role_name, "assigned_skills": role.assigned_skills},
+    )
+
+
+def cmd_skill_unassign(
+    skill_name: str,
+    role_name: str,
+    roles_dir: Path | None = None,
+) -> CommandResult:
+    """Remove a skill assignment from a role."""
+    role = _find_role(role_name, roles_dir)
+    if role is None:
+        return CommandResult(success=False, message=f"Role '{role_name}' not found.")
+
+    if skill_name not in role.assigned_skills:
+        return CommandResult(success=False, message=f"Skill '{skill_name}' not assigned to role '{role_name}'.")
+
+    role.assigned_skills.remove(skill_name)
+
+    user_dir = roles_dir or DEFAULT_ROLES_DIR
+    source_path = Path(role.source_path) if role.source_path else None
+    is_starter = source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    if is_starter:
+        user_dir.mkdir(parents=True, exist_ok=True)
+        target_path = user_dir / f"{role_name}.yaml"
+    else:
+        target_path = source_path if source_path else user_dir / f"{role_name}.yaml"
+
+    save_role(role, target_path)
+    return CommandResult(
+        success=True,
+        message=f"Skill '{skill_name}' removed from role '{role_name}'.",
+        data={"skill": skill_name, "role": role_name, "assigned_skills": role.assigned_skills},
+    )
+
+
+def cmd_skill_group_list(skills_dir: Path | None = None) -> CommandResult:
+    """List all skill groups."""
+    lib, _ = _get_skill_library(skills_dir)
+    groups = lib.list_groups()
+
+    if not groups:
+        return CommandResult(
+            success=True,
+            message="No skill groups found.",
+            data={"groups": []},
+        )
+
+    group_list = []
+    lines = ["Skill groups:", ""]
+    for g in sorted(groups, key=lambda x: x.name):
+        lines.append(f"  {g.name:20s} ({g.group_type}) — {len(g.skill_names)} skills")
+        if g.description:
+            lines.append(f"    {g.description[:70]}")
+        group_list.append({
+            "name": g.name,
+            "display_name": g.display_name,
+            "description": g.description,
+            "group_type": g.group_type,
+            "skill_names": g.skill_names,
+            "tags": g.tags,
+        })
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data={"groups": group_list},
+    )
+
+
+def cmd_skill_group_create(
+    name: str,
+    display_name: str = "",
+    group_type: str = "general",
+    skills_dir: Path | None = None,
+) -> CommandResult:
+    """Create a new skill group."""
+    lib, _ = _get_skill_library(skills_dir)
+    try:
+        group = lib.create_group(name, display_name or name.title(), group_type=group_type)
+    except Exception as e:
+        return CommandResult(success=False, message=f"Failed to create group: {e}")
+
+    return CommandResult(
+        success=True,
+        message=f"Skill group '{name}' created.",
+        data={"name": group.name, "display_name": group.display_name, "group_type": group.group_type},
+    )
+
+
+def cmd_skill_group_delete(name: str, skills_dir: Path | None = None) -> CommandResult:
+    """Delete a skill group."""
+    lib, _ = _get_skill_library(skills_dir)
+    if lib.delete_group(name):
+        return CommandResult(success=True, message=f"Skill group '{name}' deleted.")
+    return CommandResult(success=False, message=f"Skill group '{name}' not found.")
+
+
+def cmd_skill_group_assign(
+    skill_name: str,
+    group_name: str,
+    skills_dir: Path | None = None,
+) -> CommandResult:
+    """Add a skill to a group."""
+    lib, _ = _get_skill_library(skills_dir)
+    if lib.assign_skill_to_group(skill_name, group_name):
+        return CommandResult(
+            success=True,
+            message=f"Skill '{skill_name}' added to group '{group_name}'.",
+        )
+    return CommandResult(
+        success=False,
+        message=f"Failed — check that both '{skill_name}' and group '{group_name}' exist.",
     )

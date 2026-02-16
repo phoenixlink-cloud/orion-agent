@@ -86,5 +86,8 @@ ORION_PERSONA.md
 ORION_KNOWLEDGE_DISTILLATION_IMPL.md
 PHASED_BUILD_PLAN.md
 
+# Local dev resources (debug scripts, audit tools — never committed)
+.local/
+
 # Orion cache files
 src/.orion/

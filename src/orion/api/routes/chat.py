@@ -244,6 +244,7 @@ async def websocket_chat(websocket: WebSocket):
                     await websocket.send_json({"type": "status", "message": "Thinking..."})
 
                     collected = []
+                    fast_path_success = True
                     try:
                         async for token in router_inst.fast_path.execute_streaming(
                             user_input, report
@@ -251,16 +252,18 @@ async def websocket_chat(websocket: WebSocket):
                             collected.append(token)
                             await websocket.send_json({"type": "token", "content": token})
                         full_response = "".join(collected)
-                    except Exception:
-                        # Fallback to non-streaming
-                        result = await router_inst.fast_path.execute(user_input, report)
-                        full_response = result.response
-                        await websocket.send_json({"type": "token", "content": full_response})
+                    except Exception as stream_err:
+                        # Streaming or non-streaming fallback failed
+                        fast_path_success = False
+                        full_response = str(stream_err)
+                        await websocket.send_json(
+                            {"type": "error", "message": full_response}
+                        )
 
                     await websocket.send_json(
                         {
                             "type": "complete",
-                            "success": True,
+                            "success": fast_path_success,
                             "response": full_response,
                             "route": route_name,
                         }

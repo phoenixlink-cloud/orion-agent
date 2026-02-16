@@ -5,11 +5,14 @@ import Link from 'next/link'
 
 /* ── types ─────────────────────────────────────────────────────── */
 interface SetupCheck { name: string; status: string; message: string }
-interface RoleInfo { name: string; scope: string; auth_method: string; source: string; description?: string }
+interface RoleInfo { name: string; scope: string; auth_method: string; source: string; description?: string; assigned_skills?: string[]; assigned_skill_groups?: string[] }
 interface SessionInfo { session_id: string; role: string; goal: string; status: string; cost_usd?: number; elapsed_seconds?: number; progress?: number; created_at?: string }
 interface ActivityItem { icon: 'code' | 'search' | 'write' | 'check'; title: string; desc: string; time: string }
-interface DashSection { title: string; content: string; style: string }
+interface DashSection { title: string; content: string; style: string; session_id?: string }
+interface SkillInfo { name: string; description: string; version: string; source: string; trust_level: string; aegis_approved: boolean; tags: string[] }
 interface ARASettingsData { [key: string]: any }
+interface ReviewFileDiff { path: string; status: string; additions: number; deletions: number; diff: string; content: string; original: string; conflict: boolean }
+interface ReviewDiffData { loading: boolean; files: ReviewFileDiff[]; summary: { total_files: number; added: number; modified: number; deleted: number; additions: number; deletions: number; conflicts: number } | null; fallbackText?: string }
 
 /* ── color palette (matches prototype) ─────────────────────────── */
 const C = {
@@ -49,16 +52,54 @@ export default function ARAPage() {
   const [roleError, setRoleError] = useState('')
   const [selectedRole, setSelectedRole] = useState<RoleInfo | null>(null)
 
+  // Skills
+  const [skills, setSkills] = useState<SkillInfo[]>([])
+  const [showCreateSkill, setShowCreateSkill] = useState(false)
+  const [newSkill, setNewSkill] = useState({ name: '', description: '', tags: '' })
+  const [skillError, setSkillError] = useState('')
+  const [selectedSkill, setSelectedSkill] = useState<SkillInfo | null>(null)
+  const [assignSkillRole, setAssignSkillRole] = useState('')
+
   // ARA Settings
   const [araSettings, setAraSettings] = useState<ARASettingsData>({})
   const [araSaving, setAraSaving] = useState(false)
   const [araSaveMsg, setAraSaveMsg] = useState('')
 
-  // Chat
-  const [chatMessages, setChatMessages] = useState<{role: string; text: string}[]>([
+  // Chat — WebSocket (same pipeline as main chat)
+  const WS_URL = (process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001/ws/chat')
+  const [chatMessages, setChatMessages] = useState<{role: string; text: string; type?: string}[]>([
     { role: 'ai', text: "Welcome to the ARA Dashboard. I'm monitoring your autonomous sessions. Use /work <role> <goal> in the CLI to start a session, or browse the panels here." },
   ])
   const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [wsConnected, setWsConnected] = useState(false)
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const streamingRef = useRef<string>('')
+  const chatWorkspaceRef = useRef<string>('.')
+
+  // Role editing
+  const [editingRole, setEditingRole] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ scope: '', auth_method: '', description: '' })
+
+  // Consent gate inline review
+  const [expandedReview, setExpandedReview] = useState<string | null>(null)
+  const [reviewData, setReviewData] = useState<Record<string, ReviewDiffData>>({})
+  const [selectedReviewFile, setSelectedReviewFile] = useState<string | null>(null)
+
+  // Consent gate reject with feedback
+  const [rejectingGate, setRejectingGate] = useState<string | null>(null)
+  const [rejectFeedback, setRejectFeedback] = useState('')
+  const [rejectSubmitting, setRejectSubmitting] = useState(false)
+
+  // New work session
+  const [showNewSession, setShowNewSession] = useState(false)
+  const [newSession, setNewSession] = useState({ role: '', goal: '', workspace: '' })
+  const [newSessionError, setNewSessionError] = useState('')
+  const [newSessionLoading, setNewSessionLoading] = useState(false)
+
+  // Notifications
+  const [notifications, setNotifications] = useState<{id: string; message: string; type: string; time: string; read: boolean}[]>([])
 
   // Timer
   const [elapsed, setElapsed] = useState(0)
@@ -70,19 +111,24 @@ export default function ARAPage() {
   const loadData = useCallback(async () => {
     setRefreshing(true)
     try {
-      const [setupR, rolesR, sessR, statusR, dashR, settingsR] = await Promise.allSettled([
+      const [setupR, rolesR, sessR, statusR, dashR, settingsR, skillsR, notifR] = await Promise.allSettled([
         fetch(`${API}/api/ara/setup`),
         fetch(`${API}/api/ara/roles`),
         fetch(`${API}/api/ara/sessions`),
         fetch(`${API}/api/ara/status`),
         fetch(`${API}/api/ara/dashboard`),
         fetch(`${API}/api/settings`),
+        fetch(`${API}/api/ara/skills`),
+        fetch(`${API}/api/ara/notifications`),
       ])
       if (setupR.status === 'fulfilled' && setupR.value.ok) {
         const d = await setupR.value.json(); setSetupChecks(d.data?.checks || [])
       }
       if (rolesR.status === 'fulfilled' && rolesR.value.ok) {
         const d = await rolesR.value.json(); setRoles(d.data?.roles || [])
+      }
+      if (skillsR.status === 'fulfilled' && skillsR.value.ok) {
+        const d = await skillsR.value.json(); setSkills(d.data?.skills || [])
       }
       if (sessR.status === 'fulfilled' && sessR.value.ok) {
         const d = await sessR.value.json(); setSessions(d.data?.sessions || [])
@@ -107,6 +153,10 @@ export default function ARAPage() {
           ara_prompt_guard: s.ara_prompt_guard ?? true,
           ara_audit_log: s.ara_audit_log ?? true,
         })
+      }
+      if (notifR.status === 'fulfilled' && notifR.value.ok) {
+        const d = await notifR.value.json()
+        setNotifications(d.data?.notifications || [])
       }
       setError(null)
       setLastRefresh(new Date())
@@ -152,6 +202,30 @@ export default function ARAPage() {
   const tabSessions: Record<string, SessionInfo[]> = { in_progress: running, paused, completed, failed }
 
   /* ── actions ───────────────────────────────────────────────── */
+  const handleStartWork = async () => {
+    setNewSessionError('')
+    if (!newSession.role.trim()) { setNewSessionError('Select a role'); return }
+    if (!newSession.goal.trim()) { setNewSessionError('Enter a goal'); return }
+    setNewSessionLoading(true)
+    try {
+      const res = await fetch(`${API}/api/ara/work`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role_name: newSession.role, goal: newSession.goal, workspace_path: newSession.workspace || null }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setChatMessages(prev => [...prev, { role: 'ai', text: `🚀 ${d.message || 'Session started.'}` }])
+        setNewSession({ role: '', goal: '', workspace: '' })
+        setShowNewSession(false)
+        loadData()
+      } else {
+        const e = await res.json().catch(() => ({ detail: 'Failed to start session' }))
+        setNewSessionError(e.detail || e.message || 'Failed')
+      }
+    } catch { setNewSessionError('API unavailable') }
+    setNewSessionLoading(false)
+  }
+
   const handleSessionAction = async (action: string) => {
     try { await fetch(`${API}/api/ara/${action}`, { method: 'POST' }); setTimeout(loadData, 300) } catch {}
   }
@@ -194,12 +268,303 @@ export default function ARAPage() {
     setAraSaving(false)
   }
 
+  const handleCreateSkill = async () => {
+    setSkillError('')
+    if (!newSkill.name.trim()) { setSkillError('Skill name is required'); return }
+    try {
+      const res = await fetch(`${API}/api/ara/skills`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newSkill.name, description: newSkill.description, tags: newSkill.tags ? newSkill.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [] }),
+      })
+      if (!res.ok) { const e = await res.json(); setSkillError(e.detail || 'Failed'); return }
+      setNewSkill({ name: '', description: '', tags: '' })
+      setShowCreateSkill(false)
+      loadData()
+    } catch { setSkillError('API unavailable') }
+  }
+
+  const handleDeleteSkill = async (name: string) => {
+    if (!confirm(`Delete skill "${name}"?`)) return
+    try {
+      const res = await fetch(`${API}/api/ara/skills/${encodeURIComponent(name)}`, { method: 'DELETE' })
+      if (!res.ok) { const e = await res.json(); alert(e.detail || 'Failed'); return }
+      setSelectedSkill(null)
+      loadData()
+    } catch { alert('API unavailable') }
+  }
+
+  const handleAssignSkill = async (skillName: string, roleName: string) => {
+    try {
+      const res = await fetch(`${API}/api/ara/skills/assign`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_name: skillName, role_name: roleName }),
+      })
+      if (!res.ok) { const e = await res.json(); alert(e.detail || 'Failed'); return }
+      setAssignSkillRole('')
+      loadData()
+    } catch { alert('API unavailable') }
+  }
+
+  const handleUnassignSkill = async (skillName: string, roleName: string) => {
+    try {
+      const res = await fetch(`${API}/api/ara/skills/unassign`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_name: skillName, role_name: roleName }),
+      })
+      if (!res.ok) { const e = await res.json(); alert(e.detail || 'Failed'); return }
+      loadData()
+    } catch { alert('API unavailable') }
+  }
+
+  const handleScanSkill = async (name: string) => {
+    try {
+      const res = await fetch(`${API}/api/ara/skills/${encodeURIComponent(name)}/scan`, { method: 'POST' })
+      const d = await res.json()
+      alert(d.message || 'Scan complete')
+      loadData()
+    } catch { alert('API unavailable') }
+  }
+
+  // ── WebSocket chat connection (same /ws/chat as main ChatInterface) ───
+  const handleWsMessage = useCallback((event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data)
+      switch (data.type) {
+        case 'routing':
+          // Scout routing — silent debug log, don't show to user
+          console.debug('[ARA Chat] Scout:', data.route, data.reasoning)
+          break
+        case 'status':
+          setChatMessages(prev => [...prev, { role: 'ai', text: data.message, type: 'status' }])
+          break
+        case 'token': {
+          const token = data.content as string
+          streamingRef.current += token
+          const currentText = streamingRef.current
+          setChatMessages(prev => {
+            const last = prev[prev.length - 1]
+            if (last && last.type === 'streaming') {
+              return [...prev.slice(0, -1), { ...last, text: currentText }]
+            }
+            return [...prev, { role: 'ai', text: currentText, type: 'streaming' }]
+          })
+          break
+        }
+        case 'council_phase':
+          setChatMessages(prev => [...prev, { role: 'ai', text: data.message, type: 'council' }])
+          break
+        case 'complete':
+          setChatLoading(false)
+          if (streamingRef.current) {
+            // Finalize streaming message
+            setChatMessages(prev => {
+              const last = prev[prev.length - 1]
+              if (last && last.type === 'streaming') {
+                return [...prev.slice(0, -1), { ...last, type: 'complete' }]
+              }
+              return prev
+            })
+            streamingRef.current = ''
+          } else {
+            setChatMessages(prev => [...prev, { role: 'ai', text: data.response || 'Done.', type: 'complete' }])
+          }
+          break
+        case 'escalation':
+          setChatLoading(false)
+          setChatMessages(prev => [...prev, { role: 'ai', text: `ESCALATION: ${data.message}\nReason: ${data.reason}`, type: 'error' }])
+          break
+        case 'error':
+          setChatLoading(false)
+          streamingRef.current = ''
+          setChatMessages(prev => [...prev, { role: 'ai', text: `Error: ${data.message}`, type: 'error' }])
+          break
+        case 'feedback_ack':
+          break
+        default:
+          setChatLoading(false)
+          setChatMessages(prev => [...prev, { role: 'ai', text: JSON.stringify(data, null, 2) }])
+      }
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'ai', text: event.data }])
+    }
+  }, [])
+
+  const connectWs = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    try {
+      const ws = new WebSocket(WS_URL)
+      ws.onopen = () => {
+        setWsConnected(true)
+        if (reconnectRef.current) { clearTimeout(reconnectRef.current); reconnectRef.current = null }
+      }
+      ws.onclose = () => {
+        if (wsRef.current === ws) {
+          setWsConnected(false)
+          wsRef.current = null
+          reconnectRef.current = setTimeout(connectWs, 3000)
+        }
+      }
+      ws.onerror = () => { if (wsRef.current === ws) setWsConnected(false) }
+      ws.onmessage = handleWsMessage
+      wsRef.current = ws
+    } catch {
+      setWsConnected(false)
+      reconnectRef.current = setTimeout(connectWs, 3000)
+    }
+  }, [WS_URL, handleWsMessage])
+
+  // Connect WebSocket + load workspace from settings
+  useEffect(() => {
+    connectWs()
+    // Load workspace setting so chat uses the real project path
+    fetch(`${API}/api/settings`).then(r => r.ok ? r.json() : null)
+      .then(s => { if (s?.workspace) chatWorkspaceRef.current = s.workspace })
+      .catch(() => {})
+    return () => {
+      if (reconnectRef.current) clearTimeout(reconnectRef.current)
+      wsRef.current?.close()
+    }
+  }, [connectWs, API])
+
+  const sendChat = (msg: string) => {
+    if (!msg.trim() || chatLoading) return
+    setChatMessages(prev => [...prev, { role: 'user', text: msg.trim() }])
+    setChatInput('')
+
+    if (!wsConnected || !wsRef.current) {
+      setChatMessages(prev => [...prev, { role: 'ai', text: 'Not connected to Orion API. Start the server with: uvicorn orion.api.server:app --port 8001', type: 'error' }])
+      return
+    }
+
+    setChatLoading(true)
+    streamingRef.current = ''
+    wsRef.current.send(JSON.stringify({ message: msg.trim(), workspace: chatWorkspaceRef.current }))
+  }
+
+  const handleUpdateRole = async (name: string) => {
+    try {
+      const res = await fetch(`${API}/api/ara/roles/${encodeURIComponent(name)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      })
+      if (res.ok) {
+        setEditingRole(null)
+        setSelectedRole(null)
+        loadData()
+      } else {
+        const e = await res.json(); alert(e.detail || 'Update failed')
+      }
+    } catch { alert('API unavailable') }
+  }
+
+  const handleResetDashboard = async () => {
+    if (!confirm('Clear all completed, failed, and cancelled sessions? Active sessions will be preserved.')) return
+    try {
+      const res = await fetch(`${API}/api/ara/sessions/clear`, { method: 'POST' })
+      if (res.ok) {
+        const d = await res.json()
+        setChatMessages(prev => [...prev, { role: 'ai', text: `Dashboard reset: ${d.message}` }])
+        loadData()
+      } else {
+        alert('Reset failed')
+      }
+    } catch { alert('API unavailable') }
+  }
+
+  const handleRejectWithFeedback = async (sid?: string) => {
+    const key = sid || '__pending__'
+    if (rejectingGate === key) { setRejectingGate(null); setRejectFeedback(''); return }
+    setRejectingGate(key)
+    setRejectFeedback('')
+    setExpandedReview(null)
+  }
+
+  const submitReject = async (sid?: string) => {
+    if (!rejectFeedback.trim()) return
+    setRejectSubmitting(true)
+    try {
+      // 1. Reject the session
+      await fetch(`${API}/api/ara/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid || null }),
+      })
+      // 2. Submit feedback with rating 1 (rejection) so it enters the feedback loop
+      if (sid) {
+        await fetch(`${API}/api/ara/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid, rating: 1, comment: `[Rejected] ${rejectFeedback.trim()}` }),
+        })
+      }
+      setRejectingGate(null)
+      setRejectFeedback('')
+      loadData()
+    } catch { alert('API unavailable') }
+    setRejectSubmitting(false)
+  }
+
   const handleReview = async (sid?: string) => {
     try {
       const params = sid ? `?session_id=${encodeURIComponent(sid)}` : ''
-      await fetch(`${API}/api/ara/review${params}`, { method: 'POST' })
+      const reviewRes = await fetch(`${API}/api/ara/review${params}`, { method: 'POST' })
+      if (reviewRes.ok) {
+        const rd = await reviewRes.json()
+        if (rd.success) {
+          // AEGIS gate passed — promote sandbox to workspace
+          const promoteRes = await fetch(`${API}/api/ara/promote`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sid || null }),
+          })
+          if (promoteRes.ok) {
+            const pd = await promoteRes.json()
+            setChatMessages(prev => [...prev, { role: 'ai', text: `✅ ${pd.message || 'Session promoted to workspace.'}` }])
+          } else {
+            const pe = await promoteRes.json().catch(() => ({ detail: 'Promotion failed' }))
+            setChatMessages(prev => [...prev, { role: 'ai', text: `⚠ AEGIS approved but promotion failed: ${pe.detail || pe.message}`, type: 'error' }])
+          }
+        } else {
+          setChatMessages(prev => [...prev, { role: 'ai', text: `🔒 AEGIS Gate blocked: ${rd.message}`, type: 'error' }])
+        }
+      }
       loadData()
     } catch {}
+  }
+
+  const handleViewPlan = async (sid?: string) => {
+    const key = sid || '__pending__'
+    if (expandedReview === key) { setExpandedReview(null); setSelectedReviewFile(null); return }
+    setExpandedReview(key)
+    setSelectedReviewFile(null)
+    if (reviewData[key] && !reviewData[key].loading) return
+    const empty: ReviewDiffData = { loading: true, files: [], summary: null }
+    setReviewData(prev => ({ ...prev, [key]: empty }))
+    try {
+      // Try structured diff endpoint first (needs session_id)
+      if (sid) {
+        const diffRes = await fetch(`${API}/api/ara/sessions/${encodeURIComponent(sid)}/diff`)
+        if (diffRes.ok) {
+          const d = await diffRes.json()
+          if (d.success && d.data?.files?.length > 0) {
+            setReviewData(prev => ({ ...prev, [key]: { loading: false, files: d.data.files, summary: d.data.summary } }))
+            return
+          }
+        }
+      }
+      // Fallback to plan endpoint
+      const params = sid ? `?session_id=${encodeURIComponent(sid)}` : ''
+      const res = await fetch(`${API}/api/ara/plan${params}`)
+      if (res.ok) {
+        const d = await res.json()
+        const planText = d.data?.plan_text || d.message || 'No plan data available.'
+        setReviewData(prev => ({ ...prev, [key]: { loading: false, files: [], summary: null, fallbackText: planText } }))
+      } else {
+        setReviewData(prev => ({ ...prev, [key]: { loading: false, files: [], summary: null, fallbackText: 'Could not load review data.' } }))
+      }
+    } catch {
+      setReviewData(prev => ({ ...prev, [key]: { loading: false, files: [], summary: null, fallbackText: 'API unavailable — could not fetch review data.' } }))
+    }
   }
 
   const dashOffset = 264 - (264 * progress / 100)
@@ -207,6 +572,103 @@ export default function ARAPage() {
   const actIcon = (t: string) => t === 'code' ? '< >' : t === 'search' ? '🔍' : t === 'check' ? '✓' : '📝'
   const actColor = (t: string) => t === 'code' ? C.glowBlue : t === 'search' ? C.glowAmber : t === 'check' ? C.glowGreen : C.glowGreen
   const actTextColor = (t: string) => t === 'code' ? C.blue : t === 'search' ? C.amber : t === 'check' ? C.green : C.green
+
+  /* ── diff review panel renderer ───────────────────────────── */
+  const renderReviewPanel = (rd: ReviewDiffData | undefined, bottomRadius: boolean) => {
+    if (!rd) return null
+    if (rd.loading) return <div style={{ color: C.txtMut, fontSize: 13, padding: 16, textAlign: 'center' }}>Loading review data...</div>
+
+    // Fallback: plain text plan
+    if (rd.files.length === 0 && rd.fallbackText) {
+      return <div style={{ fontSize: 13, color: C.txtSec, lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: 400, overflowY: 'auto', fontFamily: 'monospace', background: C.bg2, borderRadius: 8, padding: 14 }}>{rd.fallbackText}</div>
+    }
+    if (rd.files.length === 0) return <div style={{ color: C.txtMut, fontSize: 13, padding: 12, textAlign: 'center' }}>No file changes found in sandbox.</div>
+
+    const statusIcon = (s: string) => s === 'added' ? '+' : s === 'deleted' ? '−' : s === 'unchanged' ? '=' : '~'
+    const statusColor = (s: string) => s === 'added' ? C.green : s === 'deleted' ? C.red : s === 'unchanged' ? C.blue : C.amber
+    const allUnchanged = rd.files.every(f => f.status === 'unchanged')
+    const sel = rd.files.find(f => f.path === selectedReviewFile) || null
+
+    return (
+      <div>
+        {/* Summary bar */}
+        {rd.summary && (
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 12, padding: '8px 12px', background: C.bg2, borderRadius: 8, fontSize: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: C.txt }}>{rd.summary.total_files > 0 ? `${rd.summary.total_files} file${rd.summary.total_files !== 1 ? 's' : ''} changed` : `${rd.files.length} file${rd.files.length !== 1 ? 's' : ''} in sandbox`}{allUnchanged ? ' (already promoted)' : ''}</span>
+            {rd.summary.added > 0 && <span style={{ color: C.green }}>{rd.summary.added} added</span>}
+            {rd.summary.modified > 0 && <span style={{ color: C.amber }}>{rd.summary.modified} modified</span>}
+            {rd.summary.deleted > 0 && <span style={{ color: C.red }}>{rd.summary.deleted} deleted</span>}
+            <span style={{ color: C.green }}>+{rd.summary.additions}</span>
+            <span style={{ color: C.red }}>−{rd.summary.deletions}</span>
+            {rd.summary.conflicts > 0 && <span style={{ color: C.red, fontWeight: 600 }}>⚠ {rd.summary.conflicts} conflict{rd.summary.conflicts !== 1 ? 's' : ''}</span>}
+          </div>
+        )}
+
+        {/* File tree + diff viewer */}
+        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 0, border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', maxHeight: 500 }}>
+          {/* File tree */}
+          <div style={{ background: C.bg2, borderRight: `1px solid ${C.border}`, overflowY: 'auto', maxHeight: 500 }}>
+            <div style={{ padding: '8px 10px', fontSize: 11, fontWeight: 600, color: C.txtMut, textTransform: 'uppercase', letterSpacing: 1, borderBottom: `1px solid ${C.border}` }}>Changed Files</div>
+            {rd.files.map((f, fi) => {
+              const isSelected = selectedReviewFile === f.path
+              const parts = f.path.split('/')
+              const fileName = parts[parts.length - 1]
+              const dirPath = parts.length > 1 ? parts.slice(0, -1).join('/') + '/' : ''
+              return (
+                <div key={fi} onClick={() => setSelectedReviewFile(isSelected ? null : f.path)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', cursor: 'pointer', background: isSelected ? C.glowBlue : 'transparent', borderBottom: `1px solid ${C.borderSub}`, transition: 'background 0.15s' }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: statusColor(f.status), background: `${statusColor(f.status)}20`, flexShrink: 0 }}>{statusIcon(f.status)}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: isSelected ? C.blue : C.txt, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fileName}</div>
+                    {dirPath && <div style={{ fontSize: 10, color: C.txtMut, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dirPath}</div>}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.txtMut, flexShrink: 0, textAlign: 'right' }}>
+                    {f.additions > 0 && <span style={{ color: C.green }}>+{f.additions}</span>}
+                    {f.additions > 0 && f.deletions > 0 && ' '}
+                    {f.deletions > 0 && <span style={{ color: C.red }}>−{f.deletions}</span>}
+                  </div>
+                  {f.conflict && <span style={{ fontSize: 10, color: C.red, fontWeight: 700 }}>⚠</span>}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Diff viewer */}
+          <div style={{ overflowY: 'auto', maxHeight: 500, background: C.bg0 }}>
+            {sel ? (
+              <div>
+                <div style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, color: C.txt, background: C.bg1, borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{sel.path}</span>
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${statusColor(sel.status)}20`, color: statusColor(sel.status), fontWeight: 600 }}>{sel.status}</span>
+                </div>
+                {sel.diff ? (
+                  <pre style={{ margin: 0, padding: '10px 0', fontSize: 12, lineHeight: 1.6, fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace", overflow: 'auto' }}>
+                    {sel.diff.split('\n').map((line, li) => {
+                      let bg = 'transparent'
+                      let color = C.txtSec
+                      if (line.startsWith('+++') || line.startsWith('---')) { color = C.txtMut }
+                      else if (line.startsWith('@@')) { bg = 'rgba(59,130,246,0.08)'; color = C.blue }
+                      else if (line.startsWith('+')) { bg = 'rgba(34,197,94,0.1)'; color = C.green }
+                      else if (line.startsWith('-')) { bg = 'rgba(239,68,68,0.1)'; color = C.red }
+                      return <div key={li} style={{ padding: '0 14px', background: bg, color, minHeight: 20 }}>{line || ' '}</div>
+                    })}
+                  </pre>
+                ) : sel.content ? (
+                  <pre style={{ margin: 0, padding: 14, fontSize: 12, lineHeight: 1.6, color: C.txtSec, fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace", overflow: 'auto' }}>{sel.content}</pre>
+                ) : (
+                  <div style={{ padding: 20, color: C.txtMut, fontSize: 13, textAlign: 'center' }}>No content available for this file.</div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200, color: C.txtMut, fontSize: 13 }}>
+                Select a file to view changes
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   /* ── nav button helper ─────────────────────────────────────── */
   const NavBtn = ({ id, icon, label, badge, href }: { id: string; icon: string; label: string; badge?: number; href?: string }) => {
@@ -257,7 +719,16 @@ export default function ARAPage() {
             <button onClick={() => loadData()} style={{ background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 12px', color: refreshing ? C.txtMut : C.blue, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               {refreshing ? '...' : '↻ Refresh'}
             </button>
+            <button onClick={handleResetDashboard} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '6px 12px', color: C.red, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Reset
+            </button>
             {lastRefresh && <span style={{ fontSize: 11, color: C.txtMut, fontFamily: 'monospace' }}>Updated {lastRefresh.toLocaleTimeString()}</span>}
+            {notifications.filter(n => !n.read).length > 0 && (
+              <div style={{ position: 'relative', cursor: 'pointer' }} title={`${notifications.filter(n => !n.read).length} unread notifications`}>
+                <span style={{ fontSize: 16 }}>🔔</span>
+                <span style={{ position: 'absolute', top: -4, right: -6, background: C.red, color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{notifications.filter(n => !n.read).length}</span>
+              </div>
+            )}
             <div style={{ width: 36, height: 36, background: C.bg2, borderRadius: '50%', border: `2px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 14, color: C.txtSec }}>JA</div>
             <Link href="/" style={{ fontSize: 13, color: C.blue, textDecoration: 'none' }}>← Back</Link>
           </div>
@@ -276,6 +747,7 @@ export default function ARAPage() {
 
           <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1.5, color: C.txtMut, padding: '0 12px', marginTop: 16, marginBottom: 8 }}>Configuration</div>
           <NavBtn id="roles" icon="👤" label="Job Roles" />
+          <NavBtn id="skills" icon="🧩" label="Skills" badge={skills.length} />
           <NavBtn id="memory" icon="🧠" label="Memory" />
           <NavBtn id="ara-settings" icon="⚙" label="ARA Settings" />
           <NavBtn id="settings" icon="🔧" label="All Settings" href="/settings" />
@@ -301,6 +773,40 @@ export default function ARAPage() {
                 </div>
               ))}
             </div>
+
+            {/* New Session Form */}
+            {!isWorking && (
+              <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+                {!showNewSession ? (
+                  <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 14, color: C.txtSec }}>No active session</span>
+                    <button onClick={() => setShowNewSession(true)} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: `linear-gradient(135deg, ${C.green}, ${C.blue})`, color: '#fff', border: 'none' }}>+ New Session</button>
+                  </div>
+                ) : (
+                  <div style={{ padding: 20 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>Start New Work Session</div>
+                    {newSessionError && <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: C.red, fontSize: 12, marginBottom: 12 }}>{newSessionError}</div>}
+                    <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 12, marginBottom: 12 }}>
+                      <div>
+                        <label style={{ fontSize: 12, color: C.txtMut, marginBottom: 4, display: 'block' }}>Role *</label>
+                        <select value={newSession.role} onChange={e => setNewSession(p => ({ ...p, role: e.target.value }))} style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 13 }}>
+                          <option value="">Select role...</option>
+                          {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 12, color: C.txtMut, marginBottom: 4, display: 'block' }}>Goal *</label>
+                        <input value={newSession.goal} onChange={e => setNewSession(p => ({ ...p, goal: e.target.value }))} placeholder="Describe what the agent should accomplish..." style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 13 }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button onClick={handleStartWork} disabled={newSessionLoading} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: newSessionLoading ? 'wait' : 'pointer', background: C.green, color: C.bg0, border: 'none', opacity: newSessionLoading ? 0.6 : 1 }}>{newSessionLoading ? 'Starting...' : 'Start Session'}</button>
+                      <button onClick={() => { setShowNewSession(false); setNewSessionError('') }} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Status Hero */}
             <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28, display: 'grid', gridTemplateColumns: '1fr auto', gap: 24, position: 'relative', overflow: 'hidden' }}>
@@ -453,26 +959,82 @@ export default function ARAPage() {
           {/* ═══ CONSENT GATES VIEW ═══ */}
           {activeNav === 'consent' && (<>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Consent Gates</div>
-            {pendingCount > 0 && dashSections.filter(s => s.title.toLowerCase().includes('pending') || s.title.toLowerCase().includes('review')).map((s, i) => (
-              <div key={i} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 12, padding: 16, marginBottom: 10 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: C.amber }}>⚠</span> {s.title}</div>
-                <div style={{ fontSize: 13, color: C.txtSec, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{s.content}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button onClick={() => handleReview()} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
-                  <button style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Review First</button>
+            {pendingCount > 0 && dashSections.filter(s => s.title.toLowerCase().includes('pending') || s.title.toLowerCase().includes('review')).map((s, i) => {
+              // Use session_id from dashboard section data (added by API), with regex fallback
+              let pendingSid = s.session_id || undefined
+              if (!pendingSid) {
+                const sidMatch = s.content.match(/[Ss]ession\s+([a-f0-9]{8,})/i)
+                const sidFragment = sidMatch?.[1] || ''
+                const matchedSession = sidFragment ? sessions.find(ss => ss.session_id?.startsWith(sidFragment)) : null
+                pendingSid = matchedSession?.session_id || sessions.find(ss => ss.status === 'completed')?.session_id || undefined
+              }
+              const key = pendingSid || `__pending_${i}__`
+              const isExpanded = expandedReview === key
+              const rd = reviewData[key]
+              return (
+                <div key={i} style={{ marginBottom: 10 }}>
+                  <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: isExpanded ? '12px 12px 0 0' : 12, padding: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: C.amber }}>⚠</span> {s.title}</div>
+                    <div style={{ fontSize: 13, color: C.txtSec, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{s.content}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button onClick={() => handleReview(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
+                      <button onClick={() => handleViewPlan(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: isExpanded ? 'rgba(59,130,246,0.15)' : C.bg2, color: isExpanded ? C.blue : C.txtSec, border: `1px solid ${isExpanded ? 'rgba(59,130,246,0.3)' : C.border}` }}>Review First {isExpanded ? '▲' : '▼'}</button>
+                      <button onClick={() => handleRejectWithFeedback(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: rejectingGate === key ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', color: C.red, border: '1px solid rgba(239,68,68,0.25)' }}>Reject {rejectingGate === key ? '▲' : ''}</button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div style={{ background: C.bg1, border: '1px solid rgba(245,158,11,0.2)', borderTop: 'none', borderRadius: rejectingGate === key ? 0 : '0 0 12px 12px', padding: 16 }}>
+                      {renderReviewPanel(rd, !(rejectingGate === key))}
+                    </div>
+                  )}
+                  {rejectingGate === key && (
+                    <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.2)', borderTop: isExpanded ? 'none' : undefined, borderRadius: '0 0 12px 12px', padding: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.red, marginBottom: 8 }}>Why are you rejecting this?</div>
+                      <div style={{ fontSize: 12, color: C.txtMut, marginBottom: 10 }}>Your feedback will be sent to Orion so it can learn from this and improve future work.</div>
+                      <textarea value={rejectFeedback} onChange={e => setRejectFeedback(e.target.value)} placeholder="Explain what was wrong or what you expected instead..." rows={4} style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', marginBottom: 10 }} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button disabled={!rejectFeedback.trim() || rejectSubmitting} onClick={() => submitReject(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: rejectFeedback.trim() ? 'pointer' : 'not-allowed', background: rejectFeedback.trim() ? C.red : C.bg3, color: rejectFeedback.trim() ? '#fff' : C.txtMut, border: 'none', opacity: rejectSubmitting ? 0.6 : 1 }}>{rejectSubmitting ? 'Rejecting...' : 'Reject & Send Feedback'}</button>
+                        <button onClick={() => { setRejectingGate(null); setRejectFeedback('') }} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
-            {sessions.filter(s => s.status === 'completed').map((s, i) => (
-              <div key={i} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 12, padding: 16, marginBottom: 10 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: C.amber }}>🔒</span> Review: {s.goal?.slice(0, 60)}</div>
-                <div style={{ fontSize: 13, color: C.txtSec, marginBottom: 12 }}>Session {s.session_id?.slice(0, 8)} completed by {s.role}. Ready for sandbox review and promotion.</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => handleReview(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve & Promote</button>
-                  <button style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Review Diff</button>
+              )
+            })}
+            {sessions.filter(s => s.status === 'completed').map((s, i) => {
+              const key = s.session_id || `completed-${i}`
+              const isExpanded = expandedReview === key
+              const rd = reviewData[key]
+              return (
+                <div key={i} style={{ marginBottom: 10 }}>
+                  <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: isExpanded ? '12px 12px 0 0' : 12, padding: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: C.amber }}>🔒</span> Review: {s.goal?.slice(0, 60)}</div>
+                    <div style={{ fontSize: 13, color: C.txtSec, marginBottom: 12 }}>Session {s.session_id?.slice(0, 8)} completed by {s.role}. Ready for sandbox review and promotion.</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => handleReview(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve & Promote</button>
+                      <button onClick={() => handleViewPlan(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: isExpanded ? 'rgba(59,130,246,0.15)' : C.bg2, color: isExpanded ? C.blue : C.txtSec, border: `1px solid ${isExpanded ? 'rgba(59,130,246,0.3)' : C.border}` }}>Review Diff {isExpanded ? '▲' : '▼'}</button>
+                      <button onClick={() => handleRejectWithFeedback(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: rejectingGate === key ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', color: C.red, border: '1px solid rgba(239,68,68,0.25)' }}>Reject {rejectingGate === key ? '▲' : ''}</button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div style={{ background: C.bg1, border: '1px solid rgba(245,158,11,0.2)', borderTop: 'none', borderRadius: rejectingGate === key ? 0 : '0 0 12px 12px', padding: 16 }}>
+                      {renderReviewPanel(rd, !(rejectingGate === key))}
+                    </div>
+                  )}
+                  {rejectingGate === key && (
+                    <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.2)', borderTop: isExpanded ? 'none' : undefined, borderRadius: '0 0 12px 12px', padding: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.red, marginBottom: 8 }}>Why are you rejecting this?</div>
+                      <div style={{ fontSize: 12, color: C.txtMut, marginBottom: 10 }}>Your feedback will be sent to Orion so it can learn from this and improve future work.</div>
+                      <textarea value={rejectFeedback} onChange={e => setRejectFeedback(e.target.value)} placeholder="Explain what was wrong or what you expected instead..." rows={4} style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 13, fontFamily: 'inherit', resize: 'vertical', marginBottom: 10 }} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button disabled={!rejectFeedback.trim() || rejectSubmitting} onClick={() => submitReject(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: rejectFeedback.trim() ? 'pointer' : 'not-allowed', background: rejectFeedback.trim() ? C.red : C.bg3, color: rejectFeedback.trim() ? '#fff' : C.txtMut, border: 'none', opacity: rejectSubmitting ? 0.6 : 1 }}>{rejectSubmitting ? 'Rejecting...' : 'Reject & Send Feedback'}</button>
+                        <button onClick={() => { setRejectingGate(null); setRejectFeedback('') }} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
             {pendingCount === 0 && sessions.filter(s => s.status === 'completed').length === 0 && (
               <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 30, textAlign: 'center' }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
@@ -513,10 +1075,10 @@ export default function ARAPage() {
                       <option value="pin">PIN</option><option value="totp">TOTP</option><option value="none">None</option>
                     </select>
                   </div>
-                  <div>
-                    <label style={{ fontSize: 12, color: C.txtMut, marginBottom: 4, display: 'block' }}>Description</label>
-                    <input value={newRole.description} onChange={e => setNewRole(p => ({ ...p, description: e.target.value }))} placeholder="Short description" style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }} />
-                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, color: C.txtMut, marginBottom: 4, display: 'block' }}>Description</label>
+                  <textarea value={newRole.description} onChange={e => setNewRole(p => ({ ...p, description: e.target.value }))} placeholder="Describe the role's responsibilities, context, and expected behavior in detail..." rows={4} style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
                 </div>
                 <button onClick={handleCreateRole} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Create Role</button>
               </div>
@@ -535,6 +1097,7 @@ export default function ARAPage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button onClick={e => { e.stopPropagation(); setEditingRole(r.name); setEditForm({ scope: r.scope, auth_method: r.auth_method, description: r.description || '' }); setSelectedRole(r) }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.2)' }}>Edit</button>
                       {r.source !== 'starter' && <button onClick={e => { e.stopPropagation(); handleDeleteRole(r.name) }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Delete</button>}
                       <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: r.source === 'starter' ? C.glowBlue : 'rgba(34,197,94,0.1)', color: r.source === 'starter' ? C.blue : C.green }}>{r.source}</span>
                     </div>
@@ -547,12 +1110,173 @@ export default function ARAPage() {
             {/* Role Detail (expanded) */}
             {selectedRole && (
               <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Role: {selectedRole.name}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Scope</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.scope}</div></div>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Auth Method</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.auth_method}</div></div>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Source</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.source}</div></div>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Description</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.description || 'No description'}</div></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>Role: {selectedRole.name}</div>
+                  {editingRole !== selectedRole.name && (
+                    <button onClick={() => { setEditingRole(selectedRole.name); setEditForm({ scope: selectedRole.scope, auth_method: selectedRole.auth_method, description: selectedRole.description || '' }) }} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.3)' }}>Edit Role</button>
+                  )}
+                </div>
+
+                {editingRole === selectedRole.name ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Scope</label>
+                        <select value={editForm.scope} onChange={e => setEditForm(p => ({ ...p, scope: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
+                          <option value="coding">coding</option>
+                          <option value="research">research</option>
+                          <option value="devops">devops</option>
+                          <option value="full">full</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Auth Method</label>
+                        <select value={editForm.auth_method} onChange={e => setEditForm(p => ({ ...p, auth_method: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
+                          <option value="pin">pin</option>
+                          <option value="totp">totp</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Description</label>
+                      <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} placeholder="Describe the role's responsibilities, context, and expected behavior in detail..." rows={5} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => handleUpdateRole(selectedRole.name)} style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Save Changes</button>
+                      <button onClick={() => setEditingRole(null)} style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Scope</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.scope}</div></div>
+                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Auth Method</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.auth_method}</div></div>
+                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Source</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.source}</div></div>
+                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8, gridColumn: '1 / -1' }}><div style={{ fontSize: 11, color: C.txtMut }}>Description</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{selectedRole.description || 'No description'}</div></div>
+                  </div>
+                )}
+
+                {/* Assigned Skills */}
+                <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 16, paddingTop: 16 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Assigned Skills</div>
+                  {(selectedRole.assigned_skills && selectedRole.assigned_skills.length > 0) ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {selectedRole.assigned_skills.map((sk, si) => {
+                        const skillInfo = skills.find(s => s.name === sk)
+                        return (
+                          <div key={si} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: C.bg2, borderRadius: 8, border: `1px solid ${C.borderSub}` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 14 }}>🧩</span>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 500 }}>{sk}</div>
+                                {skillInfo && <div style={{ fontSize: 11, color: C.txtMut }}>{skillInfo.description?.slice(0, 80) || 'No description'}</div>}
+                              </div>
+                            </div>
+                            <button onClick={() => handleUnassignSkill(sk, selectedRole.name)} style={{ padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Remove</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '14px 16px', background: C.bg2, borderRadius: 8, color: C.txtMut, fontSize: 13 }}>No skills assigned. Go to Skills → select a skill → Assign to Role.</div>
+                  )}
+                  {(selectedRole.assigned_skill_groups && selectedRole.assigned_skill_groups.length > 0) && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: C.txtSec, marginBottom: 6 }}>Skill Groups</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {selectedRole.assigned_skill_groups.map((sg, sgi) => (
+                          <span key={sgi} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.2)' }}>{sg}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>)}
+
+          {/* ═══ SKILLS VIEW ═══ */}
+          {activeNav === 'skills' && (<>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>Skills ({skills.length})</div>
+              <button onClick={() => setShowCreateSkill(!showCreateSkill)} style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: showCreateSkill ? 'rgba(239,68,68,0.1)' : C.glowBlue, color: showCreateSkill ? C.red : C.blue, border: `1px solid ${showCreateSkill ? 'rgba(239,68,68,0.3)' : 'rgba(59,130,246,0.3)'}` }}>
+                {showCreateSkill ? 'Cancel' : '+ Create Skill'}
+              </button>
+            </div>
+
+            {/* Create Skill Form */}
+            {showCreateSkill && (
+              <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Create New Skill</div>
+                {skillError && <div style={{ color: C.red, fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.1)', borderRadius: 8 }}>{skillError}</div>}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 12, color: C.txtMut, marginBottom: 4, display: 'block' }}>Skill Name *</label>
+                    <input value={newSkill.name} onChange={e => setNewSkill(p => ({ ...p, name: e.target.value }))} placeholder="e.g. code-review" style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 12, color: C.txtMut, marginBottom: 4, display: 'block' }}>Tags (comma-separated)</label>
+                    <input value={newSkill.tags} onChange={e => setNewSkill(p => ({ ...p, tags: e.target.value }))} placeholder="e.g. quality, testing" style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }} />
+                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, color: C.txtMut, marginBottom: 4, display: 'block' }}>Description</label>
+                  <textarea value={newSkill.description} onChange={e => setNewSkill(p => ({ ...p, description: e.target.value }))} placeholder="Describe what this skill does, when it should be used, and what context it provides to the agent..." rows={4} style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
+                </div>
+                <button onClick={handleCreateSkill} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Create Skill</button>
+              </div>
+            )}
+
+            {/* Skills List */}
+            <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {skills.map((s, i) => (
+                  <div key={i} onClick={() => setSelectedSkill(selectedSkill?.name === s.name ? null : s)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: selectedSkill?.name === s.name ? C.glowBlue : C.bg2, borderRadius: 10, border: `1px solid ${selectedSkill?.name === s.name ? 'rgba(59,130,246,0.3)' : C.borderSub}`, cursor: 'pointer', transition: 'all 0.2s ease' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: s.aegis_approved ? C.glowGreen : 'rgba(239,68,68,0.1)', color: s.aegis_approved ? C.green : C.red, fontSize: 16, fontWeight: 600 }}>{s.aegis_approved ? '✓' : '✗'}</div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
+                        <div style={{ fontSize: 12, color: C.txtMut }}>{s.description?.slice(0, 60) || 'No description'}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {s.tags?.slice(0, 2).map((t, ti) => <span key={ti} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: C.bg3, color: C.txtSec }}>{t}</span>)}
+                      <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: s.trust_level === 'verified' ? C.glowGreen : s.trust_level === 'blocked' ? 'rgba(239,68,68,0.1)' : C.glowBlue, color: s.trust_level === 'verified' ? C.green : s.trust_level === 'blocked' ? C.red : C.blue }}>{s.trust_level}</span>
+                      <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: s.source === 'imported' ? C.glowBlue : 'rgba(34,197,94,0.1)', color: s.source === 'imported' ? C.blue : C.green }}>{s.source}</span>
+                    </div>
+                  </div>
+                ))}
+                {skills.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: C.txtMut }}>No skills found. Click &quot;+ Create Skill&quot; or use /skill create in the CLI.</div>}
+              </div>
+            </div>
+
+            {/* Skill Detail (expanded) */}
+            {selectedSkill && (
+              <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div style={{ fontSize: 16, fontWeight: 600 }}>Skill: {selectedSkill.name}</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => handleScanSkill(selectedSkill.name)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.3)' }}>Re-scan</button>
+                    {selectedSkill.source !== 'imported' && <button onClick={() => handleDeleteSkill(selectedSkill.name)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Delete</button>}
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Version</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.version}</div></div>
+                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Trust Level</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.trust_level}</div></div>
+                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>AEGIS Approved</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, color: selectedSkill.aegis_approved ? C.green : C.red }}>{selectedSkill.aegis_approved ? 'Yes' : 'No'}</div></div>
+                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Source</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.source}</div></div>
+                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8, gridColumn: '1 / -1' }}><div style={{ fontSize: 11, color: C.txtMut }}>Tags</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.tags?.join(', ') || 'None'}</div></div>
+                </div>
+
+                {/* Assign to Role */}
+                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Assign to Role</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select value={assignSkillRole} onChange={e => setAssignSkillRole(e.target.value)} style={{ flex: 1, padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
+                      <option value="">Select a role...</option>
+                      {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                    </select>
+                    <button onClick={() => assignSkillRole && handleAssignSkill(selectedSkill.name, assignSkillRole)} disabled={!assignSkillRole} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: assignSkillRole ? 'pointer' : 'not-allowed', background: assignSkillRole ? C.green : C.bg3, color: assignSkillRole ? C.bg0 : C.txtMut, border: 'none' }}>Assign</button>
+                  </div>
                 </div>
               </div>
             )}
@@ -636,7 +1360,7 @@ export default function ARAPage() {
                 <div style={{ fontSize: 13, color: C.txtSec, marginBottom: 12, lineHeight: 1.5 }}>Session by {s.role} ready for review.</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => handleReview(s.session_id)} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
-                  <button style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Review First</button>
+                  <button onClick={() => handleViewPlan(s.session_id)} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Review First</button>
                 </div>
               </div>
             ))}
@@ -653,29 +1377,53 @@ export default function ARAPage() {
             ))}
           </div>
 
-          {/* Chat Panel */}
+          {/* Chat Panel — WebSocket streaming (full Orion pipeline) */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>Talk to Orion</div>
-              <div style={{ fontSize: 12, color: C.txtMut }}>Ask questions or give instructions</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>Talk to Orion</div>
+                  <div style={{ fontSize: 12, color: C.txtMut }}>Full pipeline — streaming, memory, NLA</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: wsConnected ? C.green : C.amber }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: wsConnected ? C.green : C.amber, boxShadow: wsConnected ? `0 0 6px ${C.green}` : 'none' }} />
+                  {wsConnected ? 'Connected' : 'Reconnecting...'}
+                </div>
+              </div>
             </div>
-            <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {chatMessages.map((m, i) => (
-                <div key={i} style={{ maxWidth: '90%', padding: '10px 14px', borderRadius: 12, fontSize: 14, lineHeight: 1.5, alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? C.blue : C.bg2, borderBottomRightRadius: m.role === 'user' ? 4 : 12, borderBottomLeftRadius: m.role === 'ai' ? 4 : 12 }}>{m.text}</div>
-              ))}
+            <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {chatMessages.map((m, i) => {
+                const isUser = m.role === 'user'
+                const isError = m.type === 'error'
+                const isStreaming = m.type === 'streaming'
+                const isCouncil = m.type === 'council'
+                const isStatus = m.type === 'status'
+                const bg = isUser ? C.blue : isError ? 'rgba(239,68,68,0.12)' : isCouncil ? 'rgba(168,85,247,0.1)' : isStatus ? 'rgba(245,158,11,0.08)' : isStreaming ? 'rgba(52,211,153,0.06)' : C.bg2
+                const border = isError ? 'rgba(239,68,68,0.25)' : isCouncil ? 'rgba(168,85,247,0.25)' : isStatus ? 'rgba(245,158,11,0.2)' : 'transparent'
+                return (
+                  <div key={i} style={{ maxWidth: '90%', padding: '10px 14px', borderRadius: 12, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', alignSelf: isUser ? 'flex-end' : 'flex-start', background: bg, border: `1px solid ${border}`, borderBottomRightRadius: isUser ? 4 : 12, borderBottomLeftRadius: !isUser ? 4 : 12 }}>
+                    {!isUser && m.type && m.type !== 'complete' && (
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: isError ? C.red : isCouncil ? C.purple : isStatus ? C.amber : C.green, marginBottom: 4 }}>
+                        {isError ? 'Error' : isCouncil ? 'Council' : isStatus ? 'Status' : isStreaming ? 'Streaming' : m.type}
+                      </div>
+                    )}
+                    {m.text}
+                    {isStreaming && <span style={{ animation: 'pulse 1s ease-in-out infinite', color: C.txtMut }}> ▊</span>}
+                  </div>
+                )
+              })}
+              {chatLoading && !streamingRef.current && (
+                <div style={{ maxWidth: '90%', padding: '10px 14px', borderRadius: 12, fontSize: 13, color: C.txtMut, background: C.bg2, borderBottomLeftRadius: 4, alignSelf: 'flex-start', animation: 'pulse 1.5s ease-in-out infinite' }}>Orion is thinking...</div>
+              )}
             </div>
-            <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <textarea value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey && chatInput.trim()) {
                   e.preventDefault()
-                  setChatMessages(prev => [...prev, { role: 'user', text: chatInput.trim() }])
-                  const msg = chatInput.trim(); setChatInput('')
-                  fetch(`${API}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg, workspace: '.' }) })
-                    .then(r => r.ok ? r.json() : null)
-                    .then(d => { if (d?.response) setChatMessages(prev => [...prev, { role: 'ai', text: d.response }]) })
-                    .catch(() => setChatMessages(prev => [...prev, { role: 'ai', text: 'Could not reach the API server.' }]))
+                  sendChat(chatInput)
                 }
-              }} placeholder="Ask Orion something..." rows={2} style={{ width: '100%', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'none' }} />
+              }} placeholder={wsConnected ? 'Ask Orion something...' : 'Waiting for connection...'} rows={2} style={{ flex: 1, background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 14px', color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'none' }} />
+              <button onClick={() => sendChat(chatInput)} disabled={chatLoading || !chatInput.trim()} style={{ padding: '12px 16px', borderRadius: 12, border: 'none', background: chatLoading || !chatInput.trim() ? C.bg3 : C.blue, color: chatLoading || !chatInput.trim() ? C.txtMut : '#fff', cursor: chatLoading || !chatInput.trim() ? 'not-allowed' : 'pointer', fontSize: 16, fontWeight: 700, flexShrink: 0 }}>↑</button>
             </div>
           </div>
         </aside>

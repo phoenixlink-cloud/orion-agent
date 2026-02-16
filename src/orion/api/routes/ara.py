@@ -50,6 +50,12 @@ class RoleCreateRequest(BaseModel):
     description: str = ""
 
 
+class RoleUpdateRequest(BaseModel):
+    scope: str | None = None
+    auth_method: str | None = None
+    description: str | None = None
+
+
 class ARASettingsUpdate(BaseModel):
     settings: dict[str, Any]
 
@@ -157,6 +163,128 @@ async def cleanup_sessions(max_age_days: int = 30):
 
 
 # =============================================================================
+# Review / Promote / Reject
+# =============================================================================
+
+
+class PromoteRequest(BaseModel):
+    session_id: str | None = None
+    credential: str | None = None
+
+
+class RejectRequest(BaseModel):
+    session_id: str | None = None
+
+
+@router.post("/review")
+async def post_review(session_id: str | None = None, credential: str | None = None):
+    """Run AEGIS gate check on a session."""
+    try:
+        from orion.ara.cli_commands import cmd_review
+
+        result = cmd_review(session_id=session_id, credential=credential)
+        return {"success": result.success, "message": result.message, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/promote")
+async def post_promote(req: PromoteRequest):
+    """Promote sandbox files to workspace after AEGIS approval."""
+    try:
+        from orion.ara.cli_commands import cmd_promote
+
+        result = cmd_promote(session_id=req.session_id, credential=req.credential)
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=409, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions/{session_id}/diff")
+async def get_session_diff(session_id: str):
+    """Get structured file diffs for a session's sandbox changes.
+
+    Returns per-file unified diffs, original/new content, and summary stats
+    for rendering a GitHub-PR-style review UI.
+    """
+    try:
+        from orion.ara.cli_commands import cmd_review_diff
+
+        result = cmd_review_diff(session_id=session_id)
+        return {"success": result.success, "message": result.message, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reject")
+async def post_reject(req: RejectRequest):
+    """Reject sandbox changes."""
+    try:
+        from orion.ara.cli_commands import cmd_reject
+
+        result = cmd_reject(session_id=req.session_id)
+        return {"success": result.success, "message": result.message, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Feedback
+# =============================================================================
+
+
+@router.post("/feedback")
+async def post_feedback(req: FeedbackRequest):
+    """Submit user feedback for a session."""
+    try:
+        from orion.ara.cli_commands import cmd_feedback
+
+        result = cmd_feedback(
+            session_id=req.session_id, rating=req.rating, comment=req.comment,
+        )
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=404, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Notifications
+# =============================================================================
+
+
+@router.get("/notifications")
+async def get_notifications():
+    """Get unread notifications."""
+    try:
+        from orion.ara.cli_commands import cmd_notifications
+
+        result = cmd_notifications(mark_read=False)
+        return {"success": result.success, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/notifications/read")
+async def mark_notifications_read():
+    """Mark all notifications as read."""
+    try:
+        from orion.ara.cli_commands import cmd_notifications
+
+        result = cmd_notifications(mark_read=True)
+        return {"success": result.success, "message": result.message}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # Roles
 # =============================================================================
 
@@ -222,6 +350,27 @@ async def create_role(req: RoleCreateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.put("/roles/{role_name}")
+async def update_role(role_name: str, req: RoleUpdateRequest):
+    """Update an existing role."""
+    try:
+        from orion.ara.cli_commands import cmd_role_update
+
+        result = cmd_role_update(
+            role_name=role_name,
+            scope=req.scope,
+            auth_method=req.auth_method,
+            description=req.description,
+        )
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=404, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/roles/{role_name}")
 async def delete_role(role_name: str):
     """Delete a user role."""
@@ -234,6 +383,23 @@ async def delete_role(role_name: str):
         raise HTTPException(status_code=404, detail=result.message)
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Session Clear (Dashboard Reset)
+# =============================================================================
+
+
+@router.post("/sessions/clear")
+async def clear_sessions():
+    """Clear completed, failed, and cancelled sessions. Preserves running sessions."""
+    try:
+        from orion.ara.cli_commands import cmd_sessions_clear
+
+        result = cmd_sessions_clear()
+        return {"success": result.success, "message": result.message, "data": result.data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -273,6 +439,7 @@ async def get_dashboard(session_id: str | None = None):
                     "title": f"Pending Review: {p.get('goal', 'Unknown')}",
                     "content": f"Session {p['session_id'][:12]} by role '{p.get('role', '?')}' — {p.get('tasks', 0)} tasks completed.",
                     "style": "warning",
+                    "session_id": p["session_id"],
                 })
             rendered = dash.get_startup_message() or ""
 
@@ -363,17 +530,203 @@ async def post_rollback(checkpoint_id: str, session_id: str | None = None):
 
 
 # =============================================================================
-# Review (promotion)
+# Skills (ARA-006)
 # =============================================================================
 
 
-@router.post("/review")
-async def post_review(session_id: str | None = None, credential: str | None = None):
-    """Review sandbox changes for promotion."""
-    try:
-        from orion.ara.cli_commands import cmd_review
+class SkillCreateRequest(BaseModel):
+    name: str
+    description: str = ""
+    instructions: str = ""
+    tags: list[str] = []
 
-        result = cmd_review(session_id=session_id, credential=credential)
+
+class SkillAssignRequest(BaseModel):
+    skill_name: str
+    role_name: str
+
+
+class SkillGroupCreateRequest(BaseModel):
+    name: str
+    display_name: str = ""
+    group_type: str = "general"
+
+
+class SkillGroupAssignRequest(BaseModel):
+    skill_name: str
+    group_name: str
+
+
+@router.get("/skills")
+async def get_skills(tag: str | None = None):
+    """List all available skills."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_list
+
+        result = cmd_skill_list(tag=tag)
         return {"success": result.success, "message": result.message, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/skills/{skill_name}")
+async def get_skill(skill_name: str):
+    """Get details for a specific skill."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_show
+
+        result = cmd_skill_show(skill_name)
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=404, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/skills")
+async def create_skill(req: SkillCreateRequest):
+    """Create a new skill."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_create
+
+        result = cmd_skill_create(
+            name=req.name,
+            description=req.description,
+            instructions=req.instructions,
+            tags=req.tags if req.tags else None,
+        )
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=409, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/skills/{skill_name}")
+async def delete_skill(skill_name: str):
+    """Delete a skill."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_delete
+
+        result = cmd_skill_delete(skill_name)
+        if result.success:
+            return {"success": True, "message": result.message}
+        raise HTTPException(status_code=404, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/skills/{skill_name}/scan")
+async def scan_skill(skill_name: str):
+    """Re-scan a skill with SkillGuard."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_scan
+
+        result = cmd_skill_scan(skill_name)
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=404, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/skills/assign")
+async def assign_skill_to_role(req: SkillAssignRequest):
+    """Assign a skill to a role."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_assign
+
+        result = cmd_skill_assign(req.skill_name, req.role_name)
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=400, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/skills/unassign")
+async def unassign_skill_from_role(req: SkillAssignRequest):
+    """Remove a skill from a role."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_unassign
+
+        result = cmd_skill_unassign(req.skill_name, req.role_name)
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=400, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/skill-groups")
+async def get_skill_groups():
+    """List all skill groups."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_group_list
+
+        result = cmd_skill_group_list()
+        return {"success": result.success, "message": result.message, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/skill-groups")
+async def create_skill_group(req: SkillGroupCreateRequest):
+    """Create a new skill group."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_group_create
+
+        result = cmd_skill_group_create(
+            name=req.name, display_name=req.display_name, group_type=req.group_type,
+        )
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=409, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/skill-groups/{group_name}")
+async def delete_skill_group(group_name: str):
+    """Delete a skill group."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_group_delete
+
+        result = cmd_skill_group_delete(group_name)
+        if result.success:
+            return {"success": True, "message": result.message}
+        raise HTTPException(status_code=404, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/skill-groups/assign")
+async def add_skill_to_group(req: SkillGroupAssignRequest):
+    """Add a skill to a group."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_group_assign
+
+        result = cmd_skill_group_assign(req.skill_name, req.group_name)
+        if result.success:
+            return {"success": True, "message": result.message}
+        raise HTTPException(status_code=400, detail=result.message)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

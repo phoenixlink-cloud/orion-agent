@@ -177,20 +177,23 @@ class TestSandboxInactive:
 class TestGetMemoryContext:
     def test_no_memory_engine(self, tmp_path):
         router = RequestRouter(str(tmp_path), sandbox_enabled=False, memory_engine=None)
+        router._institutional = None  # isolate from real DB
         assert router._get_memory_context("test") == ""
 
     def test_with_memory_engine(self, tmp_path):
         mock_engine = MagicMock()
         mock_engine.recall_for_prompt.return_value = "## MEMORY CONTEXT\n- Some pattern"
         router = RequestRouter(str(tmp_path), sandbox_enabled=False, memory_engine=mock_engine)
+        router._institutional = None  # isolate from real DB
         result = router._get_memory_context("test query")
         assert "MEMORY CONTEXT" in result
-        mock_engine.recall_for_prompt.assert_called_once_with("test query", max_tokens=1500)
+        mock_engine.recall_for_prompt.assert_called_once_with("test query", max_tokens=1200)
 
     def test_memory_engine_exception(self, tmp_path):
         mock_engine = MagicMock()
         mock_engine.recall_for_prompt.side_effect = RuntimeError("oops")
         router = RequestRouter(str(tmp_path), sandbox_enabled=False, memory_engine=mock_engine)
+        router._institutional = None  # isolate from real DB
         assert router._get_memory_context("test") == ""
 
 

@@ -84,6 +84,7 @@ class InstitutionalMemory:
         self.db_path = Path.home() / ".orion" / "institutional_memory.db"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        self._seed_if_empty()
 
     # ── Schema ───────────────────────────────────────────────────────────
 
@@ -165,6 +166,25 @@ class InstitutionalMemory:
 
         conn.commit()
         conn.close()
+
+    def _seed_if_empty(self):
+        """Load foundational knowledge if seed patterns are missing.
+
+        The seed function checks each pattern by ID before inserting,
+        so it's safe to call on every init — only truly new seeds get added.
+        """
+        conn = sqlite3.connect(self.db_path)
+        # Check if any seed pattern exists (they all start with 'p-')
+        has_seeds = conn.execute(
+            "SELECT COUNT(*) FROM learned_patterns WHERE id LIKE 'p-%'"
+        ).fetchone()[0]
+        conn.close()
+        if has_seeds == 0:
+            try:
+                from orion.core.memory.seed_knowledge import seed_institutional_memory
+                seed_institutional_memory(self)
+            except Exception:
+                pass  # Seed data is optional — don't break init if missing
 
     # ── Learning from outcomes ───────────────────────────────────────────
 

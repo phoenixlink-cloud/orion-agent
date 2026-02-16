@@ -176,6 +176,21 @@ def handle_command(
     elif command == "/review":
         return _handle_ara_review(parts, console)
 
+    elif command == "/promote":
+        return _handle_ara_promote(parts, console)
+
+    elif command == "/reject":
+        return _handle_ara_reject(parts, console)
+
+    elif command == "/feedback":
+        return _handle_ara_feedback(parts, console)
+
+    elif command == "/notifications":
+        return _handle_ara_notifications(parts, console)
+
+    elif command == "/skill":
+        return _handle_ara_skill(parts, console)
+
     elif command == "/role":
         return _handle_ara_role(parts, console)
 
@@ -975,10 +990,20 @@ def _handle_ara_dashboard(console, workspace_path):
     try:
         from orion.ara.dashboard import MorningDashboard
 
-        dash = MorningDashboard(workspace_path=workspace_path or ".")
-        data = dash.gather_data()
-        output = dash.render(data)
-        console._print(output)
+        dash = MorningDashboard()
+
+        # Check for pending reviews first
+        pending = dash.check_pending_reviews()
+        if pending:
+            startup_msg = dash.get_startup_message()
+            if startup_msg:
+                console.print_info(startup_msg)
+            # Show the most recent pending session's dashboard
+            session_id = pending[0]["session_id"]
+            output = dash.render(session_id)
+            console._print(output)
+        else:
+            console.print_info("No pending ARA sessions to review. Start one with /work <role> <goal>.")
     except Exception as e:
         console.print_error(f"ARA dashboard failed: {e}")
     return {}
@@ -1069,4 +1094,227 @@ def _handle_ara_auth_switch(parts, console):
             console.print_error(result.message)
     except Exception as e:
         console.print_error(f"ARA auth-switch failed: {e}")
+    return {}
+
+
+def _handle_ara_promote(parts, console):
+    """Handle /promote [session_id] [pin] -- Promote sandbox files to workspace."""
+    session_id = parts[1] if len(parts) > 1 else None
+    credential = parts[2] if len(parts) > 2 else None
+    try:
+        from orion.ara.cli_commands import cmd_promote
+
+        result = cmd_promote(session_id=session_id, credential=credential)
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_error(result.message)
+            if "auth" in result.message.lower():
+                console.print_info("Hint: /promote <session_id> <pin>")
+    except Exception as e:
+        console.print_error(f"Promote failed: {e}")
+    return {}
+
+
+def _handle_ara_reject(parts, console):
+    """Handle /reject [session_id] -- Reject sandbox changes."""
+    session_id = parts[1] if len(parts) > 1 else None
+    try:
+        from orion.ara.cli_commands import cmd_reject
+
+        result = cmd_reject(session_id=session_id)
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"Reject failed: {e}")
+    return {}
+
+
+def _handle_ara_feedback(parts, console):
+    """Handle /feedback <session_id> <rating> [comment] -- Submit user feedback."""
+    if len(parts) < 3:
+        console.print_info("Usage: /feedback <session_id> <1-5> [comment]")
+        return {}
+    try:
+        from orion.ara.cli_commands import cmd_feedback
+
+        session_id = parts[1]
+        rating = int(parts[2])
+        comment = " ".join(parts[3:]) if len(parts) > 3 else None
+        result = cmd_feedback(session_id=session_id, rating=rating, comment=comment)
+        if result.success:
+            console.print_success(result.message)
+        else:
+            console.print_error(result.message)
+    except ValueError:
+        console.print_error("Rating must be a number 1-5.")
+    except Exception as e:
+        console.print_error(f"Feedback failed: {e}")
+    return {}
+
+
+def _handle_ara_skill(parts, console):
+    """Handle /skill <subcommand> -- Skill management."""
+    if len(parts) < 2:
+        console.print_info("Usage:")
+        console.print_info("  /skill list              -- List all skills")
+        console.print_info("  /skill show <name>       -- Show skill details")
+        console.print_info("  /skill create <name>     -- Create a new skill")
+        console.print_info("  /skill delete <name>     -- Delete a skill")
+        console.print_info("  /skill scan <name>       -- Re-scan skill with SkillGuard")
+        console.print_info("  /skill assign <skill> <role>   -- Assign skill to role")
+        console.print_info("  /skill unassign <skill> <role> -- Remove skill from role")
+        console.print_info("  /skill groups            -- List skill groups")
+        console.print_info("  /skill group-create <name>     -- Create a skill group")
+        console.print_info("  /skill group-delete <name>     -- Delete a skill group")
+        console.print_info("  /skill group-add <skill> <group> -- Add skill to group")
+        return {}
+
+    sub = parts[1].lower()
+    try:
+        from orion.ara import cli_commands as ara
+
+        if sub == "list":
+            tag = None
+            for i, p in enumerate(parts[2:], 2):
+                if p == "--tag" and i + 1 < len(parts):
+                    tag = parts[i + 1]
+            result = ara.cmd_skill_list(tag=tag)
+            if result.success:
+                console.print_info(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "show":
+            if len(parts) < 3:
+                console.print_info("Usage: /skill show <name>")
+                return {}
+            result = ara.cmd_skill_show(parts[2])
+            if result.success:
+                console.print_info(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "create":
+            if len(parts) < 3:
+                console.print_info("Usage: /skill create <name> [--desc \"description\"] [--tag tag1,tag2]")
+                return {}
+            name = parts[2]
+            desc = ""
+            tags = []
+            for i, p in enumerate(parts[3:], 3):
+                if p == "--desc" and i + 1 < len(parts):
+                    desc = parts[i + 1]
+                elif p == "--tag" and i + 1 < len(parts):
+                    tags = [t.strip() for t in parts[i + 1].split(",")]
+            result = ara.cmd_skill_create(name=name, description=desc, tags=tags if tags else None)
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "delete":
+            if len(parts) < 3:
+                console.print_info("Usage: /skill delete <name>")
+                return {}
+            result = ara.cmd_skill_delete(parts[2])
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "scan":
+            if len(parts) < 3:
+                console.print_info("Usage: /skill scan <name>")
+                return {}
+            result = ara.cmd_skill_scan(parts[2])
+            if result.success:
+                console.print_info(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "assign":
+            if len(parts) < 4:
+                console.print_info("Usage: /skill assign <skill-name> <role-name>")
+                return {}
+            result = ara.cmd_skill_assign(parts[2], parts[3])
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "unassign":
+            if len(parts) < 4:
+                console.print_info("Usage: /skill unassign <skill-name> <role-name>")
+                return {}
+            result = ara.cmd_skill_unassign(parts[2], parts[3])
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "groups":
+            result = ara.cmd_skill_group_list()
+            if result.success:
+                console.print_info(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "group-create":
+            if len(parts) < 3:
+                console.print_info("Usage: /skill group-create <name> [--type general|specialized]")
+                return {}
+            gtype = "general"
+            for i, p in enumerate(parts[3:], 3):
+                if p == "--type" and i + 1 < len(parts):
+                    gtype = parts[i + 1]
+            result = ara.cmd_skill_group_create(name=parts[2], group_type=gtype)
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "group-delete":
+            if len(parts) < 3:
+                console.print_info("Usage: /skill group-delete <name>")
+                return {}
+            result = ara.cmd_skill_group_delete(parts[2])
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        elif sub == "group-add":
+            if len(parts) < 4:
+                console.print_info("Usage: /skill group-add <skill-name> <group-name>")
+                return {}
+            result = ara.cmd_skill_group_assign(parts[2], parts[3])
+            if result.success:
+                console.print_success(result.message)
+            else:
+                console.print_error(result.message)
+
+        else:
+            console.print_error(f"Unknown skill subcommand: {sub}")
+
+    except Exception as e:
+        console.print_error(f"ARA skill failed: {e}")
+    return {}
+
+
+def _handle_ara_notifications(parts, console):
+    """Handle /notifications [--read] -- Show pending notifications."""
+    mark_read = "--read" in parts or "-r" in parts
+    try:
+        from orion.ara.cli_commands import cmd_notifications
+
+        result = cmd_notifications(mark_read=mark_read)
+        if result.success:
+            console.print_info(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"Notifications failed: {e}")
     return {}

@@ -155,6 +155,8 @@ class RoleProfile:
     notifications: NotificationConfig = field(default_factory=NotificationConfig)
     model_override: str | None = None
     tags: list[str] = field(default_factory=list)
+    assigned_skills: list[str] = field(default_factory=list)
+    assigned_skill_groups: list[str] = field(default_factory=list)
     source_path: str | None = None
 
     def __post_init__(self):
@@ -306,6 +308,8 @@ class RoleProfile:
             },
             "model_override": self.model_override,
             "tags": self.tags,
+            "assigned_skills": self.assigned_skills,
+            "assigned_skill_groups": self.assigned_skill_groups,
         }
 
     @classmethod
@@ -341,6 +345,8 @@ class RoleProfile:
             notifications=NotificationConfig.from_dict(notif_data) if notif_data else NotificationConfig(),
             model_override=data.get("model_override"),
             tags=data.get("tags", []),
+            assigned_skills=data.get("assigned_skills", []),
+            assigned_skill_groups=data.get("assigned_skill_groups", []),
             source_path=source_path,
         )
 

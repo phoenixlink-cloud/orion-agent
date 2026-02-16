@@ -85,14 +85,26 @@ OLLAMA_TIMEOUT = 300
 
 
 def _get_key(provider: str) -> str | None:
-    """Retrieve API key from SecureStore (lazy import to avoid circular deps)."""
+    """Retrieve API key from SecureStore, falling back to environment variables."""
+    # Try SecureStore first
     try:
         from orion.security.store import SecureStore
 
         store = SecureStore()
-        return store.get_key(provider)
+        key = store.get_key(provider)
+        if key:
+            return key
     except Exception:
-        return None
+        pass
+
+    # Fallback: check standard environment variables
+    import os
+
+    env_key = os.environ.get(f"{provider.upper()}_API_KEY")
+    if env_key:
+        return env_key
+
+    return None
 
 
 def _error_json(message: str) -> str:
@@ -111,9 +123,48 @@ async def retry_api_call(
     """Retry an async API call with exponential backoff."""
     last_error = None
 
+    attempts_made = 0
     for attempt in range(max_retries):
+        attempts_made = attempt + 1
         try:
             return await func()
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            status = e.response.status_code
+
+            # Auth errors — never retry, give clear guidance
+            if status in (401, 403):
+                logger.error("[%s] Auth error %d (not retrying): %s", component, status, str(e)[:200])
+                return _error_json(
+                    "API key is invalid or expired. Update your key via Settings → API Keys "
+                    "in the dashboard, or run: /key set <provider> <new-key>"
+                )
+
+            # Model/resource not found — never retry
+            if status == 404:
+                logger.error("[%s] Resource not found: %s", component, str(e)[:200])
+                url = str(e.request.url) if e.request else ""
+                if "ollama" in url or "localhost:11434" in url:
+                    return _error_json(
+                        "Ollama model not found. Make sure you've pulled the model first with: "
+                        "ollama pull <model-name>. Check available models in Settings → AI Model Setup."
+                    )
+                return _error_json(f"Resource not found (404): {str(e)[:150]}")
+
+            # Server errors may be transient — retry
+            if status in (500, 502, 503, 429):
+                if attempt < max_retries - 1:
+                    wait_time = delay_seconds * (2 ** attempt)
+                    logger.warning("[%s] Retrying in %.1fs (HTTP %d, attempt %d/%d)",
+                                   component, wait_time, status, attempts_made, max_retries)
+                    await asyncio.sleep(wait_time)
+                    continue
+
+            # Other HTTP errors — don't retry
+            logger.error("[%s] HTTP %d after %d attempt(s): %s",
+                         component, status, attempts_made, str(e)[:200])
+            break
+
         except Exception as e:
             last_error = e
             error_str = str(e).lower()
@@ -123,7 +174,7 @@ async def retry_api_call(
                 logger.error(
                     "[%s] API call failed after %d attempt(s): %s",
                     component,
-                    attempt + 1,
+                    attempts_made,
                     str(e)[:200],
                 )
                 break
@@ -133,13 +184,13 @@ async def retry_api_call(
                 "[%s] Retrying in %.1fs (attempt %d/%d): %s",
                 component,
                 wait_time,
-                attempt + 1,
+                attempts_made,
                 max_retries,
                 str(e)[:100],
             )
             await asyncio.sleep(wait_time)
 
-    return _error_json(f"API error after {max_retries} attempts: {str(last_error)}")
+    return _error_json(f"API error after {attempts_made} attempt(s): {str(last_error)}")
 
 
 # ── Provider-specific callers ────────────────────────────────────────────

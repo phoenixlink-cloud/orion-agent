@@ -29,6 +29,7 @@ from typing import Any, Callable
 
 from orion.ara.checkpoint import CheckpointManager
 from orion.ara.execution import ExecutionLoop
+from orion.ara.feedback_store import FeedbackStore, SessionOutcome, TaskOutcome
 from orion.ara.goal_engine import TaskDAG
 from orion.ara.role_profile import RoleProfile
 from orion.ara.session import SessionState, SessionStatus
@@ -199,6 +200,7 @@ class ARADaemon:
         dag: TaskDAG,
         control: DaemonControl | None = None,
         task_executor: Callable[..., Any] | None = None,
+        task_executor_ref: Any = None,
         checkpoint_dir: Path | None = None,
     ):
         self._session = session
@@ -206,6 +208,7 @@ class ARADaemon:
         self._dag = dag
         self._control = control or DaemonControl()
         self._executor = task_executor
+        self._executor_ref = task_executor_ref
         self._checkpoint_mgr = CheckpointManager(
             session_id=session.session_id,
             checkpoints_dir=checkpoint_dir,
@@ -265,6 +268,63 @@ class ARADaemon:
             # Resume is handled by re-running the execution loop
             logger.info("Daemon resume acknowledged")
 
+    def _on_task_complete(self) -> None:
+        """Called after each task — update status, save session."""
+        self._update_status()
+        self._session.save()
+
+    def _on_control_check(self) -> None:
+        """Called between tasks — process pending control commands."""
+        self._process_control_command()
+
+    def _write_notification(self, event: str, message: str) -> None:
+        """Write a notification file for the CLI/web to pick up."""
+        notif_dir = self._control._dir / "notifications"
+        notif_dir.mkdir(parents=True, exist_ok=True)
+        notif = {
+            "event": event,
+            "session_id": self._session.session_id,
+            "role_name": self._session.role_name,
+            "message": message,
+            "timestamp": time.time(),
+            "read": False,
+        }
+        notif_file = notif_dir / f"{event}_{int(time.time())}.json"
+        notif_file.write_text(json.dumps(notif, indent=2), encoding="utf-8")
+        logger.info("Notification written: %s — %s", event, message)
+
+    def _record_feedback(self, result) -> None:
+        """Record task and session outcomes to FeedbackStore."""
+        try:
+            store = FeedbackStore()
+
+            # Record each task outcome
+            for task in self._dag.tasks:
+                store.record_task(TaskOutcome(
+                    task_id=task.task_id,
+                    session_id=self._session.session_id,
+                    action_type=task.action_type,
+                    success=(task.status.value == "completed"),
+                    confidence=task.confidence,
+                    duration_seconds=task.actual_minutes * 60,
+                    error=task.error or None,
+                ))
+
+            # Record session outcome
+            store.record_session(SessionOutcome(
+                session_id=self._session.session_id,
+                role_name=self._session.role_name,
+                goal=self._session.goal,
+                status=self._session.status.value,
+                tasks_completed=result.tasks_completed,
+                tasks_failed=result.tasks_failed,
+                total_duration_seconds=result.total_elapsed_seconds,
+                total_cost_usd=result.total_cost_usd,
+            ))
+            logger.info("Feedback recorded: %d tasks, 1 session", len(self._dag.tasks))
+        except Exception as e:
+            logger.warning("Failed to record feedback: %s", e)
+
     async def run(self) -> None:
         """Run the daemon execution loop."""
         self._control.write_pid(os.getpid())
@@ -275,7 +335,10 @@ class ARADaemon:
                 session=self._session,
                 dag=self._dag,
                 task_executor=self._executor,
+                task_executor_ref=self._executor_ref,
                 on_checkpoint=self._create_checkpoint,
+                on_task_complete=self._on_task_complete,
+                on_control_check=self._on_control_check,
                 checkpoint_interval_minutes=self._role.auto_checkpoint_interval_minutes,
             )
 
@@ -284,6 +347,24 @@ class ARADaemon:
             # Save final state
             self._session.save()
             self._update_status()
+
+            # Record feedback to FeedbackStore
+            self._record_feedback(result)
+
+            # Write completion notification
+            if self._role.notifications.on_complete:
+                if self._session.status == SessionStatus.COMPLETED:
+                    self._write_notification(
+                        "session_complete",
+                        f"Session {self._session.session_id[:12]} completed. "
+                        f"{result.tasks_completed}/{self._dag.total_tasks} tasks done. "
+                        f"Run '/review' to approve and promote files.",
+                    )
+                elif self._session.status == SessionStatus.FAILED and self._role.notifications.on_error:
+                    self._write_notification(
+                        "session_failed",
+                        f"Session {self._session.session_id[:12]} failed: {result.stop_reason}",
+                    )
 
             logger.info(
                 "Daemon session ended: %s (completed=%d, failed=%d)",
@@ -298,6 +379,11 @@ class ARADaemon:
                 self._session.error_message = str(e)
                 self._session.transition(SessionStatus.FAILED)
             self._update_status()
+            if self._role.notifications.on_error:
+                self._write_notification(
+                    "session_error",
+                    f"Session {self._session.session_id[:12]} error: {e}",
+                )
 
         finally:
             self._control.clear_pid()

@@ -1,0 +1,227 @@
+{
+  "version": "1.0.0",
+  "description": "Orion Teaching Curriculum — structured Q&A lessons for institutional learning",
+  "subjects": [
+    {
+      "id": "file-operations",
+      "name": "File Operations",
+      "description": "How to safely read, write, and manage files during autonomous execution",
+      "lessons": [
+        {
+          "id": "fo-101",
+          "title": "Read Before Write",
+          "grade": 1,
+          "prerequisite": null,
+          "questions": [
+            {
+              "id": "fo-101-q1",
+              "question": "You are an autonomous agent about to execute a write_file task for 'game.html'. The file already exists in the sandbox with 200 lines of code from a previous task. What should you do before generating new content?",
+              "expected_concepts": ["read existing|read the file|read current|check existing|load existing", "preserve existing|keep existing|maintain existing|don't lose|don't discard", "not overwrite blindly|avoid overwriting|don't replace|don't generate from scratch"],
+              "correct_answer": "Read the existing file content from the sandbox first, then include it in the LLM prompt so the model can produce an updated version that preserves existing functionality while adding the new changes.",
+              "pattern_id": "p-read-before-write",
+              "difficulty": "easy"
+            },
+            {
+              "id": "fo-101-q2",
+              "question": "Task 3 creates game.html (150 lines). Task 4 says 'add keyboard controls'. Task 4 completes and game.html now has 80 lines. What went wrong?",
+              "expected_concepts": ["content loss|lost content|missing content|data loss|work was lost|code was lost", "blind overwrite|overwrote|replaced|wrote from scratch|generated from scratch|didn't read", "regression|shrank|smaller|fewer lines|reduced", "should have more lines|should be larger|should have grown|expected more|lines should increase"],
+              "correct_answer": "Task 4 overwrote the file without reading the existing 150 lines first. The LLM generated keyboard controls from scratch (80 lines) instead of adding them to the existing 150 lines. The file should have grown, not shrunk. This is a blind overwrite bug.",
+              "pattern_id": "p-read-before-write",
+              "difficulty": "easy"
+            },
+            {
+              "id": "fo-101-q3",
+              "question": "An edit task produces output that is 40% the size of the original file. Should you accept this edit? Why or why not?",
+              "expected_concepts": ["regression guard|safety check|size check|validate size|compare size|sanity check", "reject shrinkage|reject the edit|don't accept|refuse|discard the output|flag it", "content loss|lost content|missing code|data loss|something was removed", "keep original|revert|use the old version|restore|fall back to original"],
+              "correct_answer": "No. A file shrinking by more than 50% during an edit is likely content loss, not a valid edit. The regression guard should reject edits that shrink files drastically and keep the original version. The LLM likely summarized instead of editing.",
+              "pattern_id": "p-regression-guard",
+              "difficulty": "medium"
+            }
+          ]
+        },
+        {
+          "id": "fo-102",
+          "title": "File Targeting",
+          "grade": 1,
+          "prerequisite": "fo-101",
+          "questions": [
+            {
+              "id": "fo-102-q1",
+              "question": "The sandbox contains: app.py, style.css, README.md. A task says 'add responsive layout'. Which file should this target and why?",
+              "expected_concepts": ["style.css|stylesheet|the css file", "responsive|layout|styling", "css|stylesheet|style", "extension matching|file type|matches the task"],
+              "correct_answer": "style.css — the task mentions 'responsive layout' which is a CSS concern. The file targeting system should score style.css highest because the extension '.css' matches keywords like 'layout' and 'responsive'.",
+              "pattern_id": "p-universal-file-targeting",
+              "difficulty": "easy"
+            },
+            {
+              "id": "fo-102-q2",
+              "question": "Why is it wrong to hardcode 'game.html' as the default target file for HTML-related tasks?",
+              "expected_concepts": ["not universal|too specific|only works for games|assumes", "breaks other projects|other users|different projects|portfolio|dashboard", "any file type|all file types|different types|generic", "open matching|dynamic|pattern matching|based on context|scan"],
+              "correct_answer": "Hardcoding 'game.html' assumes every HTML project is a game. A user building a portfolio site, a dashboard, or a Flask app would get wrong file targeting. File targeting must use open pattern matching against actual sandbox contents, not hardcoded assumptions.",
+              "pattern_id": "p-universal-file-targeting",
+              "difficulty": "easy"
+            },
+            {
+              "id": "fo-102-q3",
+              "question": "The sandbox has 3 files and the task description doesn't mention any filename. How should you determine the target file?",
+              "expected_concepts": ["most recently modified|last modified|most recent|last edited|last changed", "mtime|modification time|timestamp|when it was changed", "active file|currently being worked on|primary file|main file", "tier 4 fallback|fallback|last resort|heuristic"],
+              "correct_answer": "Use the most recently modified file as the target. The file that was last edited is most likely the one being actively worked on. Skip README files as they are support files, not main targets. This is the Tier 4 fallback when explicit naming, keyword scoring, and single-file fallback all miss.",
+              "pattern_id": "p-universal-file-targeting",
+              "difficulty": "medium"
+            }
+          ]
+        },
+        {
+          "id": "fo-103",
+          "title": "Sandbox Safety",
+          "grade": 2,
+          "prerequisite": "fo-102",
+          "questions": [
+            {
+              "id": "fo-103-q1",
+              "question": "A new ARA session starts. Should the sandbox contain files from the previous session? Why or why not? And what if the user wants to continue where they left off?",
+              "expected_concepts": ["clean sandbox|empty sandbox|fresh sandbox|new sandbox|start clean", "no carryover|no files from previous|don't inherit|isolated|nothing carries over", "security|safety|prevent malicious|prevent stale|protect|risk|dangerous|contamination|untrusted", "explicit opt-in|user must choose|user decides|continue mode|user confirms|opt in|explicitly|intentionally|deliberately"],
+              "correct_answer": "No. Each new session starts with a clean sandbox by default. No files carry over from previous sessions. This prevents stale or malicious files from persisting. If the user wants to build on existing work, they must explicitly choose 'continue' mode.",
+              "pattern_id": "p-clean-sandbox-security",
+              "difficulty": "easy"
+            },
+            {
+              "id": "fo-103-q2",
+              "question": "You are about to promote sandbox files to the workspace. The workspace already has a file called 'index.html'. What should you do?",
+              "expected_concepts": ["archive|back up|save a copy|move to archive", "backup|copy|save the old version|preserve", "manifest|record|log what was archived|metadata|document", "timestamped|dated|unique name|versioned|date|time", "never silently overwrite|warn|don't just replace|ask first|protect existing|inform the user"],
+              "correct_answer": "Archive the existing workspace file before overwriting. Move it to .orion-archive/<session>_<timestamp>/ with a _manifest.json that describes what was archived, when, and why. Never silently overwrite files the user may care about.",
+              "pattern_id": "p-archive-before-overwrite",
+              "difficulty": "medium"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task-execution",
+      "name": "Task Execution",
+      "description": "How to decompose goals, sequence tasks, and maintain context across multi-step workflows",
+      "lessons": [
+        {
+          "id": "te-101",
+          "title": "Task Decomposition",
+          "grade": 1,
+          "prerequisite": null,
+          "questions": [
+            {
+              "id": "te-101-q1",
+              "question": "A goal is decomposed into 5 tasks. Tasks 1, 3, and 5 all use 'write_file' for the same file. Is this correct? What should the action types be?",
+              "expected_concepts": ["write_file only first|write_file for creation|write_file once|first time only", "edit_file for subsequent|edit_file for modifications|edit_file after|edit for changes", "only create once|don't recreate|already exists|file was already created"],
+              "correct_answer": "No. Only Task 1 should use 'write_file' (first creation). Tasks 3 and 5 should use 'edit_file' because the file already exists. Using write_file for a file that was already created signals 'generate from scratch' which discards previous work.",
+              "pattern_id": "p-write-vs-edit-distinction",
+              "difficulty": "easy"
+            },
+            {
+              "id": "te-101-q2",
+              "question": "A task description says 'Add game loop'. Is this a good task description? How would you improve it?",
+              "expected_concepts": ["name target file|specify the file|include filename|mention the file", "explicit|specific|clear|unambiguous", "which file|what file|target file|destination", "actionable|can act on it|knows where to write|precise"],
+              "correct_answer": "No, it's too vague. It doesn't specify which file to modify. A good description would be 'Add game loop to game.html' — it explicitly names the target file so the executor can reliably identify what to read and edit.",
+              "pattern_id": "p-explicit-file-naming",
+              "difficulty": "easy"
+            }
+          ]
+        },
+        {
+          "id": "te-102",
+          "title": "Inter-Task Context",
+          "grade": 2,
+          "prerequisite": "te-101",
+          "questions": [
+            {
+              "id": "te-102-q1",
+              "question": "Task 5 needs to add collision detection to a game. Tasks 1-4 have already created the game canvas, player sprite, movement, and scoring. What context should Task 5's LLM prompt include?",
+              "expected_concepts": ["previous task summaries|earlier tasks|what was done before|completed tasks|task history", "sandbox inventory|current files|file listing|what files exist", "what was built|existing code|current state|already created", "cumulative|build upon|incremental|add to existing"],
+              "correct_answer": "The prompt should include: (1) summaries of Tasks 1-4 showing what was built, (2) a live inventory of sandbox files with sizes, (3) the current content of the target file. This ensures the LLM knows about the existing canvas, sprites, movement system, and scoring, and can add collision detection that integrates with all of them.",
+              "pattern_id": "p-inter-task-context",
+              "difficulty": "medium"
+            },
+            {
+              "id": "te-102-q2",
+              "question": "After Task 3 completes successfully, what information should be recorded for future tasks to use?",
+              "expected_concepts": ["task_id|task identifier|which task", "title|task name|description", "output summary|result|what happened|what was generated", "what was produced|what was created|what was built|the output", "file changes|lines changed|file updated|bytes written|file size"],
+              "correct_answer": "Record a summary containing the task_id, title, and a snippet of the output (e.g., 'Generated game.html (150 lines, 5.2 KB)' or 'Updated game.html (150→210 lines)'). This summary gets injected into subsequent LLM prompts so future tasks know what was already accomplished.",
+              "pattern_id": "p-inter-task-context",
+              "difficulty": "easy"
+            }
+          ]
+        },
+        {
+          "id": "te-103",
+          "title": "Quality Validation",
+          "grade": 2,
+          "prerequisite": "te-102",
+          "questions": [
+            {
+              "id": "te-103-q1",
+              "question": "A validation task checks that output files exist and are not empty. 12 tasks ran, the final file exists with 125 lines. The validation passes. But the file should have 300+ lines. What's wrong with this validation?",
+              "expected_concepts": ["validates existence not quality|only checks if file exists|doesn't check content|superficial", "should check cumulative|track expected size|compare against history|verify completeness", "line count|number of lines|file size|how big", "content quality|what's inside|actual content|features present"],
+              "correct_answer": "The validation only checks existence and minimum size, not content quality. It should also verify that the file size is reasonable given the number of tasks completed. 12 editing tasks producing only 125 lines suggests massive content loss. A good validator compares output against expected size based on task history.",
+              "pattern_id": "p-regression-guard",
+              "difficulty": "medium"
+            },
+            {
+              "id": "te-103-q2",
+              "question": "An LLM is told to 'preserve all existing functionality' but its output is missing 3 functions from the original file. What programmatic check could catch this?",
+              "expected_concepts": ["regression guard|safety check|validation|size guard|sanity check|verify|compare|check the size|programmatic check", "line count comparison|compare sizes|check line count|measure before and after|count the lines", "shrinkage detection|detect if smaller|file got smaller|lost lines|significantly smaller|reduction in size", "reject if smaller|keep original|revert|don't accept|flag the edit|discard|roll back"],
+              "correct_answer": "A regression guard that compares the new file's line count to the original. If new_lines < old_lines * 0.5, the edit likely lost content. Reject the edit and keep the original. Also consider checking for specific function signatures or structural markers.",
+              "pattern_id": "p-regression-guard",
+              "difficulty": "hard"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "architecture",
+      "name": "Architecture & Design",
+      "description": "Principles for building robust, extensible, and provider-agnostic systems",
+      "lessons": [
+        {
+          "id": "ar-101",
+          "title": "Provider Agnosticism",
+          "grade": 2,
+          "prerequisite": null,
+          "questions": [
+            {
+              "id": "ar-101-q1",
+              "question": "The task executor hardcodes 'ollama' as the LLM provider and 'qwen2.5:14b' as the model. A user wants to use OpenAI's GPT-4. What's the problem and how should it be fixed?",
+              "expected_concepts": ["hardcoded provider|locked to one provider|only works with ollama|not configurable", "read from config|user configuration|settings|role config|configurable", "unified router|provider interface|abstraction|supports multiple|any provider|single interface|common interface", "call_provider|routing function|dispatch|provider-agnostic call|route the call|api call|through the interface"],
+              "correct_answer": "The hardcoded provider locks out all non-Ollama users. The fix: read provider and model from the user's RoleConfig via load_model_config(), then route all LLM calls through the unified call_provider() which supports all 11 providers. Role model_override should take precedence if set.",
+              "pattern_id": "p-provider-agnostic",
+              "difficulty": "medium"
+            }
+          ]
+        },
+        {
+          "id": "ar-102",
+          "title": "Defensive Design",
+          "grade": 3,
+          "prerequisite": "ar-101",
+          "questions": [
+            {
+              "id": "ar-102-q1",
+              "question": "The decomposition prompt tells the LLM to 'always name the target file in every task description'. Can you rely on this instruction being followed 100% of the time? What should you do?",
+              "expected_concepts": ["LLM not reliable|can't trust|doesn't always follow|may not comply|unreliable", "guard rails|safety checks|programmatic checks|defensive|backup plan", "fallback|alternative|backup|default behavior|graceful degradation", "handle both cases|works either way|regardless|robust"],
+              "correct_answer": "No. LLMs don't follow instructions 100% of the time. You must add programmatic guard rails: if the filename is missing from the description, fall back to sandbox file scoring, then single-file fallback, then most-recently-modified. The executor should handle both cases correctly regardless of whether the LLM complied.",
+              "pattern_id": null,
+              "difficulty": "hard"
+            },
+            {
+              "id": "ar-102-q2",
+              "question": "You built a file extension matching system with a whitelist of 50 extensions. A user asks Orion to work with a .blend file (Blender 3D). Your system doesn't recognize it. What's the design flaw?",
+              "expected_concepts": ["whitelist incomplete|whitelist will miss|can't cover all|always gaps|limited", "open matching|open pattern|match anything|regex|dynamic matching", "any extension|all extensions|unknown extensions|new file types", "universal design|works for everything|generic|extensible|not limited"],
+              "correct_answer": "A whitelist will always be incomplete. The design should use open pattern matching that works for ANY file extension — match any 'word.ext' pattern where ext is 1-12 characters. The keyword map becomes bonus scoring, not a gate. Unknown extensions still match via stem comparison and bare-extension detection.",
+              "pattern_id": "p-universal-file-targeting",
+              "difficulty": "medium"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

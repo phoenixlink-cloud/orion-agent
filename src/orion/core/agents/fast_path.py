@@ -307,20 +307,25 @@ class FastPath:
                 component="fast_path",
             )
 
-            # call_provider returns error JSON on failure
-            if response and not response.startswith('{"outcome": "ANSWER", "response": "API error'):
+            # call_provider returns _error_json on failure:
+            # '{"outcome": "ANSWER", "response": "<error message>"}'
+            # Normal LLM responses are plain text, never JSON with "outcome".
+            if response:
+                try:
+                    import json as _json
+
+                    parsed = _json.loads(response)
+                    if isinstance(parsed, dict) and "outcome" in parsed:
+                        # This is an error envelope from _error_json
+                        return FastPathResult(
+                            success=False,
+                            response=parsed.get("response", response),
+                        )
+                except (ValueError, TypeError):
+                    pass  # Not JSON — it's a real LLM response
                 return FastPathResult(success=True, response=response)
 
-            # Extract error message from JSON
-            try:
-                import json as _json
-
-                err = _json.loads(response)
-                err_msg = err.get("response", response)
-            except Exception:
-                err_msg = response or "Unknown error"
-
-            return FastPathResult(success=False, response=err_msg)
+            return FastPathResult(success=False, response="No response from LLM.")
 
         except Exception as e:
             return FastPathResult(
@@ -390,6 +395,8 @@ class FastPath:
 
         # No streaming available -- fall back to non-streaming
         result = await self.execute(request, scout_report)
+        if not result.success:
+            raise RuntimeError(result.response)
         yield result.response
 
     # =========================================================================

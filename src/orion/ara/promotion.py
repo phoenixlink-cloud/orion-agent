@@ -15,6 +15,7 @@ Handles the complete lifecycle of promoting ARA session work:
 - Creating sandbox branches for isolated work
 - Computing file diffs between sandbox and workspace
 - Detecting conflicts with workspace changes
+- Archiving existing workspace files before promotion (prevents name conflicts)
 - Promoting (merging) changes with pre/post git tags
 - Rejecting changes (branch preserved for reference)
 - Undoing promotions via revert commits
@@ -230,6 +231,57 @@ class PromotionManager:
 
         return conflicts
 
+    def _archive_existing_files(
+        self, session_id: str, diffs: list[FileDiff],
+    ) -> Path | None:
+        """Archive workspace files that would be overwritten by promotion.
+
+        Creates a timestamped archive directory so Orion never confuses old
+        project files with newly promoted ones. Only archives files that would
+        be modified or replaced (not new files).
+
+        Returns the archive directory path, or None if nothing was archived.
+        """
+        files_to_archive = [
+            d for d in diffs
+            if d.status == "modified" and (self._workspace / d.path).exists()
+        ]
+        if not files_to_archive:
+            return None
+
+        archive_dir = (
+            self._workspace / ".orion-archive"
+            / f"{session_id[:12]}_{int(time.time())}"
+        )
+        archive_dir.mkdir(parents=True, exist_ok=True)
+
+        for diff in files_to_archive:
+            src = self._workspace / diff.path
+            dst = archive_dir / diff.path
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.copy2(str(src), str(dst))
+            except Exception as e:
+                logger.warning("Could not archive %s: %s", diff.path, e)
+
+        # Write a manifest so it's clear what this archive contains
+        manifest = {
+            "session_id": session_id,
+            "archived_at": time.time(),
+            "reason": "Pre-promotion backup of workspace files that were overwritten",
+            "files": [d.path for d in files_to_archive],
+        }
+        import json
+        (archive_dir / "_manifest.json").write_text(
+            json.dumps(manifest, indent=2), encoding="utf-8",
+        )
+
+        logger.info(
+            "Archived %d workspace files to %s before promotion",
+            len(files_to_archive), archive_dir,
+        )
+        return archive_dir
+
     def promote(
         self,
         session_id: str,
@@ -237,10 +289,11 @@ class PromotionManager:
     ) -> PromotionResult:
         """Promote sandbox changes to the workspace.
 
-        1. Tag pre-promote state
-        2. Copy sandbox files to workspace
-        3. Remove deleted files
-        4. Tag post-promote state
+        1. Archive existing workspace files that would be overwritten
+        2. Tag pre-promote state
+        3. Copy sandbox files to workspace
+        4. Remove deleted files
+        5. Tag post-promote state
         """
         sandbox = self.get_sandbox_path(session_id)
         if sandbox is None:
@@ -257,6 +310,9 @@ class PromotionManager:
         # Check for conflicts
         conflicts = self.check_conflicts(session_id)
         conflict_paths = [c.path for c in conflicts]
+
+        # Archive existing files that would be overwritten
+        archive_dir = self._archive_existing_files(session_id, diffs)
 
         # Tag pre-promote
         pre_tag = f"orion-pre-promote/{session_id[:12]}"
@@ -293,6 +349,8 @@ class PromotionManager:
         self._git_tag(post_tag)
 
         msg = f"Promoted {promoted} files."
+        if archive_dir:
+            msg += f" Archived overwritten files to {archive_dir.relative_to(self._workspace)}"
         if conflict_paths:
             msg += f" Skipped {len(conflict_paths)} conflicting files: {', '.join(conflict_paths)}"
 
