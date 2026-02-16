@@ -6,20 +6,22 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1205%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1348%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![Status: Stable](https://img.shields.io/badge/status-9.0.0-brightgreen.svg)](#)
+[![Status: Stable](https://img.shields.io/badge/status-10.0.0-brightgreen.svg)](#)
 
 [Getting Started](#-quick-start) |
 [NLA](#-natural-language-architecture) |
 [ARA](#-autonomous-role-architecture) |
+[Skills](#-skills-system) |
+[Web UI](#-web-ui) |
 [AEGIS Governance](#-aegis-governance) |
 [Documentation](docs/README.md) |
 [Contributing](CONTRIBUTING.md)
 
 </div>
 
-> **v9.0.0** -- Orion Agent is under active development. Core features are functional and tested (1,205 passing tests). The Autonomous Role Architecture (ARA) is complete with all 23 design gaps closed. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+> **v10.0.0** -- Orion Agent is under active development. Core features are functional and tested (1,348 passing tests). The Autonomous Role Architecture (ARA) is complete with 37 CLI commands, 106+ API endpoints, Skills system, and a full React Web UI. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
 
 ---
 
@@ -56,7 +58,7 @@ Orion understands *what you mean*, not just what you type:
 
 ### Autonomous Role Architecture (ARA)
 
-Orion can work autonomously in the background with configurable roles (22 modules, 528 tests):
+Orion can work autonomously in the background with configurable roles (28 modules, 671+ ARA tests):
 
 | Component | Purpose |
 |-----------|----------|
@@ -65,6 +67,7 @@ Orion can work autonomously in the background with configurable roles (22 module
 | **SessionEngine** | State machine with heartbeat, cost tracking, and 5 stop conditions |
 | **GoalEngine** | LLM-powered task DAG decomposition with action validation |
 | **ExecutionLoop** | Sequential task runner with confidence gating and checkpointing |
+| **TaskExecutor** | File generation/editing in sandbox with context-aware LLM calls |
 | **PromotionManager** | Sandbox branch creation, file diff, conflict detection, git-tagged promote/reject/undo |
 | **GoalQueue** | Multi-goal FIFO queue with priority interrupts, dependencies, and reorder |
 | **MorningDashboard** | 7-section CLI TUI: overview, approvals, tasks, files, budget, AEGIS, actions |
@@ -72,11 +75,40 @@ Orion can work autonomously in the background with configurable roles (22 module
 | **AuditLog** | HMAC-SHA256 hash chain, append-only JSONL, tamper detection |
 | **KeychainStore** | OS-native credential storage (Windows/macOS) with encrypted fallback |
 | **UserIsolation** | Multi-user OS-user scoping, per-user containers and branches |
-| **Daemon + CLI** | Background process with 13 commands including setup wizard |
+| **SkillLibrary** | AgentSkills-compatible SKILL.md system with CRUD, integrity verification, and role assignment |
+| **SkillGuard** | 22+ pattern security scanner with NFKC normalization and evasion hardening |
+| **Daemon + CLI** | Background process with 37 commands including setup wizard |
 | **Notifications** | Email (SMTP), webhook, and desktop toast delivery with rate limiting |
-| **REST + WebSocket API** | 8 endpoints for dashboard integration and real-time updates |
+| **REST + WebSocket API** | 106+ endpoints for web UI integration and real-time updates |
 
-**Starter roles included:** `software-engineer`, `technical-writer`, `devops-engineer`, `qa-engineer`
+**Starter roles included:** `game-developer`, `night-coder`, `researcher`, `devops-runner`, `full-auto`
+
+### Skills System
+
+Orion uses the [AgentSkills](https://agentskills.io) open standard for extensible agent capabilities (8 bundled skills, 145 tests):
+
+| Component | Purpose |
+|-----------|----------|
+| **SKILL.md Format** | YAML frontmatter + markdown instructions, compatible with Claude Code and Windsurf |
+| **SkillLibrary** | Central registry with CRUD, import, rescan, role resolution, integrity verification (SHA-256) |
+| **SkillGuard** | Security scanner: 22+ patterns, NFKC normalization, prompt injection detection |
+| **Skill Groups** | Organize skills into assignable groups with role mapping |
+| **8 Bundled Skills** | `code-review`, `write-tests`, `write-documentation`, `deploy-to-staging`, `docker-setup`, `git-workflow`, `debug-issue`, `refactor-safely` |
+
+### Web UI
+
+A full-featured React (Next.js) dashboard for managing ARA sessions:
+
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | Stats grid, status hero, activity feed, task queue, progress ring |
+| **Consent Gates** | Approve/reject with GitHub-PR-style diff viewer (file tree + unified diffs) |
+| **New Session** | Start work sessions from the UI with role selection and goal input |
+| **Job Roles** | Create, edit, delete roles with scope/auth/description |
+| **Skills** | Browse, create, delete skills; assign/unassign to roles; security scan |
+| **Chat** | WebSocket chat sidebar connected to Orion's full NLA pipeline |
+| **Settings** | ARA settings, API keys, workspace configuration |
+| **Notifications** | Real-time notification badge with unread count |
 
 ### Multi-Agent Deliberation
 
@@ -129,6 +161,8 @@ Orion learns from every interaction:
 |---------|-------|
 | Natural language understanding | NLA: intent classification, clarification, adaptive prompts |
 | Autonomous background tasks | ARA: roles, daemon, checkpoints, drift detection, recovery |
+| Web UI | Full React dashboard with consent gates, diff viewer, session management |
+| Skills system | AgentSkills-compatible SKILL.md, 8 bundled, SkillGuard security |
 | Multi-agent deliberation | 3 specialized agents (Builder, Reviewer, Governor) |
 | Persistent memory | 3 tiers (session, project, institutional) |
 | Learns from feedback | Evolves based on your approval/rejection patterns |
@@ -245,42 +279,43 @@ Orion connects to 79+ external services:
 ┌─────────────────────────────────────────────────────────────────┐
 │                       USER INTERFACES                           │
 │  ┌─────────┐  ┌───────────┐  ┌───────────┐  ┌──────────────┐   │
-│  │  CLI    │  │ REST API  │  │ WebSocket │  │ ARA Daemon   │   │
-│  │ (REPL)  │  │ (FastAPI) │  │ (realtime)│  │ (background) │   │
+│  │  CLI    │  │ Web UI    │  │ WebSocket │  │ ARA Daemon   │   │
+│  │ (REPL)  │  │ (Next.js) │  │ (realtime)│  │ (background) │   │
 │  └────┬────┘  └─────┬─────┘  └─────┬─────┘  └──────┬───────┘   │
 └───────┼─────────────┼──────────────┼───────────────┼───────────┘
         │             │              │               │
         ▼             ▼              ▼               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              NATURAL LANGUAGE ARCHITECTURE (NLA)                 │
-│  ExemplarBank → IntentClassifier → ClarificationDetector        │
-│  → BriefBuilder → RequestAnalyzer → Slim Persona Router         │
+│          FastAPI Server (10 route modules, 106+ endpoints)       │
+│              REST API │ WebSocket │ CORS │ Auth                  │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐
         ▼                   ▼                   ▼
-┌─────────────┐   ┌─────────────────┐   ┌─────────────┐
-│  FastPath   │   │  Table of Three │   │  Escalation │
-│  (direct)   │   │    (council)    │   │  (human)    │
-└──────┬──────┘   └────────┬────────┘   └──────┬──────┘
-       │                   │                   │
-       └───────────────────┼───────────────────┘
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐
+│  NLA Pipeline   │ │  ARA Engine     │ │  Skills System      │
+│  ExemplarBank   │ │  Sessions       │ │  SkillLibrary       │
+│  IntentClassify │ │  Daemon         │ │  SkillGuard (22+)   │
+│  BriefBuilder   │ │  TaskExecutor   │ │  8 bundled skills   │
+│  FastPath/ToT   │ │  Promotion      │ │  SKILL.md format    │
+└────────┬────────┘ │  GoalQueue      │ └─────────────────────┘
+         │          │  Dashboard      │
+         ▼          └────────┬────────┘
+┌─────────────────────────────┼───────────────────────────────────┐
 │                    AEGIS GOVERNANCE GATE                         │
 │  Workspace Confinement │ Secret Scanning │ Write Limits          │
 │  Mode Enforcement │ Risk Validation │ Auth (PIN/TOTP)           │
-│  PromptGuard │ AuditLog (HMAC) │ KeychainStore               │
+│  PromptGuard │ AuditLog (HMAC) │ KeychainStore                 │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐
         ▼                   ▼                   ▼
-┌─────────────┐   ┌─────────────┐   ┌─────────────────────┐
-│  LLM Layer  │   │   Memory    │   │  ARA Engine          │
-│ (11 provs)  │   │  (3-tier)   │   │  Sessions │ Goals    │
-│             │   │             │   │  Daemon │ Promotion  │
-│             │   │             │   │  Dashboard │ Queue   │
-└─────────────┘   └─────────────┘   └─────────────────────┘
+┌─────────────┐   ┌─────────────────┐   ┌─────────────────┐
+│  LLM Layer  │   │   Memory        │   │  Integrations   │
+│ (11 provs)  │   │  (3-tier)       │   │  79 connectors  │
+│ + Ollama    │   │  Institutional  │   │  LLM, voice,    │
+│             │   │  Teaching       │   │  image, msg, dev │
+└─────────────┘   └─────────────────┘   └─────────────────┘
 ```
 
 [Complete architecture documentation ->](docs/ARCHITECTURE.md)
@@ -293,26 +328,28 @@ Orion connects to 79+ external services:
 src/orion/
 ├── cli/               # Interactive REPL and commands
 ├── core/
-│   ├── agents/        # Builder, Reviewer, Governor, Table of Three
+│   ├── agents/        # Builder, Reviewer, Governor, Table of Three, FastPath
 │   ├── understanding/ # NLA: intent, clarification, brief, analyzer, english
-│   ├── memory/        # Three-tier memory engine + conversation buffer
+│   ├── memory/        # Three-tier memory engine + institutional memory + teaching
 │   ├── learning/      # Evolution engine, feedback, patterns, learning bridge
 │   ├── editing/       # Edit validator, format selector, git safety
 │   ├── context/       # Repo map (tree-sitter), Python AST, code quality
 │   ├── governance/    # AEGIS safety gate, execution authority
 │   ├── llm/           # Provider routing, model config, slim persona prompts
 │   └── production/    # Health probes, metrics, shutdown, logging
-├── ara/               # Autonomous Role Architecture (22 modules)
-│   ├── role_profile   # YAML role configuration + 3-tier authority + 4 starter templates
+├── ara/               # Autonomous Role Architecture (28 modules)
+│   ├── role_profile   # YAML role configuration + 3-tier authority + 5 starter templates
 │   ├── auth           # PIN + TOTP authentication
 │   ├── aegis_gate     # Pre-promotion security gate
 │   ├── session        # State machine with heartbeat + cost tracking
 │   ├── goal_engine    # LLM-powered task DAG decomposition
 │   ├── execution      # Sequential task runner with checkpointing
+│   ├── task_executor  # Context-aware file generation/editing in sandbox
 │   ├── daemon         # Background process + IPC control
-│   ├── cli_commands   # 13 commands: work/status/pause/resume/cancel/review/sessions/setup/...
+│   ├── daemon_launcher# Session launcher from pending state
+│   ├── cli_commands   # 37 commands: work/status/review/promote/skills/roles/setup/...
 │   ├── promotion      # Sandbox → workspace merge with git tags + undo
-│   ├── dashboard      # Morning Dashboard TUI (7 sections)
+│   ├── dashboard      # Morning Dashboard TUI (7 sections) + pending review detection
 │   ├── goal_queue     # Multi-goal FIFO queue with priority interrupts
 │   ├── prompt_guard   # Prompt injection defence (12 patterns)
 │   ├── audit_log      # HMAC-SHA256 hash chain tamper-proof log
@@ -320,15 +357,28 @@ src/orion/
 │   ├── user_isolation  # Multi-user OS-user scoping
 │   ├── notifications  # Email, webhook, desktop providers
 │   ├── feedback_store # Outcome recording + confidence calibration
-│   ├── api            # REST + WebSocket for dashboard
+│   ├── skill          # Skill + SkillGroup dataclasses, SKILL.md parser, validation
+│   ├── skill_guard    # SkillGuard security scanner (22+ patterns, NFKC hardening)
+│   ├── skill_library  # Central skill registry with CRUD, import, integrity verification
+│   ├── ollama_provider# Local LLM integration for task execution
 │   ├── checkpoint     # Git-based session snapshots
 │   ├── drift_monitor  # External workspace change detection
 │   ├── recovery       # Failure handling + retry policy
 │   └── lifecycle      # Session cleanup + health reporting
+├── api/               # FastAPI REST + WebSocket server (10 route modules, 106+ endpoints)
+│   └── routes/        # ara, auth, chat, gdpr, health, models, platforms, settings, tools, training
 ├── integrations/      # 79 connectors (LLM, voice, image, messaging, ...)
-├── api/               # FastAPI REST + WebSocket server
 ├── security/          # Encrypted store, Docker sandbox, secret scanner
 └── plugins/           # Plugin lifecycle API (8 hooks)
+
+orion-web/             # React (Next.js) Web UI
+├── src/app/
+│   ├── page.tsx       # Home page
+│   ├── ara/page.tsx   # ARA Dashboard (consent gates, diff viewer, sessions, roles, skills)
+│   ├── chat/page.tsx  # Chat interface
+│   ├── aegis/page.tsx # AEGIS governance info
+│   └── settings/page.tsx # Full settings panel
+└── src/components/    # ChatInterface, SettingsPanel, AegisApprovalModal
 ```
 
 ---
@@ -336,12 +386,21 @@ src/orion/
 ## Development
 
 ```bash
+# Backend
 git clone https://github.com/phoenixlink-cloud/orion-agent.git
 cd orion-agent
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest
+pytest                        # 1,348 tests
+
+# API Server
+uvicorn orion.api.server:app --port 8001
+
+# Web UI
+cd orion-web
+npm install
+npm run dev                   # http://localhost:3000
 ```
 
 ---

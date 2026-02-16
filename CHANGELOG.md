@@ -5,6 +5,58 @@ All notable changes to Orion Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.0] -- 2026-02-16
+
+### Added
+- **Web UI Audit & Wiring Fixes**
+  - `handleReview` now calls `POST /promote` after AEGIS gate passes (Approve was broken E2E)
+  - New Session form on dashboard (wires `POST /api/ara/work`)
+  - Notification bell with unread count badge (wires `GET /api/ara/notifications`)
+  - Dashboard API includes `session_id` in pending review sections
+- **Diff Viewer Fixes**
+  - `cmd_review_diff` shows unchanged files for already-promoted sessions
+  - PM sandbox → daemon sandbox fallthrough when PM sandbox is empty
+  - Recursive `rglob("*")` for nested sandbox directories
+  - Partial session ID matching for truncated UI IDs
+  - UI handles `unchanged` status with "(already promoted)" label
+- Rich diff viewer: GitHub-PR-style file tree + unified diffs in consent gates
+- Reject button with inline feedback textarea, wired to learning pipeline
+- `cmd_review_diff` CLI command + `GET /sessions/{id}/diff` API endpoint
+
+### Fixed
+- Approve button only ran AEGIS gate but never promoted sandbox to workspace
+- Diff viewer returning 0 files for sessions already promoted
+- Session ID resolution for pending consent gate cards
+
+## [9.0.0] -- 2026-02-15
+
+### Added
+- **ARA Phases 9-14 complete** (201 tests)
+  - Phase 9: Role Schema + Management (32 tests)
+  - Phase 10: Security Hardening — PromptGuard, AuditLog, KeychainStore (65 tests)
+  - Phase 11: Promotion + Conflict Resolution — PromotionManager (28 tests)
+  - Phase 12: CLI Commands + Setup Wizard (25 tests)
+  - Phase 13: Morning Dashboard TUI with 7 sections (23 tests)
+  - Phase 14: Goal Queue + User Isolation (28 tests)
+- Version tagged as v9.0.0
+
+## [8.0.0] -- 2026-02-14
+
+### Added
+- **ARA Skills System (ARA-006)** — 145 tests
+  - `skill.py`, `skill_guard.py`, `skill_library.py`
+  - 8 bundled skills (code-review, write-tests, write-documentation, etc.)
+  - SkillGuard: 22+ security patterns with NFKC normalization
+  - SHA-256 integrity verification, resource limits, path traversal guard
+- **Chat Pipeline Bug Fixes** — asyncio crash, retry logic, Ollama 404, JSON leak, streaming errors
+- **Memory System Integration** — InstitutionalMemory connected to Router
+- **ARA Task Executor** — context-aware file generation/editing in sandbox
+- **ARA Daemon Launcher** — session launcher from pending state
+- **Ollama Provider** — local LLM integration for task execution
+- **Web UI** (`orion-web/`) — Full React (Next.js) dashboard
+  - Dashboard, Consent Gates, Job Roles, Skills, Chat sidebar, Settings
+  - 6 pages, WebSocket real-time updates
+
 ## [7.3.0] -- 2026-02-11
 
 ### Added
