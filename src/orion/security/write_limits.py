@@ -60,12 +60,8 @@ class WriteLimits:
         self.max_single_file_size_mb = min(
             self.max_single_file_size_mb, AEGIS_CEILINGS.max_single_file_size_mb
         )
-        self.max_files_created = min(
-            self.max_files_created, AEGIS_CEILINGS.max_files_created
-        )
-        self.max_files_modified = min(
-            self.max_files_modified, AEGIS_CEILINGS.max_files_modified
-        )
+        self.max_files_created = min(self.max_files_created, AEGIS_CEILINGS.max_files_created)
+        self.max_files_modified = min(self.max_files_modified, AEGIS_CEILINGS.max_files_modified)
         self.max_total_write_volume_mb = min(
             self.max_total_write_volume_mb, AEGIS_CEILINGS.max_total_write_volume_mb
         )
@@ -225,9 +221,7 @@ class WriteTracker:
         """Check limits and record if allowed. Returns violation or None."""
         violation = self.check_write(file_path, content, is_new_file)
         if violation:
-            logger.warning(
-                "Write blocked: %s — %s", file_path, violation.message
-            )
+            logger.warning("Write blocked: %s — %s", file_path, violation.message)
             return violation
         self.record_write(file_path, content, is_new_file)
         return None

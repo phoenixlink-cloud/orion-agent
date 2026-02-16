@@ -72,9 +72,13 @@ class TestCmdWork:
     def test_rejects_if_session_running(self, roles_dir: Path, control: DaemonControl):
         # Simulate running daemon
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="existing", session_status="running",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="existing",
+                session_status="running",
+            )
+        )
         result = cmd_work(
             role_name="test-coder",
             goal="test",
@@ -93,11 +97,17 @@ class TestCmdStatus:
 
     def test_shows_running_session(self, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", role_name="coder",
-            goal="build feature", session_status="running",
-            tasks_completed=3, tasks_total=10,
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                role_name="coder",
+                goal="build feature",
+                session_status="running",
+                tasks_completed=3,
+                tasks_total=10,
+            )
+        )
         result = cmd_status(control=control)
         assert result.success is True
         assert "s1" in result.message
@@ -106,9 +116,13 @@ class TestCmdStatus:
 class TestCmdPause:
     def test_sends_pause(self, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="running",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="running",
+            )
+        )
         result = cmd_pause(control=control)
         assert result.success is True
         assert "Pause" in result.message
@@ -119,9 +133,13 @@ class TestCmdPause:
 
     def test_rejects_if_not_running_status(self, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="paused",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="paused",
+            )
+        )
         result = cmd_pause(control=control)
         assert result.success is False
 
@@ -129,18 +147,26 @@ class TestCmdPause:
 class TestCmdResume:
     def test_sends_resume(self, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="paused",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="paused",
+            )
+        )
         result = cmd_resume(control=control)
         assert result.success is True
         assert "Resume" in result.message
 
     def test_rejects_if_not_paused(self, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="running",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="running",
+            )
+        )
         result = cmd_resume(control=control)
         assert result.success is False
 
@@ -148,9 +174,13 @@ class TestCmdResume:
 class TestCmdCancel:
     def test_sends_cancel(self, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="running",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="running",
+            )
+        )
         result = cmd_cancel(control=control)
         assert result.success is True
         assert "Cancel" in result.message
@@ -227,9 +257,7 @@ class TestCmdReview:
         assert result.success is False
         assert "BLOCKED" in result.message
 
-    def test_review_nonexistent_session(
-        self, control: DaemonControl, sessions_dir: Path
-    ):
+    def test_review_nonexistent_session(self, control: DaemonControl, sessions_dir: Path):
         result = cmd_review(
             session_id="nope",
             control=control,

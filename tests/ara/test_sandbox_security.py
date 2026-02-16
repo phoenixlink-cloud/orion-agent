@@ -55,15 +55,23 @@ def run_in_hardened_container(
 ) -> subprocess.CompletedProcess:
     """Run Python code in a hardened container matching ARA config."""
     cmd = [
-        "docker", "run", "--rm",
-        "--memory", "256m",
-        "--cpus", "1.0",
-        "--pids-limit", "64",
-        "--cap-drop", "ALL",
+        "docker",
+        "run",
+        "--rm",
+        "--memory",
+        "256m",
+        "--cpus",
+        "1.0",
+        "--pids-limit",
+        "64",
+        "--cap-drop",
+        "ALL",
         "--no-new-privileges",
-        "--security-opt", "no-new-privileges",
+        "--security-opt",
+        "no-new-privileges",
         "--read-only",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+        "--tmpfs",
+        "/tmp:rw,noexec,nosuid,size=64m",
     ]
     if not network:
         cmd.extend(["--network", "none"])
@@ -153,9 +161,7 @@ try:
 except Exception as e:
     print(f"WORKSPACE_BLOCKED: {e}")
 """
-        result = run_in_hardened_container(
-            code, workspace_path=str(workspace)
-        )
+        result = run_in_hardened_container(code, workspace_path=str(workspace))
         assert "WORKSPACE_WRITABLE" in result.stdout
         assert (workspace / "test_file.txt").read_text() == "hello from sandbox"
 
@@ -236,7 +242,5 @@ except MemoryError:
         result = run_in_hardened_container(code)
         # Container should be killed (137) or Python should hit MemoryError
         assert (
-            "MEMORY_LIMITED" in result.stdout
-            or result.returncode == 137
-            or result.returncode != 0
+            "MEMORY_LIMITED" in result.stdout or result.returncode == 137 or result.returncode != 0
         )

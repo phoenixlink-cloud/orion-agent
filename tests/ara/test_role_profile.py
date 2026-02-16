@@ -154,12 +154,14 @@ class TestWorkingHours:
         assert wh.enabled is False
 
     def test_from_dict(self):
-        wh = WorkingHours.from_dict({
-            "enabled": True,
-            "start_hour": 20,
-            "end_hour": 8,
-            "timezone": "US/Eastern",
-        })
+        wh = WorkingHours.from_dict(
+            {
+                "enabled": True,
+                "start_hour": 20,
+                "end_hour": 8,
+                "timezone": "US/Eastern",
+            }
+        )
         assert wh.enabled is True
         assert wh.start_hour == 20
         assert wh.timezone == "US/Eastern"

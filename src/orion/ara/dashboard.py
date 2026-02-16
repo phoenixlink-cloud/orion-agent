@@ -125,10 +125,7 @@ class MorningDashboard:
                 pass
 
         # Approval items (tasks needing consent)
-        data.approval_items = [
-            t for t in data.tasks
-            if t.get("status") == "needs_approval"
-        ]
+        data.approval_items = [t for t in data.tasks if t.get("status") == "needs_approval"]
 
         # Confidence average
         confidences = [
@@ -260,12 +257,14 @@ class MorningDashboard:
             lines.append(section.render())
             lines.append("")
 
-        lines.extend([
-            "=" * 60,
-            "  Actions: [a]pprove  [r]eject  [d]iff  [l]og  [q]uit",
-            "=" * 60,
-            "",
-        ])
+        lines.extend(
+            [
+                "=" * 60,
+                "  Actions: [a]pprove  [r]eject  [d]iff  [l]og  [q]uit",
+                "=" * 60,
+                "",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -287,7 +286,8 @@ class MorningDashboard:
 
             try:
                 session = SessionState.load(
-                    session_dir.name, sessions_dir=self._sessions_dir,
+                    session_dir.name,
+                    sessions_dir=self._sessions_dir,
                 )
             except Exception:
                 continue
@@ -295,12 +295,14 @@ class MorningDashboard:
             if session.status == SessionStatus.COMPLETED:
                 reviewed_marker = session_dir / ".reviewed"
                 if not reviewed_marker.exists():
-                    pending.append({
-                        "session_id": session.session_id,
-                        "role": session.role_name,
-                        "goal": session.goal[:60],
-                        "tasks": session.progress.completed_tasks,
-                    })
+                    pending.append(
+                        {
+                            "session_id": session.session_id,
+                            "role": session.role_name,
+                            "goal": session.goal[:60],
+                            "tasks": session.progress.completed_tasks,
+                        }
+                    )
 
         return pending
 
@@ -317,7 +319,7 @@ class MorningDashboard:
             p = pending[0]
             return (
                 f"Orion completed {p['tasks']} tasks "
-                f"(\"{p['goal']}\").\n"
+                f'("{p["goal"]}").\n'
                 f"Run `orion review` to inspect and approve."
             )
 

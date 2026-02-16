@@ -117,9 +117,7 @@ class AuthStore:
     def verify_pin(self, pin: str) -> AuthResult:
         """Verify a PIN against the stored hash."""
         if not self.has_pin:
-            return AuthResult(
-                success=False, method="pin", message="No PIN configured"
-            )
+            return AuthResult(success=False, method="pin", message="No PIN configured")
 
         # Check lockout
         lockout_until = self._data.get("pin_lockout_until", 0)
@@ -181,17 +179,13 @@ class AuthStore:
     def verify_totp(self, code: str, window: int = 1) -> AuthResult:
         """Verify a TOTP code against the stored secret."""
         if not self.has_totp:
-            return AuthResult(
-                success=False, method="totp", message="No TOTP configured"
-            )
+            return AuthResult(success=False, method="totp", message="No TOTP configured")
 
         secret = self._data["totp_secret"]
         if _verify_totp_code(secret, code, window=window):
             return AuthResult(success=True, method="totp", message="TOTP verified")
 
-        return AuthResult(
-            success=False, method="totp", message="Invalid TOTP code"
-        )
+        return AuthResult(success=False, method="totp", message="Invalid TOTP code")
 
     def clear(self) -> None:
         """Clear all auth data."""
@@ -206,8 +200,8 @@ def _generate_totp_code(secret: str, time_step: int = 30, digits: int = 6) -> st
     msg = struct.pack(">Q", counter)
     h = hmac.new(key, msg, hashlib.sha1).digest()
     offset = h[-1] & 0x0F
-    truncated = struct.unpack(">I", h[offset:offset + 4])[0] & 0x7FFFFFFF
-    code = truncated % (10 ** digits)
+    truncated = struct.unpack(">I", h[offset : offset + 4])[0] & 0x7FFFFFFF
+    code = truncated % (10**digits)
     return str(code).zfill(digits)
 
 
@@ -222,8 +216,8 @@ def _verify_totp_code(
         msg = struct.pack(">Q", counter)
         h = hmac.new(key, msg, hashlib.sha1).digest()
         off = h[-1] & 0x0F
-        truncated = struct.unpack(">I", h[off:off + 4])[0] & 0x7FFFFFFF
-        expected = str(truncated % (10 ** digits)).zfill(digits)
+        truncated = struct.unpack(">I", h[off : off + 4])[0] & 0x7FFFFFFF
+        expected = str(truncated % (10**digits)).zfill(digits)
         if hmac.compare_digest(code, expected):
             return True
     return False
@@ -253,9 +247,7 @@ class RoleAuthenticator:
             return self._store.verify_pin(credential)
         if method == "totp":
             return self._store.verify_totp(credential)
-        return AuthResult(
-            success=False, method=method, message=f"Unknown auth method: {method}"
-        )
+        return AuthResult(success=False, method=method, message=f"Unknown auth method: {method}")
 
     def setup_pin(self, pin: str) -> None:
         """Set up PIN authentication."""

@@ -256,9 +256,7 @@ async def websocket_chat(websocket: WebSocket):
                         # Streaming or non-streaming fallback failed
                         fast_path_success = False
                         full_response = str(stream_err)
-                        await websocket.send_json(
-                            {"type": "error", "message": full_response}
-                        )
+                        await websocket.send_json({"type": "error", "message": full_response})
 
                     await websocket.send_json(
                         {

@@ -47,10 +47,15 @@ class TestNotification:
         assert n.message == "custom message here"
 
     def test_to_dict(self):
-        n = Notification(template="session_completed", params={
-            "session_id": "s1", "tasks_completed": 5,
-            "tasks_total": 10, "elapsed": "1.5h",
-        })
+        n = Notification(
+            template="session_completed",
+            params={
+                "session_id": "s1",
+                "tasks_completed": 5,
+                "tasks_total": 10,
+                "elapsed": "1.5h",
+            },
+        )
         d = n.to_dict()
         assert d["template"] == "session_completed"
         assert "s1" in d["message"]
@@ -66,9 +71,14 @@ class TestNotificationManager:
         p1 = MockProvider()
         p2 = MockProvider()
         mgr = NotificationManager(providers=[p1, p2])
-        result = mgr.notify("session_started", {
-            "session_id": "s1", "role_name": "coder", "goal": "test",
-        })
+        result = mgr.notify(
+            "session_started",
+            {
+                "session_id": "s1",
+                "role_name": "coder",
+                "goal": "test",
+            },
+        )
         assert result is True
         assert len(p1.calls) == 1
         assert len(p2.calls) == 1
@@ -77,13 +87,29 @@ class TestNotificationManager:
         p = MockProvider()
         mgr = NotificationManager(providers=[p], max_per_session=3)
         for _ in range(3):
-            assert mgr.notify("session_started", {
-                "session_id": "s1", "role_name": "r", "goal": "g",
-            }) is True
+            assert (
+                mgr.notify(
+                    "session_started",
+                    {
+                        "session_id": "s1",
+                        "role_name": "r",
+                        "goal": "g",
+                    },
+                )
+                is True
+            )
         # 4th should be blocked
-        assert mgr.notify("session_started", {
-            "session_id": "s1", "role_name": "r", "goal": "g",
-        }) is False
+        assert (
+            mgr.notify(
+                "session_started",
+                {
+                    "session_id": "s1",
+                    "role_name": "r",
+                    "goal": "g",
+                },
+            )
+            is False
+        )
         assert mgr.sent_count == 3
         assert mgr.remaining == 0
 
@@ -97,18 +123,28 @@ class TestNotificationManager:
     def test_returns_false_if_all_providers_fail(self):
         p = MockProvider(succeed=False)
         mgr = NotificationManager(providers=[p])
-        result = mgr.notify("session_started", {
-            "session_id": "s1", "role_name": "r", "goal": "g",
-        })
+        result = mgr.notify(
+            "session_started",
+            {
+                "session_id": "s1",
+                "role_name": "r",
+                "goal": "g",
+            },
+        )
         assert result is False
         assert mgr.sent_count == 1  # Still counts toward limit
 
     def test_history_tracking(self):
         p = MockProvider()
         mgr = NotificationManager(providers=[p])
-        mgr.notify("session_started", {
-            "session_id": "s1", "role_name": "r", "goal": "g",
-        })
+        mgr.notify(
+            "session_started",
+            {
+                "session_id": "s1",
+                "role_name": "r",
+                "goal": "g",
+            },
+        )
         assert len(mgr.history) == 1
         assert mgr.history[0]["template"] == "session_started"
         assert mgr.history[0]["providers_succeeded"] == 1
@@ -116,9 +152,14 @@ class TestNotificationManager:
     def test_reset(self):
         p = MockProvider()
         mgr = NotificationManager(providers=[p], max_per_session=2)
-        mgr.notify("session_started", {
-            "session_id": "s1", "role_name": "r", "goal": "g",
-        })
+        mgr.notify(
+            "session_started",
+            {
+                "session_id": "s1",
+                "role_name": "r",
+                "goal": "g",
+            },
+        )
         mgr.reset()
         assert mgr.sent_count == 0
         assert mgr.remaining == 2
@@ -128,16 +169,26 @@ class TestNotificationManager:
         mgr = NotificationManager()
         p = MockProvider()
         mgr.add_provider(p)
-        mgr.notify("session_started", {
-            "session_id": "s1", "role_name": "r", "goal": "g",
-        })
+        mgr.notify(
+            "session_started",
+            {
+                "session_id": "s1",
+                "role_name": "r",
+                "goal": "g",
+            },
+        )
         assert len(p.calls) == 1
 
     def test_no_providers_returns_false(self):
         mgr = NotificationManager(providers=[])
-        result = mgr.notify("session_started", {
-            "session_id": "s1", "role_name": "r", "goal": "g",
-        })
+        result = mgr.notify(
+            "session_started",
+            {
+                "session_id": "s1",
+                "role_name": "r",
+                "goal": "g",
+            },
+        )
         assert result is False
 
 

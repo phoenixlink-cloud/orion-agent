@@ -84,7 +84,9 @@ class TestPatternDetection:
     def test_detects_slack_webhook(self, scanner: SecretScanner, tmp_project: Path):
         f = tmp_project / "src" / "notify.py"
         # Build URL dynamically to avoid GitHub push protection false positive
-        slack_url = "https://hooks.slack.com" + "/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+        slack_url = (
+            "https://hooks.slack.com" + "/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+        )
         f.write_text(f'WEBHOOK = "{slack_url}"\n')
         findings = scanner.scan_file(f, relative_to=tmp_project)
         assert len(findings) >= 1
@@ -147,9 +149,7 @@ class TestAllowlist:
         findings = scanner_with_allowlist.scan_file(f, relative_to=tmp_project)
         assert len(findings) == 0
 
-    def test_blocks_non_allowlisted(
-        self, scanner_with_allowlist: SecretScanner, tmp_project: Path
-    ):
+    def test_blocks_non_allowlisted(self, scanner_with_allowlist: SecretScanner, tmp_project: Path):
         f = tmp_project / "src" / "real_secret.py"
         f.write_text('password = "production_password_here"\n')
         findings = scanner_with_allowlist.scan_file(f, relative_to=tmp_project)
@@ -176,7 +176,7 @@ class TestDirectoryScan:
     def test_scans_all_files(self, scanner: SecretScanner, tmp_project: Path):
         (tmp_project / "src" / "clean.py").write_text("x = 1\n")
         (tmp_project / "src" / "dirty.py").write_text(
-            '-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n'
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n"
         )
         result = scanner.scan_directory(tmp_project / "src")
         assert result.files_scanned == 2
@@ -201,9 +201,7 @@ class TestScanResult:
 
     def test_blocked_summary(self):
         result = ScanResult(
-            findings=[
-                SecretFinding("f.py", 1, "test", "secret", "***")
-            ],
+            findings=[SecretFinding("f.py", 1, "test", "secret", "***")],
             files_scanned=5,
             blocked=True,
         )

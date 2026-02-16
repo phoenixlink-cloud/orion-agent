@@ -244,7 +244,9 @@ async def post_feedback(req: FeedbackRequest):
         from orion.ara.cli_commands import cmd_feedback
 
         result = cmd_feedback(
-            session_id=req.session_id, rating=req.rating, comment=req.comment,
+            session_id=req.session_id,
+            rating=req.rating,
+            comment=req.comment,
         )
         if result.success:
             return {"success": True, "message": result.message, "data": result.data}
@@ -427,7 +429,9 @@ async def get_dashboard(session_id: str | None = None):
             sections = [
                 {
                     "title": s.title,
-                    "content": "\n".join(s.content) if isinstance(s.content, list) else str(s.content),
+                    "content": "\n".join(s.content)
+                    if isinstance(s.content, list)
+                    else str(s.content),
                     "style": "info",
                 }
                 for s in data.sections
@@ -435,12 +439,14 @@ async def get_dashboard(session_id: str | None = None):
         elif pending:
             # Show pending reviews as sections
             for p in pending:
-                sections.append({
-                    "title": f"Pending Review: {p.get('goal', 'Unknown')}",
-                    "content": f"Session {p['session_id'][:12]} by role '{p.get('role', '?')}' — {p.get('tasks', 0)} tasks completed.",
-                    "style": "warning",
-                    "session_id": p["session_id"],
-                })
+                sections.append(
+                    {
+                        "title": f"Pending Review: {p.get('goal', 'Unknown')}",
+                        "content": f"Session {p['session_id'][:12]} by role '{p.get('role', '?')}' — {p.get('tasks', 0)} tasks completed.",
+                        "style": "warning",
+                        "session_id": p["session_id"],
+                    }
+                )
             rendered = dash.get_startup_message() or ""
 
         return {
@@ -689,7 +695,9 @@ async def create_skill_group(req: SkillGroupCreateRequest):
         from orion.ara.cli_commands import cmd_skill_group_create
 
         result = cmd_skill_group_create(
-            name=req.name, display_name=req.display_name, group_type=req.group_type,
+            name=req.name,
+            display_name=req.display_name,
+            group_type=req.group_type,
         )
         if result.success:
             return {"success": True, "message": result.message, "data": result.data}

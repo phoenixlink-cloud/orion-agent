@@ -33,11 +33,15 @@ def _make_dag(count: int = 3) -> TaskDAG:
     tasks = []
     for i in range(count):
         deps = [f"t{i - 1}"] if i > 0 else []
-        tasks.append(Task(
-            task_id=f"t{i}", title=f"Task {i}",
-            description="", action_type="write_files",
-            dependencies=deps,
-        ))
+        tasks.append(
+            Task(
+                task_id=f"t{i}",
+                title=f"Task {i}",
+                description="",
+                action_type="write_files",
+                dependencies=deps,
+            )
+        )
     return TaskDAG(goal="Test", tasks=tasks)
 
 
@@ -120,8 +124,11 @@ class TestDaemonControl:
 class TestDaemonStatus:
     def test_to_dict(self):
         status = DaemonStatus(
-            running=True, pid=123, session_id="s1",
-            tasks_completed=5, tasks_total=10,
+            running=True,
+            pid=123,
+            session_id="s1",
+            tasks_completed=5,
+            tasks_total=10,
         )
         d = status.to_dict()
         assert d["running"] is True
@@ -129,9 +136,13 @@ class TestDaemonStatus:
 
     def test_summary_running(self):
         status = DaemonStatus(
-            running=True, session_id="s1", role_name="coder",
-            goal="test", session_status="running",
-            tasks_completed=2, tasks_total=5,
+            running=True,
+            session_id="s1",
+            role_name="coder",
+            goal="test",
+            session_status="running",
+            tasks_completed=2,
+            tasks_total=5,
         )
         s = status.summary()
         assert "s1" in s
@@ -150,8 +161,11 @@ class TestARADaemon:
         ctrl = DaemonControl(state_dir=tmp_path / "daemon")
 
         daemon = ARADaemon(
-            session=session, role=role, dag=dag,
-            control=ctrl, task_executor=_success_executor,
+            session=session,
+            role=role,
+            dag=dag,
+            control=ctrl,
+            task_executor=_success_executor,
             checkpoint_dir=tmp_path / "checkpoints",
         )
         asyncio.run(daemon.run())
@@ -165,8 +179,11 @@ class TestARADaemon:
         ctrl = DaemonControl(state_dir=tmp_path / "daemon")
 
         daemon = ARADaemon(
-            session=session, role=role, dag=dag,
-            control=ctrl, task_executor=_success_executor,
+            session=session,
+            role=role,
+            dag=dag,
+            control=ctrl,
+            task_executor=_success_executor,
             checkpoint_dir=tmp_path / "checkpoints",
         )
         asyncio.run(daemon.run())
@@ -188,8 +205,11 @@ class TestARADaemon:
         ctrl = DaemonControl(state_dir=tmp_path / "daemon")
 
         daemon = ARADaemon(
-            session=session, role=role, dag=dag,
-            control=ctrl, task_executor=failing_executor,
+            session=session,
+            role=role,
+            dag=dag,
+            control=ctrl,
+            task_executor=failing_executor,
             checkpoint_dir=tmp_path / "checkpoints",
         )
         asyncio.run(daemon.run())
@@ -202,8 +222,11 @@ class TestARADaemon:
         ctrl = DaemonControl(state_dir=tmp_path / "daemon")
 
         daemon = ARADaemon(
-            session=session, role=role, dag=dag,
-            control=ctrl, task_executor=_success_executor,
+            session=session,
+            role=role,
+            dag=dag,
+            control=ctrl,
+            task_executor=_success_executor,
             checkpoint_dir=tmp_path / "checkpoints",
         )
         asyncio.run(daemon.run())

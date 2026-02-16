@@ -32,15 +32,47 @@ from typing import Any
 logger = logging.getLogger("orion.security.secret_scanner")
 
 # Binary file extensions to skip
-_BINARY_EXTENSIONS = frozenset({
-    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".svg",
-    ".woff", ".woff2", ".ttf", ".eot", ".otf",
-    ".zip", ".tar", ".gz", ".bz2", ".7z", ".rar",
-    ".pdf", ".doc", ".docx", ".xls", ".xlsx",
-    ".pyc", ".pyo", ".so", ".dll", ".exe", ".bin",
-    ".mp3", ".mp4", ".wav", ".avi", ".mov",
-    ".sqlite", ".db",
-})
+_BINARY_EXTENSIONS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".webp",
+        ".svg",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".otf",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".7z",
+        ".rar",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".pyc",
+        ".pyo",
+        ".so",
+        ".dll",
+        ".exe",
+        ".bin",
+        ".mp3",
+        ".mp4",
+        ".wav",
+        ".avi",
+        ".mov",
+        ".sqlite",
+        ".db",
+    }
+)
 
 
 @dataclass
@@ -95,19 +127,13 @@ class SecretScanner:
         "aws_access_key": re.compile(r"AKIA[0-9A-Z]{16}"),
         "aws_secret_key": re.compile(r"(?<![A-Za-z0-9/+])[0-9a-zA-Z/+]{40}(?![A-Za-z0-9/+=])"),
         "github_token": re.compile(r"gh[pousr]_[A-Za-z0-9_]{36,}"),
-        "jwt_token": re.compile(
-            r"eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+"
-        ),
+        "jwt_token": re.compile(r"eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+"),
         "generic_api_key": re.compile(
             r"(?i)(api[_\-]?key|apikey)\s*[:=]\s*['\"][A-Za-z0-9]{20,}['\"]"
         ),
-        "generic_password": re.compile(
-            r"(?i)(password|passwd|pwd)\s*[:=]\s*['\"][^'\"]{8,}['\"]"
-        ),
+        "generic_password": re.compile(r"(?i)(password|passwd|pwd)\s*[:=]\s*['\"][^'\"]{8,}['\"]"),
         "private_key": re.compile(r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----"),
-        "connection_string": re.compile(
-            r"(?i)(mongodb|postgres|mysql|redis)://[^\s]+@[^\s]+"
-        ),
+        "connection_string": re.compile(r"(?i)(mongodb|postgres|mysql|redis)://[^\s]+@[^\s]+"),
         "slack_webhook": re.compile(
             r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+"
         ),

@@ -98,10 +98,14 @@ class TestKeychainStore:
         import json
 
         json_path = tmp_path / "auth.json"
-        json_path.write_text(json.dumps({
-            "pin_hash": "hash123",
-            "totp_secret": "secret456",
-        }))
+        json_path.write_text(
+            json.dumps(
+                {
+                    "pin_hash": "hash123",
+                    "totp_secret": "secret456",
+                }
+            )
+        )
 
         migrated = store.migrate_from_json(json_path)
         assert migrated == 2

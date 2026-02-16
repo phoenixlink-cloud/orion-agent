@@ -261,7 +261,7 @@ class WSChannel:
         # Log event
         self._event_log.append(msg)
         if len(self._event_log) > self._max_log:
-            self._event_log = self._event_log[-self._max_log:]
+            self._event_log = self._event_log[-self._max_log :]
 
         delivered = 0
         for sub in self._subscribers:
@@ -271,7 +271,9 @@ class WSChannel:
             except Exception as e:
                 logger.warning("WS broadcast failed for subscriber: %s", e)
 
-        logger.debug("WS broadcast '%s' to %d/%d subscribers", event, delivered, len(self._subscribers))
+        logger.debug(
+            "WS broadcast '%s' to %d/%d subscribers", event, delivered, len(self._subscribers)
+        )
         return delivered
 
     def emit_session_update(self, session_data: dict[str, Any]) -> int:

@@ -18,13 +18,15 @@ def _make_dag(task_count: int = 3) -> TaskDAG:
     tasks = []
     for i in range(task_count):
         deps = [f"t{i - 1}"] if i > 0 else []
-        tasks.append(Task(
-            task_id=f"t{i}",
-            title=f"Task {i}",
-            description=f"Test task {i}",
-            action_type="write_files",
-            dependencies=deps,
-        ))
+        tasks.append(
+            Task(
+                task_id=f"t{i}",
+                title=f"Task {i}",
+                description=f"Test task {i}",
+                action_type="write_files",
+                dependencies=deps,
+            )
+        )
     return TaskDAG(goal="Test goal", tasks=tasks)
 
 
@@ -152,7 +154,8 @@ class TestCheckpointing:
         dag = _make_dag(1)
         checkpoints = []
         loop = ExecutionLoop(
-            session, dag,
+            session,
+            dag,
             task_executor=_success_executor,
             on_checkpoint=lambda: checkpoints.append(True),
             checkpoint_interval_minutes=0,  # Checkpoint after every task

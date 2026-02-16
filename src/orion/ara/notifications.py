@@ -192,6 +192,7 @@ class DesktopProvider(NotificationProvider):
 
             # Try platform-specific notification
             import platform
+
             if platform.system() == "Windows":
                 return self._send_windows(title, message)
             elif platform.system() == "Darwin":
@@ -206,37 +207,43 @@ class DesktopProvider(NotificationProvider):
     def _send_windows(self, title: str, message: str) -> bool:
         """Windows toast notification via PowerShell."""
         import subprocess
+
         ps_cmd = (
-            f'[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, '
-            f'ContentType = WindowsRuntime] > $null; '
-            f'$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(0); '
+            f"[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, "
+            f"ContentType = WindowsRuntime] > $null; "
+            f"$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(0); "
             f'$text = $template.GetElementsByTagName("text"); '
             f'$text[0].AppendChild($template.CreateTextNode("{title}")) > $null; '
             f'$text[1].AppendChild($template.CreateTextNode("{message}")) > $null; '
             f'$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Orion"); '
-            f'$notifier.Show([Windows.UI.Notifications.ToastNotification]::new($template))'
+            f"$notifier.Show([Windows.UI.Notifications.ToastNotification]::new($template))"
         )
         result = subprocess.run(
             ["powershell", "-Command", ps_cmd],
-            capture_output=True, timeout=5,
+            capture_output=True,
+            timeout=5,
         )
         return result.returncode == 0
 
     def _send_macos(self, title: str, message: str) -> bool:
         """macOS notification via osascript."""
         import subprocess
+
         result = subprocess.run(
             ["osascript", "-e", f'display notification "{message}" with title "{title}"'],
-            capture_output=True, timeout=5,
+            capture_output=True,
+            timeout=5,
         )
         return result.returncode == 0
 
     def _send_linux(self, title: str, message: str) -> bool:
         """Linux notification via notify-send."""
         import subprocess
+
         result = subprocess.run(
             ["notify-send", title, message],
-            capture_output=True, timeout=5,
+            capture_output=True,
+            timeout=5,
         )
         return result.returncode == 0
 
@@ -283,7 +290,8 @@ class NotificationManager:
         if self._sent_count >= self._max_per_session:
             logger.warning(
                 "Notification rate limit reached (%d/%d)",
-                self._sent_count, self._max_per_session,
+                self._sent_count,
+                self._max_per_session,
             )
             return False
 
@@ -306,12 +314,14 @@ class NotificationManager:
                 logger.error("Provider %s failed: %s", provider.provider_name, e)
 
         self._sent_count += 1
-        self._history.append({
-            "template": template,
-            "timestamp": notification.timestamp,
-            "providers_attempted": len(self._providers),
-            "providers_succeeded": successes,
-        })
+        self._history.append(
+            {
+                "template": template,
+                "timestamp": notification.timestamp,
+                "providers_attempted": len(self._providers),
+                "providers_succeeded": successes,
+            }
+        )
 
         return successes > 0
 

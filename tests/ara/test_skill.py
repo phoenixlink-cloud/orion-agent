@@ -26,7 +26,6 @@ from orion.ara.skill import (
     validate_skill_name,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────
 # validate_skill_name
 # ─────────────────────────────────────────────────────────────────────
@@ -319,7 +318,8 @@ class TestLoadSkill:
     def test_load_valid_skill(self, tmp_path):
         skill_dir = tmp_path / "my-skill"
         skill_dir.mkdir()
-        (skill_dir / "SKILL.md").write_text(textwrap.dedent("""\
+        (skill_dir / "SKILL.md").write_text(
+            textwrap.dedent("""\
         ---
         name: my-skill
         description: "Test skill"
@@ -328,7 +328,9 @@ class TestLoadSkill:
 
         ## Steps
         1. Do thing
-        """), encoding="utf-8")
+        """),
+            encoding="utf-8",
+        )
 
         skill, warnings = load_skill(skill_dir)
         assert skill.name == "my-skill"
@@ -367,7 +369,8 @@ class TestLoadSkill:
         skill_dir = tmp_path / "big-skill"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
-            "---\nname: big-skill\ndescription: x\n---\n" + "x" * (SkillLimits.MAX_SKILL_MD_BYTES + 1)
+            "---\nname: big-skill\ndescription: x\n---\n"
+            + "x" * (SkillLimits.MAX_SKILL_MD_BYTES + 1)
         )
         with pytest.raises(SkillLoadError, match="too large"):
             load_skill(skill_dir)

@@ -218,19 +218,18 @@ class FeedbackStore:
 
             # Accuracy: of tasks with confidence > 0.7, how many succeeded?
             high_conf = [t for t in tasks if t.confidence > 0.7]
-            accuracy = (
-                sum(1 for t in high_conf if t.success) / len(high_conf)
-                if high_conf else 0
-            )
+            accuracy = sum(1 for t in high_conf if t.success) / len(high_conf) if high_conf else 0
 
-            stats.append(ConfidenceStats(
-                action_type=atype,
-                total_tasks=total,
-                successful_tasks=successful,
-                avg_confidence=avg_conf,
-                avg_duration=avg_dur,
-                accuracy=accuracy,
-            ))
+            stats.append(
+                ConfidenceStats(
+                    action_type=atype,
+                    total_tasks=total,
+                    successful_tasks=successful,
+                    avg_confidence=avg_conf,
+                    avg_duration=avg_dur,
+                    accuracy=accuracy,
+                )
+            )
 
         return stats
 

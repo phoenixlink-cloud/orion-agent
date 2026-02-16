@@ -161,9 +161,7 @@ class AegisGate:
             decision.checks_failed.append("role_scope")
             decision.approved = False
             decision.details["role_scope_violations"] = scope_violations
-            logger.warning(
-                "AEGIS Gate: role scope violations — %s", scope_violations
-            )
+            logger.warning("AEGIS Gate: role scope violations — %s", scope_violations)
 
         # 4. Auth (only if credential provided or required)
         if self._role.require_review_before_promote:

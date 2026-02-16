@@ -107,14 +107,10 @@ class CheckpointManager:
         cp_dir.mkdir(parents=True, exist_ok=True)
 
         # Save session state
-        (cp_dir / "session.json").write_text(
-            json.dumps(session_state, indent=2), encoding="utf-8"
-        )
+        (cp_dir / "session.json").write_text(json.dumps(session_state, indent=2), encoding="utf-8")
 
         # Save DAG state
-        (cp_dir / "dag.json").write_text(
-            json.dumps(dag_state, indent=2), encoding="utf-8"
-        )
+        (cp_dir / "dag.json").write_text(json.dumps(dag_state, indent=2), encoding="utf-8")
 
         # Copy sandbox workspace if provided
         if sandbox_path and sandbox_path.exists():
@@ -166,12 +162,8 @@ class CheckpointManager:
         if not cp_dir.exists():
             raise FileNotFoundError(f"Checkpoint not found: {checkpoint_id}")
 
-        session_data = json.loads(
-            (cp_dir / "session.json").read_text(encoding="utf-8")
-        )
-        dag_data = json.loads(
-            (cp_dir / "dag.json").read_text(encoding="utf-8")
-        )
+        session_data = json.loads((cp_dir / "session.json").read_text(encoding="utf-8"))
+        dag_data = json.loads((cp_dir / "dag.json").read_text(encoding="utf-8"))
 
         ws_path = cp_dir / "workspace"
         workspace = ws_path if ws_path.exists() else None

@@ -121,5 +121,3 @@ def get_project_plan_instruction(workspace_path: str) -> str | None:
     except Exception as e:
         logger.debug("Failed to parse PROJECT_PLAN.md: %s", e)
         return None
-
-

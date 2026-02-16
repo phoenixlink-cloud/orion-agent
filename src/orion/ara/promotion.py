@@ -114,7 +114,8 @@ class PromotionManager:
 
         logger.info(
             "Created sandbox for session %s (base: %s)",
-            session_id[:12], (base_commit or "none")[:12],
+            session_id[:12],
+            (base_commit or "none")[:12],
         )
         return sandbox_path
 
@@ -170,10 +171,14 @@ class PromotionManager:
 
                     if not workspace_file.exists():
                         additions = content.count("\n") + (1 if content else 0)
-                        diffs.append(FileDiff(
-                            path=rel, status="added",
-                            additions=additions, content=content,
-                        ))
+                        diffs.append(
+                            FileDiff(
+                                path=rel,
+                                status="added",
+                                additions=additions,
+                                content=content,
+                            )
+                        )
                     else:
                         try:
                             original = workspace_file.read_text(encoding="utf-8")
@@ -182,12 +187,15 @@ class PromotionManager:
                         if content != original:
                             new_lines = set(content.splitlines())
                             old_lines = set(original.splitlines())
-                            diffs.append(FileDiff(
-                                path=rel, status="modified",
-                                additions=len(new_lines - old_lines),
-                                deletions=len(old_lines - new_lines),
-                                content=content,
-                            ))
+                            diffs.append(
+                                FileDiff(
+                                    path=rel,
+                                    status="modified",
+                                    additions=len(new_lines - old_lines),
+                                    deletions=len(old_lines - new_lines),
+                                    content=content,
+                                )
+                            )
 
         # Deleted files
         deletions_file = sandbox / ".deletions"
@@ -223,16 +231,20 @@ class PromotionManager:
         # Intersection = conflicts
         conflicts: list[ConflictFile] = []
         for path in sorted(sandbox_files & workspace_changes):
-            conflicts.append(ConflictFile(
-                path=path,
-                sandbox_status="modified",
-                workspace_status="modified",
-            ))
+            conflicts.append(
+                ConflictFile(
+                    path=path,
+                    sandbox_status="modified",
+                    workspace_status="modified",
+                )
+            )
 
         return conflicts
 
     def _archive_existing_files(
-        self, session_id: str, diffs: list[FileDiff],
+        self,
+        session_id: str,
+        diffs: list[FileDiff],
     ) -> Path | None:
         """Archive workspace files that would be overwritten by promotion.
 
@@ -243,16 +255,12 @@ class PromotionManager:
         Returns the archive directory path, or None if nothing was archived.
         """
         files_to_archive = [
-            d for d in diffs
-            if d.status == "modified" and (self._workspace / d.path).exists()
+            d for d in diffs if d.status == "modified" and (self._workspace / d.path).exists()
         ]
         if not files_to_archive:
             return None
 
-        archive_dir = (
-            self._workspace / ".orion-archive"
-            / f"{session_id[:12]}_{int(time.time())}"
-        )
+        archive_dir = self._workspace / ".orion-archive" / f"{session_id[:12]}_{int(time.time())}"
         archive_dir.mkdir(parents=True, exist_ok=True)
 
         for diff in files_to_archive:
@@ -272,13 +280,16 @@ class PromotionManager:
             "files": [d.path for d in files_to_archive],
         }
         import json
+
         (archive_dir / "_manifest.json").write_text(
-            json.dumps(manifest, indent=2), encoding="utf-8",
+            json.dumps(manifest, indent=2),
+            encoding="utf-8",
         )
 
         logger.info(
             "Archived %d workspace files to %s before promotion",
-            len(files_to_archive), archive_dir,
+            len(files_to_archive),
+            archive_dir,
         )
         return archive_dir
 
@@ -298,13 +309,15 @@ class PromotionManager:
         sandbox = self.get_sandbox_path(session_id)
         if sandbox is None:
             return PromotionResult(
-                success=False, message=f"Sandbox not found for session {session_id}",
+                success=False,
+                message=f"Sandbox not found for session {session_id}",
             )
 
         diffs = self.get_diff(session_id)
         if not diffs:
             return PromotionResult(
-                success=False, message="No changes to promote.",
+                success=False,
+                message="No changes to promote.",
             )
 
         # Check for conflicts
@@ -390,8 +403,10 @@ class PromotionManager:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", pre_tag],
-                capture_output=True, text=True,
-                cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                text=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             if result.returncode != 0:
                 return PromotionResult(success=False, message="Could not resolve pre-promote tag.")
@@ -404,8 +419,10 @@ class PromotionManager:
             # Get files that changed between pre-promote and HEAD
             diff_result = subprocess.run(
                 ["git", "diff", "--name-status", pre_tag, "HEAD"],
-                capture_output=True, text=True,
-                cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                text=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             if diff_result.returncode == 0:
                 lines = [ln for ln in diff_result.stdout.strip().split("\n") if ln.strip()]
@@ -420,13 +437,17 @@ class PromotionManager:
                         # File was added by promotion — remove it
                         subprocess.run(
                             ["git", "rm", "-f", path],
-                            capture_output=True, cwd=str(self._workspace), timeout=10,
+                            capture_output=True,
+                            cwd=str(self._workspace),
+                            timeout=10,
                         )
                     else:
                         # File was modified/deleted — restore from pre-promote
                         subprocess.run(
                             ["git", "checkout", pre_tag, "--", path],
-                            capture_output=True, cwd=str(self._workspace), timeout=10,
+                            capture_output=True,
+                            cwd=str(self._workspace),
+                            timeout=10,
                         )
                     reverted += 1
 
@@ -458,8 +479,10 @@ class PromotionManager:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                capture_output=True, text=True,
-                cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                text=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -472,11 +495,15 @@ class PromotionManager:
         try:
             result = subprocess.run(
                 ["git", "diff", "--name-only", commit, "HEAD"],
-                capture_output=True, text=True,
-                cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                text=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             if result.returncode == 0:
-                return {f.replace("\\", "/") for f in result.stdout.strip().split("\n") if f.strip()}
+                return {
+                    f.replace("\\", "/") for f in result.stdout.strip().split("\n") if f.strip()
+                }
         except Exception:
             pass
         return set()
@@ -486,8 +513,10 @@ class PromotionManager:
         try:
             result = subprocess.run(
                 ["git", "tag", tag_name],
-                capture_output=True, text=True,
-                cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                text=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             return result.returncode == 0
         except Exception:
@@ -498,8 +527,10 @@ class PromotionManager:
         try:
             result = subprocess.run(
                 ["git", "tag", "-l", tag_name],
-                capture_output=True, text=True,
-                cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                text=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             return bool(result.stdout.strip())
         except Exception:
@@ -510,12 +541,16 @@ class PromotionManager:
         try:
             subprocess.run(
                 ["git", "add", "-A"],
-                capture_output=True, cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             result = subprocess.run(
                 ["git", "commit", "-m", message, "--allow-empty"],
-                capture_output=True, text=True,
-                cwd=str(self._workspace), timeout=10,
+                capture_output=True,
+                text=True,
+                cwd=str(self._workspace),
+                timeout=10,
             )
             return result.returncode == 0
         except Exception:

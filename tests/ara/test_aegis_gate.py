@@ -78,9 +78,7 @@ def gate(role: RoleProfile, auth: RoleAuthenticator) -> AegisGate:
 class TestFullGateApproval:
     """Test full gate evaluation — all checks pass."""
 
-    def test_approve_clean_sandbox(
-        self, gate: AegisGate, clean_sandbox: Path
-    ):
+    def test_approve_clean_sandbox(self, gate: AegisGate, clean_sandbox: Path):
         decision = gate.evaluate(
             sandbox_path=clean_sandbox,
             actions_performed=["read_files", "write_files"],

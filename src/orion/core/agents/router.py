@@ -84,6 +84,7 @@ class RequestRouter:
         self._institutional = None
         try:
             from orion.core.memory.institutional import InstitutionalMemory
+
             self._institutional = InstitutionalMemory()
         except Exception:
             pass  # Institutional memory is optional
@@ -327,9 +328,8 @@ class RequestRouter:
         if self._institutional:
             try:
                 from orion.core.learning.patterns import get_learnings_for_prompt
-                inst_ctx = get_learnings_for_prompt(
-                    self._institutional, request, max_items=5
-                )
+
+                inst_ctx = get_learnings_for_prompt(self._institutional, request, max_items=5)
                 if inst_ctx:
                     parts.append(inst_ctx)
             except Exception:

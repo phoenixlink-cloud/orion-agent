@@ -23,7 +23,6 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
-from typing import Any
 
 from orion.ara.skill import (
     Skill,
@@ -139,9 +138,7 @@ class SkillLibrary:
 
         # Reconcile group → skill references
         for group in self._groups.values():
-            group.skill_names = [
-                s for s in group.skill_names if s in self._skills
-            ]
+            group.skill_names = [s for s in group.skill_names if s in self._skills]
 
         logger.info("Loaded %d skills, %d groups", loaded, len(self._groups))
         return loaded, warnings
@@ -165,7 +162,8 @@ class SkillLibrary:
                 logger.warning(
                     "Skill '%s' modified since last scan — revoking approval. "
                     "Run '/skills scan %s' to re-approve.",
-                    name, name,
+                    name,
+                    name,
                 )
                 skill.aegis_approved = False
                 skill.trust_level = "unreviewed"
@@ -233,7 +231,9 @@ class SkillLibrary:
 
         logger.info(
             "Created skill '%s' (approved=%s, trust=%s)",
-            name, skill.aegis_approved, skill.trust_level,
+            name,
+            skill.aegis_approved,
+            skill.trust_level,
         )
         return skill, scan_result
 
@@ -259,13 +259,11 @@ class SkillLibrary:
             skill.instructions = instructions
         if tags is not None:
             if len(tags) > SkillLimits.MAX_TAGS:
-                tags = tags[:SkillLimits.MAX_TAGS]
+                tags = tags[: SkillLimits.MAX_TAGS]
             skill.tags = tags
 
         # H8: Mandatory re-scan
-        scan_result = self._guard.scan_content(
-            skill.instructions, skill_name=name
-        )
+        scan_result = self._guard.scan_content(skill.instructions, skill_name=name)
 
         if scan_result.approved:
             skill.aegis_approved = True
@@ -281,7 +279,9 @@ class SkillLibrary:
 
         logger.info(
             "Updated skill '%s' (approved=%s, trust=%s)",
-            name, skill.aegis_approved, skill.trust_level,
+            name,
+            skill.aegis_approved,
+            skill.trust_level,
         )
         return skill, scan_result
 
@@ -399,7 +399,9 @@ class SkillLibrary:
 
         logger.info(
             "Imported skill '%s' (approved=%s, trust=%s)",
-            skill.name, skill.aegis_approved, skill.trust_level,
+            skill.name,
+            skill.aegis_approved,
+            skill.trust_level,
         )
         return skill, scan_result, warnings
 

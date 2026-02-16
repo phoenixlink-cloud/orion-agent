@@ -41,6 +41,7 @@ from orion.ara.session import SessionState, SessionStatus
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def workspace(tmp_path: Path) -> Path:
     ws = tmp_path / "workspace"
@@ -101,6 +102,7 @@ async def _mock_executor(task: Task) -> dict:
 # E2E: Full session lifecycle
 # ---------------------------------------------------------------------------
 
+
 class TestFullSessionLifecycle:
     """Complete session from role load to completion."""
 
@@ -133,9 +135,7 @@ class TestFullSessionLifecycle:
         assert dag.total_tasks == 3
 
         # 3. Validate actions against role
-        violations = engine.validate_actions(
-            dag, ["read_files", "write_files", "run_tests"]
-        )
+        violations = engine.validate_actions(dag, ["read_files", "write_files", "run_tests"])
         assert len(violations) == 0
 
         # 4. Set up checkpoint manager
@@ -150,7 +150,8 @@ class TestFullSessionLifecycle:
             dag=dag,
             task_executor=_mock_executor,
             on_checkpoint=lambda: cp_mgr.create(
-                session.to_dict(), dag.to_dict(),
+                session.to_dict(),
+                dag.to_dict(),
                 sandbox_path=workspace,
             ),
             checkpoint_interval_minutes=0,
@@ -196,49 +197,68 @@ class TestFullSessionLifecycle:
         )
 
         # Send start notification
-        notif_mgr.notify("session_started", {
-            "session_id": session.session_id,
-            "role_name": session.role_name,
-            "goal": session.goal,
-        })
+        notif_mgr.notify(
+            "session_started",
+            {
+                "session_id": session.session_id,
+                "role_name": session.role_name,
+                "goal": session.goal,
+            },
+        )
 
         # Run execution
-        dag = TaskDAG(goal="Refactor", tasks=[
-            Task(task_id="t1", title="Read", description="", action_type="read_files"),
-            Task(task_id="t2", title="Write", description="", action_type="write_files", dependencies=["t1"]),
-        ])
+        dag = TaskDAG(
+            goal="Refactor",
+            tasks=[
+                Task(task_id="t1", title="Read", description="", action_type="read_files"),
+                Task(
+                    task_id="t2",
+                    title="Write",
+                    description="",
+                    action_type="write_files",
+                    dependencies=["t1"],
+                ),
+            ],
+        )
         loop = ExecutionLoop(session=session, dag=dag, task_executor=_mock_executor)
         asyncio.run(loop.run())
 
         # Send completion notification
-        notif_mgr.notify("session_completed", {
-            "session_id": session.session_id,
-            "tasks_completed": 2,
-            "tasks_total": 2,
-            "elapsed": "0.1h",
-        })
+        notif_mgr.notify(
+            "session_completed",
+            {
+                "session_id": session.session_id,
+                "tasks_completed": 2,
+                "tasks_total": 2,
+                "elapsed": "0.1h",
+            },
+        )
 
         assert len(provider.calls) == 2
         assert notif_mgr.sent_count == 2
 
         # Record feedback
         for task in dag.tasks:
-            feedback.record_task(TaskOutcome(
-                task_id=task.task_id,
+            feedback.record_task(
+                TaskOutcome(
+                    task_id=task.task_id,
+                    session_id=session.session_id,
+                    action_type=task.action_type,
+                    success=True,
+                    confidence=0.9,
+                    duration_seconds=1.0,
+                )
+            )
+        feedback.record_session(
+            SessionOutcome(
                 session_id=session.session_id,
-                action_type=task.action_type,
-                success=True,
-                confidence=0.9,
-                duration_seconds=1.0,
-            ))
-        feedback.record_session(SessionOutcome(
-            session_id=session.session_id,
-            role_name=session.role_name,
-            goal=session.goal,
-            status="completed",
-            tasks_completed=2,
-            promoted=True,
-        ))
+                role_name=session.role_name,
+                goal=session.goal,
+                status="completed",
+                tasks_completed=2,
+                promoted=True,
+            )
+        )
 
         assert feedback.task_count == 2
         assert feedback.session_count == 1
@@ -253,6 +273,7 @@ class TestFullSessionLifecycle:
 # E2E: Daemon integration
 # ---------------------------------------------------------------------------
 
+
 class TestDaemonIntegration:
     """Daemon-level integration tests."""
 
@@ -265,16 +286,34 @@ class TestDaemonIntegration:
             goal="Build feature",
             workspace_path=str(workspace),
         )
-        dag = TaskDAG(goal="Build", tasks=[
-            Task(task_id="t1", title="Read code", description="", action_type="read_files"),
-            Task(task_id="t2", title="Write code", description="", action_type="write_files", dependencies=["t1"]),
-            Task(task_id="t3", title="Run tests", description="", action_type="run_tests", dependencies=["t2"]),
-        ])
+        dag = TaskDAG(
+            goal="Build",
+            tasks=[
+                Task(task_id="t1", title="Read code", description="", action_type="read_files"),
+                Task(
+                    task_id="t2",
+                    title="Write code",
+                    description="",
+                    action_type="write_files",
+                    dependencies=["t1"],
+                ),
+                Task(
+                    task_id="t3",
+                    title="Run tests",
+                    description="",
+                    action_type="run_tests",
+                    dependencies=["t2"],
+                ),
+            ],
+        )
         ctrl = DaemonControl(state_dir=tmp_path / "daemon")
 
         daemon = ARADaemon(
-            session=session, role=role, dag=dag,
-            control=ctrl, task_executor=_mock_executor,
+            session=session,
+            role=role,
+            dag=dag,
+            control=ctrl,
+            task_executor=_mock_executor,
             checkpoint_dir=tmp_path / "checkpoints",
         )
         asyncio.run(daemon.run())
@@ -302,24 +341,32 @@ class TestDaemonIntegration:
             goal="Test WS",
             workspace_path=str(workspace),
         )
-        dag = TaskDAG(goal="Test", tasks=[
-            Task(task_id="t1", title="Task 1", description="", action_type="write_files"),
-        ])
+        dag = TaskDAG(
+            goal="Test",
+            tasks=[
+                Task(task_id="t1", title="Task 1", description="", action_type="write_files"),
+            ],
+        )
         ctrl = DaemonControl(state_dir=tmp_path / "daemon")
 
         daemon = ARADaemon(
-            session=session, role=role, dag=dag,
-            control=ctrl, task_executor=_mock_executor,
+            session=session,
+            role=role,
+            dag=dag,
+            control=ctrl,
+            task_executor=_mock_executor,
             checkpoint_dir=tmp_path / "checkpoints",
         )
         asyncio.run(daemon.run())
 
         # Broadcast session result
-        ws_channel.emit_session_update({
-            "session_id": session.session_id,
-            "status": session.status.value,
-            "tasks_completed": session.progress.completed_tasks,
-        })
+        ws_channel.emit_session_update(
+            {
+                "session_id": session.session_id,
+                "status": session.status.value,
+                "tasks_completed": session.progress.completed_tasks,
+            }
+        )
         assert len(events) == 1
         assert events[0]["event"] == "session_update"
 
@@ -327,6 +374,7 @@ class TestDaemonIntegration:
 # ---------------------------------------------------------------------------
 # E2E: Recovery and drift
 # ---------------------------------------------------------------------------
+
 
 class TestRecoveryAndDrift:
     """Recovery from failures and drift detection."""
@@ -386,6 +434,7 @@ class TestRecoveryAndDrift:
 # E2E: API integration
 # ---------------------------------------------------------------------------
 
+
 class TestAPIIntegration:
     """REST + WebSocket API integration tests."""
 
@@ -399,14 +448,24 @@ class TestAPIIntegration:
         assert resp.ok is True
 
         # Record some feedback directly
-        feedback.record_task(TaskOutcome(
-            task_id="t1", session_id="api-test",
-            action_type="write_files", success=True, confidence=0.9,
-        ))
-        feedback.record_session(SessionOutcome(
-            session_id="api-test", role_name="coder",
-            goal="test", status="completed", tasks_completed=1,
-        ))
+        feedback.record_task(
+            TaskOutcome(
+                task_id="t1",
+                session_id="api-test",
+                action_type="write_files",
+                success=True,
+                confidence=0.9,
+            )
+        )
+        feedback.record_session(
+            SessionOutcome(
+                session_id="api-test",
+                role_name="coder",
+                goal="test",
+                status="completed",
+                tasks_completed=1,
+            )
+        )
 
         # Query stats via API
         resp = router.handle("GET", "/api/ara/feedback/stats")
@@ -414,9 +473,15 @@ class TestAPIIntegration:
         assert len(resp.data["stats"]) == 1
 
         # Submit user feedback via API
-        resp = router.handle("POST", "/api/ara/feedback", body={
-            "session_id": "api-test", "rating": 4, "comment": "Good",
-        })
+        resp = router.handle(
+            "POST",
+            "/api/ara/feedback",
+            body={
+                "session_id": "api-test",
+                "rating": 4,
+                "comment": "Good",
+            },
+        )
         assert resp.ok is True
 
         # Verify feedback persisted
@@ -428,12 +493,11 @@ class TestAPIIntegration:
 # E2E: AEGIS gate review
 # ---------------------------------------------------------------------------
 
+
 class TestAEGISReview:
     """Review and promotion gate checks."""
 
-    def test_clean_sandbox_approved(
-        self, tmp_path: Path, roles_dir: Path, auth, workspace
-    ):
+    def test_clean_sandbox_approved(self, tmp_path: Path, roles_dir: Path, auth, workspace):
         """Clean sandbox passes AEGIS gate."""
         sessions_dir = tmp_path / "sessions"
         sessions_dir.mkdir()
@@ -463,9 +527,7 @@ class TestAEGISReview:
         assert result.success is True
         assert "APPROVED" in result.message
 
-    def test_leaked_secret_blocked(
-        self, tmp_path: Path, roles_dir: Path, auth, workspace
-    ):
+    def test_leaked_secret_blocked(self, tmp_path: Path, roles_dir: Path, auth, workspace):
         """Sandbox with leaked secret is blocked by AEGIS."""
         sessions_dir = tmp_path / "sessions"
         sessions_dir.mkdir()
@@ -499,6 +561,7 @@ class TestAEGISReview:
 # E2E: Confidence calibration
 # ---------------------------------------------------------------------------
 
+
 class TestConfidenceCalibration:
     """Feedback store confidence calibration over multiple sessions."""
 
@@ -507,22 +570,26 @@ class TestConfidenceCalibration:
         # Simulate 3 sessions with varying outcomes
         for sid in ["s1", "s2", "s3"]:
             for i in range(5):
-                feedback.record_task(TaskOutcome(
-                    task_id=f"t{i}",
+                feedback.record_task(
+                    TaskOutcome(
+                        task_id=f"t{i}",
+                        session_id=sid,
+                        action_type="write_files",
+                        success=i < 4,  # 80% success rate
+                        confidence=0.85,
+                        duration_seconds=5.0 + i,
+                    )
+                )
+            feedback.record_session(
+                SessionOutcome(
                     session_id=sid,
-                    action_type="write_files",
-                    success=i < 4,  # 80% success rate
-                    confidence=0.85,
-                    duration_seconds=5.0 + i,
-                ))
-            feedback.record_session(SessionOutcome(
-                session_id=sid,
-                role_name="coder",
-                goal=f"goal-{sid}",
-                status="completed",
-                tasks_completed=4,
-                tasks_failed=1,
-            ))
+                    role_name="coder",
+                    goal=f"goal-{sid}",
+                    status="completed",
+                    tasks_completed=4,
+                    tasks_failed=1,
+                )
+            )
 
         assert feedback.task_count == 15
         assert feedback.session_count == 3

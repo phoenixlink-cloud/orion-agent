@@ -23,7 +23,6 @@ See ARA-001 §9 for design.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import time
@@ -78,43 +77,42 @@ def _guess_target_file(task_desc: str, task_title: str, sandbox_dir: Path) -> st
 
     # --- Tier 1: Extract ANY filename.extension from description ---
     # Matches word.ext where ext is 1-12 alphanumeric chars (any file type)
-    for m in re.finditer(r'([\w\-]+\.[a-zA-Z0-9]{1,12})\b', combined):
+    for m in re.finditer(r"([\w\-]+\.[a-zA-Z0-9]{1,12})\b", combined):
         candidate = m.group(1)
         # Filter out false positives (abbreviations, version numbers)
         if candidate in _false_positives:
             continue
         # Must have at least one letter in the extension
         ext_part = candidate.rsplit(".", 1)[-1]
-        if not re.search(r'[a-zA-Z]', ext_part):
+        if not re.search(r"[a-zA-Z]", ext_part):
             continue  # Skip pure numeric like "python3.11"
         return candidate
 
     # --- Tier 2: Score ALL sandbox files against task description ---
     sandbox_files = {
-        str(f.relative_to(sandbox_dir)): f
-        for f in sandbox_dir.rglob("*") if f.is_file()
+        str(f.relative_to(sandbox_dir)): f for f in sandbox_dir.rglob("*") if f.is_file()
     }
 
     if sandbox_files:
         # Bonus keyword map for well-known extensions (not a gate — just extra signal)
         _ext_bonus: dict[str, list[str]] = {
             ".html": ["html", "web", "page", "ui", "frontend", "site"],
-            ".css":  ["style", "stylesheet", "design", "theme", "layout"],
-            ".js":   ["javascript", "logic", "node", "react"],
-            ".ts":   ["typescript", "angular"],
-            ".py":   ["python", "backend", "server", "api", "flask", "django"],
-            ".go":   ["golang", "backend"],
-            ".rs":   ["rust", "cargo"],
+            ".css": ["style", "stylesheet", "design", "theme", "layout"],
+            ".js": ["javascript", "logic", "node", "react"],
+            ".ts": ["typescript", "angular"],
+            ".py": ["python", "backend", "server", "api", "flask", "django"],
+            ".go": ["golang", "backend"],
+            ".rs": ["rust", "cargo"],
             ".java": ["java", "spring"],
             ".json": ["config", "settings", "data", "package"],
             ".yaml": ["yaml", "docker", "kubernetes"],
-            ".yml":  ["docker", "compose", "actions"],
-            ".sql":  ["database", "query", "migration", "schema"],
-            ".md":   ["readme", "documentation", "docs"],
-            ".txt":  ["readme", "notes", "text", "license"],
-            ".sh":   ["bash", "shell", "deploy"],
-            ".csv":  ["data", "spreadsheet"],
-            ".xml":  ["config", "manifest"],
+            ".yml": ["docker", "compose", "actions"],
+            ".sql": ["database", "query", "migration", "schema"],
+            ".md": ["readme", "documentation", "docs"],
+            ".txt": ["readme", "notes", "text", "license"],
+            ".sh": ["bash", "shell", "deploy"],
+            ".csv": ["data", "spreadsheet"],
+            ".xml": ["config", "manifest"],
         }
 
         best_file = None
@@ -161,7 +159,7 @@ def _guess_target_file(task_desc: str, task_title: str, sandbox_dir: Path) -> st
             reverse=True,
         )
         # Prefer non-README files (those are support files, not main targets)
-        for rel_path, fpath in by_mtime:
+        for rel_path, _fpath in by_mtime:
             if not rel_path.lower().startswith("readme"):
                 return rel_path
         # All files are READMEs — just return the most recent
@@ -231,8 +229,13 @@ class ARATaskExecutor:
         self._completed_task_summaries.append(summary)
 
     def learn_from_task_outcome(
-        self, task_id: str, action_type: str, title: str,
-        success: bool, output: str, confidence: float,
+        self,
+        task_id: str,
+        action_type: str,
+        title: str,
+        success: bool,
+        output: str,
+        confidence: float,
     ) -> None:
         """Feed task outcome back to institutional memory (teach-student WRITE path).
 
@@ -252,7 +255,9 @@ class ARATaskExecutor:
             )
             logger.debug(
                 "Institutional memory updated: %s %s (quality=%.2f)",
-                task_id, "success" if success else "failure", quality,
+                task_id,
+                "success" if success else "failure",
+                quality,
             )
         except Exception as e:
             logger.debug("Could not update institutional memory: %s", e)
@@ -274,9 +279,8 @@ class ARATaskExecutor:
         if self._institutional:
             try:
                 from orion.core.learning.patterns import get_learnings_for_prompt
-                wisdom = get_learnings_for_prompt(
-                    self._institutional, self.goal, max_items=5
-                )
+
+                wisdom = get_learnings_for_prompt(self._institutional, self.goal, max_items=5)
                 if wisdom:
                     parts.append(f"\n{wisdom}")
             except Exception as e:
@@ -308,7 +312,9 @@ class ARATaskExecutor:
             elapsed = time.time() - start
             logger.info(
                 "Task %s completed in %.1fs: success=%s",
-                task.task_id, elapsed, result.get("success"),
+                task.task_id,
+                elapsed,
+                result.get("success"),
             )
             return result
 
@@ -329,9 +335,12 @@ class ARATaskExecutor:
         )
         context = self._build_context_block()
         response = await _call_llm(
-            self.provider, self.model, system_prompt,
+            self.provider,
+            self.model,
+            system_prompt,
             f"Goal: {self.goal}\n\nTask: {task.description}\n\n{context}",
-            max_tokens=1000, temperature=0.3,
+            max_tokens=1000,
+            temperature=0.3,
         )
         return {"success": True, "output": response[:500], "confidence": 0.9}
 
@@ -382,49 +391,76 @@ class ARATaskExecutor:
         # "generate a pdf", "write a docx report", "edit the blend file")
         # Search for a standalone word that looks like an extension
         ext_match = re.search(
-            r'\b(html?|css|jsx?|tsx?|py|rb|go|rs|java|kt|cs|swift|dart|'
-            r'lua|sql|sh|bat|ps1|json|ya?ml|toml|xml|ini|csv|'
-            r'pdf|docx?|xlsx?|pptx?|odt|ods|rtf|tex|latex|'
-            r'png|jpe?g|gif|svg|ico|webp|bmp|tiff?|psd|ai|'
-            r'mp[34]|wav|ogg|flac|avi|mkv|mov|webm|'
-            r'zip|tar|gz|rar|7z|'
-            r'blend|fbx|obj|stl|gltf|glb|'
-            r'ipynb|rmd|'
-            r'[a-z]{1,8})\s+file\b', combined
+            r"\b(html?|css|jsx?|tsx?|py|rb|go|rs|java|kt|cs|swift|dart|"
+            r"lua|sql|sh|bat|ps1|json|ya?ml|toml|xml|ini|csv|"
+            r"pdf|docx?|xlsx?|pptx?|odt|ods|rtf|tex|latex|"
+            r"png|jpe?g|gif|svg|ico|webp|bmp|tiff?|psd|ai|"
+            r"mp[34]|wav|ogg|flac|avi|mkv|mov|webm|"
+            r"zip|tar|gz|rar|7z|"
+            r"blend|fbx|obj|stl|gltf|glb|"
+            r"ipynb|rmd|"
+            r"[a-z]{1,8})\s+file\b",
+            combined,
         )
         if ext_match:
             ext = ext_match.group(1)
             # Normalize common variants
-            if ext == "htm": ext = "html"
-            if ext == "jpeg" or ext == "jpg": ext = "jpg"
+            if ext == "htm":
+                ext = "html"
+            if ext == "jpeg" or ext == "jpg":
+                ext = "jpg"
         else:
             # Also check for "file_type file" at end, or just a bare ext word
             # after action verbs: "create a pdf", "generate png", "write sql"
             ext_match2 = re.search(
-                r'\b(?:create|generate|write|make|build|produce|export)\b.*?\b'
-                r'([a-z]{1,8})\b\s*$', combined
+                r"\b(?:create|generate|write|make|build|produce|export)\b.*?\b"
+                r"([a-z]{1,8})\b\s*$",
+                combined,
             )
             ext = None
             if ext_match2:
                 candidate = ext_match2.group(1)
                 # Only use it if it looks like an extension (not a regular word)
                 if len(candidate) <= 5 and candidate not in {
-                    "a", "an", "the", "this", "that", "file", "new", "code",
-                    "it", "for", "and", "with", "from", "into", "task",
+                    "a",
+                    "an",
+                    "the",
+                    "this",
+                    "that",
+                    "file",
+                    "new",
+                    "code",
+                    "it",
+                    "for",
+                    "and",
+                    "with",
+                    "from",
+                    "into",
+                    "task",
                 }:
                     ext = candidate
 
         # --- Step 2: Framework/tool name → extension (slim, for ambiguous cases) ---
         if ext is None:
             _tool_to_ext = {
-                "python": "py", "flask": "py", "django": "py", "fastapi": "py",
-                "javascript": "js", "node": "js", "react": "jsx", "express": "js",
-                "typescript": "ts", "angular": "ts",
-                "ruby": "rb", "rails": "rb",
+                "python": "py",
+                "flask": "py",
+                "django": "py",
+                "fastapi": "py",
+                "javascript": "js",
+                "node": "js",
+                "react": "jsx",
+                "express": "js",
+                "typescript": "ts",
+                "angular": "ts",
+                "ruby": "rb",
+                "rails": "rb",
                 "golang": "go",
-                "rust": "rs", "cargo": "rs",
+                "rust": "rs",
+                "cargo": "rs",
                 "kotlin": "kt",
-                "csharp": "cs", "dotnet": "cs",
+                "csharp": "cs",
+                "dotnet": "cs",
                 "swiftui": "swift",
                 "flutter": "dart",
                 "blender": "blend",
@@ -443,10 +479,25 @@ class ARATaskExecutor:
             ext = "txt"
 
         # --- Step 4: Derive filename stem from goal ---
-        goal_words = re.findall(r'[a-zA-Z]+', self.goal.lower())
+        goal_words = re.findall(r"[a-zA-Z]+", self.goal.lower())
         stem = goal_words[0] if goal_words else "output"
-        skip = {"create", "build", "make", "write", "generate", "a", "an", "the",
-                "add", "update", "modify", "edit", "implement", "set", "up"}
+        skip = {
+            "create",
+            "build",
+            "make",
+            "write",
+            "generate",
+            "a",
+            "an",
+            "the",
+            "add",
+            "update",
+            "modify",
+            "edit",
+            "implement",
+            "set",
+            "up",
+        }
         while stem in skip and goal_words:
             goal_words.pop(0)
             stem = goal_words[0] if goal_words else "main"
@@ -485,8 +536,12 @@ class ARATaskExecutor:
         )
 
         response = await _call_llm(
-            self.provider, self.model, system_prompt, user_prompt,
-            max_tokens=16000, temperature=0.4,
+            self.provider,
+            self.model,
+            system_prompt,
+            user_prompt,
+            max_tokens=16000,
+            temperature=0.4,
         )
 
         content = self._extract_file_content(response, target)
@@ -507,7 +562,10 @@ class ARATaskExecutor:
         }
 
     async def _merge_into_file(
-        self, task: Any, target: str, existing: str,
+        self,
+        task: Any,
+        target: str,
+        existing: str,
     ) -> dict[str, Any]:
         """Merge new work into an existing file (the core context-aware edit)."""
         context = self._build_context_block()
@@ -534,8 +592,12 @@ class ARATaskExecutor:
         )
 
         response = await _call_llm(
-            self.provider, self.model, system_prompt, user_prompt,
-            max_tokens=16000, temperature=0.3,
+            self.provider,
+            self.model,
+            system_prompt,
+            user_prompt,
+            max_tokens=16000,
+            temperature=0.3,
         )
 
         new_content = self._extract_file_content(response, target)
@@ -545,7 +607,9 @@ class ARATaskExecutor:
         if new_lines < old_lines * 0.5 and old_lines > 20:
             logger.warning(
                 "Edit shrank %s from %d to %d lines — keeping larger version",
-                target, old_lines, new_lines,
+                target,
+                old_lines,
+                new_lines,
             )
             if len(new_content) < len(existing) * 0.5:
                 new_content = existing
@@ -633,9 +697,12 @@ class ARATaskExecutor:
             "If your output is code, output ONLY the code with no markdown fences."
         )
         response = await _call_llm(
-            self.provider, self.model, system_prompt,
+            self.provider,
+            self.model,
+            system_prompt,
             f"Goal: {self.goal}\n\nTask: {task.title}\n{task.description}\n\n{context}",
-            max_tokens=8000, temperature=0.4,
+            max_tokens=8000,
+            temperature=0.4,
         )
 
         # If response looks like code and we have a target, persist it
@@ -666,9 +733,21 @@ class ARATaskExecutor:
     def _looks_like_code(text: str) -> bool:
         """Heuristic: does this text look like code?"""
         code_signals = [
-            "function ", "def ", "class ", "const ", "let ", "var ",
-            "import ", "from ", "<html", "<div", "<script", "<!DOCTYPE",
-            "if (", "for (", "while (",
+            "function ",
+            "def ",
+            "class ",
+            "const ",
+            "let ",
+            "var ",
+            "import ",
+            "from ",
+            "<html",
+            "<div",
+            "<script",
+            "<!DOCTYPE",
+            "if (",
+            "for (",
+            "while (",
         ]
         return any(sig in text for sig in code_signals)
 
@@ -688,13 +767,16 @@ class ARATaskExecutor:
         """Extract HTML from LLM response, stripping markdown fences."""
         match = re.search(
             r"```(?:html)?\s*(<!DOCTYPE.*?</html>)\s*```",
-            text, re.DOTALL | re.IGNORECASE,
+            text,
+            re.DOTALL | re.IGNORECASE,
         )
         if match:
             return match.group(1).strip()
 
         match = re.search(
-            r"(<!DOCTYPE.*?</html>)", text, re.DOTALL | re.IGNORECASE,
+            r"(<!DOCTYPE.*?</html>)",
+            text,
+            re.DOTALL | re.IGNORECASE,
         )
         if match:
             return match.group(1).strip()

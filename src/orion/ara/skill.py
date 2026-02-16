@@ -38,11 +38,32 @@ logger = logging.getLogger("orion.ara.skill")
 
 _VALID_SKILL_NAME = re.compile(r"^[a-z0-9][a-z0-9\-]{0,62}[a-z0-9]$")
 
-_WIN_RESERVED_NAMES = frozenset({
-    "CON", "PRN", "AUX", "NUL",
-    "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-    "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-})
+_WIN_RESERVED_NAMES = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+    }
+)
 
 VALID_TRUST_LEVELS = frozenset({"verified", "trusted", "unreviewed", "blocked"})
 VALID_SOURCES = frozenset({"custom", "imported", "bundled"})
@@ -52,35 +73,81 @@ VALID_GROUP_TYPES = frozenset({"specialized", "general"})
 class SkillLimits:
     """Hard limits enforced at load time (ARA-006 §7.4 H2)."""
 
-    MAX_SKILL_MD_BYTES: int = 50 * 1024            # 50 KB
-    MAX_INSTRUCTION_TOKENS: int = 4_000              # Injected context budget
+    MAX_SKILL_MD_BYTES: int = 50 * 1024  # 50 KB
+    MAX_INSTRUCTION_TOKENS: int = 4_000  # Injected context budget
     MAX_SUPPORTING_FILES: int = 20
-    MAX_SINGLE_FILE_BYTES: int = 1 * 1024 * 1024    # 1 MB
-    MAX_SKILL_DIR_BYTES: int = 10 * 1024 * 1024      # 10 MB
+    MAX_SINGLE_FILE_BYTES: int = 1 * 1024 * 1024  # 1 MB
+    MAX_SKILL_DIR_BYTES: int = 10 * 1024 * 1024  # 10 MB
     MAX_NAME_LENGTH: int = 64
     MAX_TAGS: int = 20
 
 
 # Allowed supporting file extensions (ARA-006 §7.4 H4)
-ALLOWED_SUPPORTING_EXTENSIONS = frozenset({
-    ".md", ".txt", ".rst", ".adoc",
-    ".py", ".js", ".ts", ".sh", ".bash", ".zsh",
-    ".yaml", ".yml", ".json", ".toml", ".ini", ".cfg", ".conf",
-    ".html", ".css", ".xml", ".csv",
-    ".dockerfile", ".env",
-})
+ALLOWED_SUPPORTING_EXTENSIONS = frozenset(
+    {
+        ".md",
+        ".txt",
+        ".rst",
+        ".adoc",
+        ".py",
+        ".js",
+        ".ts",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".html",
+        ".css",
+        ".xml",
+        ".csv",
+        ".dockerfile",
+        ".env",
+    }
+)
 
-ALLOWED_SUPPORTING_NAMES = frozenset({
-    "Dockerfile", "Makefile", "Procfile", "Vagrantfile",
-    ".gitignore", ".dockerignore", ".editorconfig",
-})
+ALLOWED_SUPPORTING_NAMES = frozenset(
+    {
+        "Dockerfile",
+        "Makefile",
+        "Procfile",
+        "Vagrantfile",
+        ".gitignore",
+        ".dockerignore",
+        ".editorconfig",
+    }
+)
 
-BLOCKED_EXTENSIONS = frozenset({
-    ".exe", ".dll", ".so", ".dylib", ".bat", ".cmd", ".com",
-    ".msi", ".scr", ".pif", ".vbs", ".vbe", ".wsf", ".wsh",
-    ".ps1", ".jar", ".war", ".class",
-    ".bin", ".img", ".iso",
-})
+BLOCKED_EXTENSIONS = frozenset(
+    {
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bat",
+        ".cmd",
+        ".com",
+        ".msi",
+        ".scr",
+        ".pif",
+        ".vbs",
+        ".vbe",
+        ".wsf",
+        ".wsh",
+        ".ps1",
+        ".jar",
+        ".war",
+        ".class",
+        ".bin",
+        ".img",
+        ".iso",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -97,14 +164,14 @@ class Skill:
     version: str = "1.0.0"
     author: str = ""
     tags: list[str] = field(default_factory=list)
-    source: str = "custom"                  # custom | imported | bundled
-    trust_level: str = "trusted"            # verified | trusted | unreviewed | blocked
-    instructions: str = ""                  # Markdown body (below frontmatter)
-    directory: Path | None = None           # Path to skill folder
+    source: str = "custom"  # custom | imported | bundled
+    trust_level: str = "trusted"  # verified | trusted | unreviewed | blocked
+    instructions: str = ""  # Markdown body (below frontmatter)
+    directory: Path | None = None  # Path to skill folder
     supporting_files: list[str] = field(default_factory=list)
-    group: str | None = None                # Assigned skill group
-    aegis_approved: bool = False            # Passed SkillGuard scan
-    content_hash: str = ""                  # SHA-256 (ARA-006 §7.4 H1)
+    group: str | None = None  # Assigned skill group
+    aegis_approved: bool = False  # Passed SkillGuard scan
+    content_hash: str = ""  # SHA-256 (ARA-006 §7.4 H1)
 
     def compute_hash(self) -> str:
         """SHA-256 of SKILL.md content + sorted supporting file contents."""
@@ -183,7 +250,7 @@ class SkillGroup:
     name: str
     display_name: str
     description: str = ""
-    group_type: str = "general"             # specialized | general
+    group_type: str = "general"  # specialized | general
     skill_names: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
 
@@ -293,7 +360,7 @@ def parse_skill_md(content: str) -> tuple[dict[str, Any], str]:
         return {}, content
 
     frontmatter_raw = content[3:end].strip()
-    body = content[end + 3:].strip()
+    body = content[end + 3 :].strip()
 
     try:
         frontmatter = yaml.safe_load(frontmatter_raw)
@@ -430,20 +497,20 @@ def load_skill(skill_dir: Path) -> tuple[Skill, list[str]]:
     if not isinstance(tags, list):
         tags = []
     if len(tags) > SkillLimits.MAX_TAGS:
-        tags = tags[:SkillLimits.MAX_TAGS]
+        tags = tags[: SkillLimits.MAX_TAGS]
         warnings.append(f"Tags truncated to {SkillLimits.MAX_TAGS}")
 
     # Validate trust level
     trust = frontmatter.get("trust_level", "trusted")
     if trust not in VALID_TRUST_LEVELS:
         trust = "unreviewed"
-        warnings.append(f"Unknown trust_level, defaulting to 'unreviewed'")
+        warnings.append("Unknown trust_level, defaulting to 'unreviewed'")
 
     # Validate source
     source = frontmatter.get("source", "custom")
     if source not in VALID_SOURCES:
         source = "custom"
-        warnings.append(f"Unknown source, defaulting to 'custom'")
+        warnings.append("Unknown source, defaulting to 'custom'")
 
     # Inventory supporting files (with security checks)
     supporting, inv_warnings = _inventory_supporting_files(skill_dir)
@@ -462,7 +529,7 @@ def load_skill(skill_dir: Path) -> tuple[Skill, list[str]]:
         supporting_files=supporting,
         group=frontmatter.get("group"),
         aegis_approved=False,  # Must pass SkillGuard first
-        content_hash="",       # Computed after SkillGuard approves
+        content_hash="",  # Computed after SkillGuard approves
     )
 
     return skill, warnings

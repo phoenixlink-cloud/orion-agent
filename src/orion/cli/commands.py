@@ -781,7 +781,7 @@ def _handle_ara_work(parts, console, workspace_path):
     """Handle /work <role> <goal> -- Start an autonomous session."""
     if len(parts) < 3:
         console.print_info("Usage: /work <role> <goal>")
-        console.print_info("  Example: /work software-engineer \"Add error handling to api.py\"")
+        console.print_info('  Example: /work software-engineer "Add error handling to api.py"')
         try:
             from orion.ara.cli_commands import list_available_roles
 
@@ -872,7 +872,9 @@ def _handle_ara_role(parts, console):
                     for r in result.data["roles"]:
                         source = r.get("source", "")
                         tag = " (starter)" if source == "starter" else ""
-                        console._print(f"    {r['name']}{tag} — scope: {r.get('scope', '?')}, auth: {r.get('auth_method', '?')}")
+                        console._print(
+                            f"    {r['name']}{tag} — scope: {r.get('scope', '?')}, auth: {r.get('auth_method', '?')}"
+                        )
             else:
                 console.print_error(result.message)
 
@@ -956,8 +958,16 @@ def _handle_ara_sessions(parts, console):
             console.print_info(result.message)
             if result.data and result.data.get("sessions"):
                 for s in result.data["sessions"]:
-                    status_icon = {"running": "▶", "paused": "⏸", "completed": "✓", "failed": "✗", "cancelled": "⊘"}.get(s.get("status", ""), "?")
-                    console._print(f"    {status_icon} {s['session_id'][:8]}  {s.get('role', '?')} — {s.get('goal', '?')[:60]}")
+                    status_icon = {
+                        "running": "▶",
+                        "paused": "⏸",
+                        "completed": "✓",
+                        "failed": "✗",
+                        "cancelled": "⊘",
+                    }.get(s.get("status", ""), "?")
+                    console._print(
+                        f"    {status_icon} {s['session_id'][:8]}  {s.get('role', '?')} — {s.get('goal', '?')[:60]}"
+                    )
         else:
             console.print_error(result.message)
     except Exception as e:
@@ -1003,7 +1013,9 @@ def _handle_ara_dashboard(console, workspace_path):
             output = dash.render(session_id)
             console._print(output)
         else:
-            console.print_info("No pending ARA sessions to review. Start one with /work <role> <goal>.")
+            console.print_info(
+                "No pending ARA sessions to review. Start one with /work <role> <goal>."
+            )
     except Exception as e:
         console.print_error(f"ARA dashboard failed: {e}")
     return {}
@@ -1199,7 +1211,9 @@ def _handle_ara_skill(parts, console):
 
         elif sub == "create":
             if len(parts) < 3:
-                console.print_info("Usage: /skill create <name> [--desc \"description\"] [--tag tag1,tag2]")
+                console.print_info(
+                    'Usage: /skill create <name> [--desc "description"] [--tag tag1,tag2]'
+                )
                 return {}
             name = parts[2]
             desc = ""

@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,9 +42,11 @@ GRADEBOOK_PATH = Path.home() / ".orion" / "gradebook.json"
 
 # ─── Data structures ─────────────────────────────────────────────────────
 
+
 @dataclass
 class QuestionResult:
     """Result of a single Q&A exchange."""
+
     question_id: str
     question: str
     orion_answer: str
@@ -60,6 +61,7 @@ class QuestionResult:
 @dataclass
 class LessonResult:
     """Result of running a complete lesson."""
+
     lesson_id: str
     lesson_title: str
     subject: str
@@ -95,6 +97,7 @@ class LessonResult:
 
 # ─── Curriculum loader ───────────────────────────────────────────────────
 
+
 def load_curriculum(path: Path | None = None) -> dict[str, Any]:
     """Load the curriculum JSON file."""
     p = path or CURRICULUM_PATH
@@ -117,18 +120,21 @@ def list_lessons(curriculum: dict) -> list[dict[str, str]]:
     lessons = []
     for subject in curriculum.get("subjects", []):
         for lesson in subject.get("lessons", []):
-            lessons.append({
-                "id": lesson["id"],
-                "title": lesson["title"],
-                "subject": subject["name"],
-                "grade": lesson["grade"],
-                "questions": len(lesson.get("questions", [])),
-                "prerequisite": lesson.get("prerequisite"),
-            })
+            lessons.append(
+                {
+                    "id": lesson["id"],
+                    "title": lesson["title"],
+                    "subject": subject["name"],
+                    "grade": lesson["grade"],
+                    "questions": len(lesson.get("questions", [])),
+                    "prerequisite": lesson.get("prerequisite"),
+                }
+            )
     return lessons
 
 
 # ─── Grading ─────────────────────────────────────────────────────────────
+
 
 def _phrase_in_text(phrase: str, text: str) -> bool:
     """Check if a concept phrase appears in text (fuzzy for multi-word)."""
@@ -174,6 +180,7 @@ def grade_answer(
 
 
 # ─── Teaching Engine ─────────────────────────────────────────────────────
+
 
 class TeachingEngine:
     """Runs Q&A lessons against Orion's LLM and grades the responses.
@@ -226,7 +233,9 @@ class TeachingEngine:
 
             logger.info(
                 "  Q: %s — score: %.0f%% %s",
-                q["id"], qr.score * 100, "✓" if qr.passed else "✗",
+                q["id"],
+                qr.score * 100,
+                "✓" if qr.passed else "✗",
             )
 
         result.completed_at = datetime.now(timezone.utc).isoformat()
@@ -240,7 +249,8 @@ class TeachingEngine:
 
         logger.info(
             "Lesson %s complete: %.0f%% — %s",
-            lesson_id, result.overall_score * 100,
+            lesson_id,
+            result.overall_score * 100,
             "PASSED" if result.passed else "NEEDS REVIEW",
         )
         return result
@@ -273,9 +283,8 @@ class TeachingEngine:
         if self._institutional:
             try:
                 from orion.core.learning.patterns import get_learnings_for_prompt
-                context = get_learnings_for_prompt(
-                    self._institutional, q["question"], max_items=8
-                )
+
+                context = get_learnings_for_prompt(self._institutional, q["question"], max_items=8)
             except Exception:
                 pass
 
@@ -295,8 +304,8 @@ class TeachingEngine:
 
         # Call LLM
         try:
-            from orion.core.llm.providers import call_provider
             from orion.core.llm.config import RoleConfig
+            from orion.core.llm.providers import call_provider
 
             rc = RoleConfig(provider=self.provider, model=self.model)
             answer = await call_provider(
@@ -311,9 +320,7 @@ class TeachingEngine:
             answer = f"[LLM call failed: {e}]"
 
         # Grade
-        found, missed, score, passed = grade_answer(
-            answer, q["expected_concepts"]
-        )
+        found, missed, score, passed = grade_answer(answer, q["expected_concepts"])
 
         correction = None
         if not passed:
@@ -338,7 +345,6 @@ class TeachingEngine:
         if not self._institutional:
             return
 
-        pattern_id = q.get("pattern_id")
         try:
             if result.passed:
                 # Reinforce the pattern — Orion got it right
@@ -392,9 +398,7 @@ class TeachingEngine:
             self._gradebook["lesson_scores"][lid] = result.overall_score
 
         GRADEBOOK_PATH.parent.mkdir(parents=True, exist_ok=True)
-        GRADEBOOK_PATH.write_text(
-            json.dumps(self._gradebook, indent=2), encoding="utf-8"
-        )
+        GRADEBOOK_PATH.write_text(json.dumps(self._gradebook, indent=2), encoding="utf-8")
 
     def get_progress(self) -> dict[str, Any]:
         """Get overall learning progress."""
@@ -433,8 +437,10 @@ class TeachingEngine:
                 lines.append(f"     Correction: {q.correction[:100]}...")
             lines.append("")
 
-        lines.append(f"╚══ {len(result.questions)} questions, "
-                      f"{sum(1 for q in result.questions if q.passed)} passed ══╝")
+        lines.append(
+            f"╚══ {len(result.questions)} questions, "
+            f"{sum(1 for q in result.questions if q.passed)} passed ══╝"
+        )
         return "\n".join(lines)
 
     @staticmethod

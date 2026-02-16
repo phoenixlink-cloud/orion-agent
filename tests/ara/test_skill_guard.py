@@ -15,7 +15,6 @@ from orion.ara.skill_guard import (
     normalize_for_scan,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────
 # normalize_for_scan (H7)
 # ─────────────────────────────────────────────────────────────────────
@@ -52,7 +51,7 @@ class TestNormalizeForScan:
     def test_preserves_newlines(self):
         text = "line1\nline2\nline3"
         result = normalize_for_scan(text)
-        assert "line1\nline2\nline3" == result
+        assert result == "line1\nline2\nline3"
 
     def test_strips_soft_hyphen(self):
         text = "dis\u00adable ae\u00adgis"

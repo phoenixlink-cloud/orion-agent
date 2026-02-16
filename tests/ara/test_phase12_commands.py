@@ -117,6 +117,7 @@ class TestCmdSessionsCleanup:
         # Make the session file appear old
         state_file = sessions_dir / "old-1" / "session.json"
         import os
+
         old_time = time.time() - (31 * 86400)
         os.utime(state_file, (old_time, old_time))
 
@@ -158,8 +159,10 @@ class TestCmdRollback:
     def test_rollback_session_not_found(self, sessions_dir: Path):
         ctrl = _mock_control("nonexistent")
         result = cmd_rollback(
-            "cp-001", session_id="nonexistent",
-            sessions_dir=sessions_dir, control=ctrl,
+            "cp-001",
+            session_id="nonexistent",
+            sessions_dir=sessions_dir,
+            control=ctrl,
         )
         assert not result.success
 
@@ -177,7 +180,9 @@ class TestCmdPlanReview:
 
     def test_no_plan_file(self, sessions_dir: Path):
         _make_session(sessions_dir, "no-plan")
-        result = cmd_plan_review(session_id="no-plan", sessions_dir=sessions_dir, control=_mock_control())
+        result = cmd_plan_review(
+            session_id="no-plan", sessions_dir=sessions_dir, control=_mock_control()
+        )
         assert not result.success
         assert "No plan found" in result.message
 
@@ -192,7 +197,9 @@ class TestCmdPlanReview:
         }
         (sessions_dir / "with-plan" / "plan.json").write_text(json.dumps(plan))
 
-        result = cmd_plan_review(session_id="with-plan", sessions_dir=sessions_dir, control=_mock_control())
+        result = cmd_plan_review(
+            session_id="with-plan", sessions_dir=sessions_dir, control=_mock_control()
+        )
         assert result.success
         assert "Write auth module" in result.message
         assert "Write tests" in result.message
@@ -201,7 +208,9 @@ class TestCmdPlanReview:
     def test_empty_plan(self, sessions_dir: Path):
         _make_session(sessions_dir, "empty-plan")
         (sessions_dir / "empty-plan" / "plan.json").write_text(json.dumps({"tasks": []}))
-        result = cmd_plan_review(session_id="empty-plan", sessions_dir=sessions_dir, control=_mock_control())
+        result = cmd_plan_review(
+            session_id="empty-plan", sessions_dir=sessions_dir, control=_mock_control()
+        )
         assert result.success
         assert "empty" in result.message.lower()
 

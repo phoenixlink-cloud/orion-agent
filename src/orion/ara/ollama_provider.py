@@ -100,11 +100,17 @@ class ARALLMProvider:
 
         try:
             response = await _call_llm(
-                self.provider, self.model, system_prompt, user_prompt,
-                max_tokens=4000, temperature=0.3,
+                self.provider,
+                self.model,
+                system_prompt,
+                user_prompt,
+                max_tokens=4000,
+                temperature=0.3,
             )
             tasks = _extract_json(response)
-            logger.info("Decomposed goal into %d tasks via %s/%s", len(tasks), self.provider, self.model)
+            logger.info(
+                "Decomposed goal into %d tasks via %s/%s", len(tasks), self.provider, self.model
+            )
             return tasks
         except Exception as e:
             logger.error("Goal decomposition failed: %s", e)

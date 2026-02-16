@@ -55,7 +55,11 @@ class UserIsolation:
         try:
             resolved = session_path.resolve()
             orion_resolved = self._orion_dir.resolve()
-            return resolved == orion_resolved or str(resolved).startswith(str(orion_resolved) + "\\") or str(resolved).startswith(str(orion_resolved) + "/")
+            return (
+                resolved == orion_resolved
+                or str(resolved).startswith(str(orion_resolved) + "\\")
+                or str(resolved).startswith(str(orion_resolved) + "/")
+            )
         except Exception:
             return False
 
@@ -75,6 +79,10 @@ class UserIsolation:
         try:
             resolved = path.resolve()
             home_resolved = self._home.resolve()
-            return resolved == home_resolved or str(resolved).startswith(str(home_resolved) + "\\") or str(resolved).startswith(str(home_resolved) + "/")
+            return (
+                resolved == home_resolved
+                or str(resolved).startswith(str(home_resolved) + "\\")
+                or str(resolved).startswith(str(home_resolved) + "/")
+            )
         except Exception:
             return False

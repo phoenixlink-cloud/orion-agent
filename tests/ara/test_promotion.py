@@ -15,7 +15,9 @@ from orion.ara.promotion import ConflictFile, FileDiff, PromotionManager, Promot
 def _git_init(path: Path) -> None:
     """Initialize a git repo with an initial commit."""
     subprocess.run(["git", "init"], cwd=str(path), capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=str(path), capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"], cwd=str(path), capture_output=True
+    )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=str(path), capture_output=True)
     (path / "README.md").write_text("# Test\n")
     subprocess.run(["git", "add", "-A"], cwd=str(path), capture_output=True)
@@ -182,7 +184,9 @@ class TestPromote:
         # Verify tags exist
         tag_check = subprocess.run(
             ["git", "tag", "-l", "orion-*"],
-            capture_output=True, text=True, cwd=str(workspace),
+            capture_output=True,
+            text=True,
+            cwd=str(workspace),
         )
         assert "orion-pre-promote" in tag_check.stdout
         assert "orion-post-promote" in tag_check.stdout

@@ -146,18 +146,14 @@ class TestSessionCleanup:
 class TestCheckpointPruning:
     """Test checkpoint pruning."""
 
-    def test_prune_excess_checkpoints(
-        self, manager: LifecycleManager, checkpoints_dir: Path
-    ):
+    def test_prune_excess_checkpoints(self, manager: LifecycleManager, checkpoints_dir: Path):
         _create_checkpoints(checkpoints_dir, "session-001", count=6)
         count, freed = manager.prune_checkpoints("session-001")
         assert count >= 3  # 6 - 3 max = at least 3 pruned
         remaining = list((checkpoints_dir / "session-001").iterdir())
         assert len(remaining) <= 3
 
-    def test_prune_old_checkpoints(
-        self, manager: LifecycleManager, checkpoints_dir: Path
-    ):
+    def test_prune_old_checkpoints(self, manager: LifecycleManager, checkpoints_dir: Path):
         paths = _create_checkpoints(checkpoints_dir, "session-002", count=2)
         # All should be pruned since TTL is very short
         time.sleep(0.01)
@@ -189,9 +185,7 @@ class TestFullCleanup:
 class TestHealthReport:
     """Test health reporting."""
 
-    def test_health_report(
-        self, manager: LifecycleManager, sessions_dir: Path
-    ):
+    def test_health_report(self, manager: LifecycleManager, sessions_dir: Path):
         _create_session(sessions_dir, "s1", status="running")
         _create_session(sessions_dir, "s2", status="completed", age_seconds=100)
         report = manager.health_report()

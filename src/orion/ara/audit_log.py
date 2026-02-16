@@ -194,9 +194,10 @@ class AuditLog:
                 # Verify hash chain
                 if entry.prev_hash != prev_hash:
                     logger.error(
-                        "Audit chain broken at line %d: prev_hash mismatch "
-                        "(expected %s, got %s)",
-                        i + 1, prev_hash[:16], entry.prev_hash[:16],
+                        "Audit chain broken at line %d: prev_hash mismatch (expected %s, got %s)",
+                        i + 1,
+                        prev_hash[:16],
+                        entry.prev_hash[:16],
                     )
                     return False, entries_checked
 
@@ -204,7 +205,8 @@ class AuditLog:
                 expected_hash = entry.compute_hash()
                 if entry.entry_hash != expected_hash:
                     logger.error(
-                        "Audit tampered at line %d: entry_hash mismatch", i + 1,
+                        "Audit tampered at line %d: entry_hash mismatch",
+                        i + 1,
                     )
                     return False, entries_checked
 
@@ -212,7 +214,8 @@ class AuditLog:
                 expected_hmac = entry.compute_hmac(self._hmac_key)
                 if entry.hmac_sig != expected_hmac:
                     logger.error(
-                        "Audit tampered at line %d: HMAC mismatch", i + 1,
+                        "Audit tampered at line %d: HMAC mismatch",
+                        i + 1,
                     )
                     return False, entries_checked
 

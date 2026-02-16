@@ -22,7 +22,6 @@ Source: ARA-005 Context Loss Investigation & Resolution.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -304,6 +303,7 @@ SEED_DOMAINS: list[dict[str, Any]] = [
 
 # ─── Seeding function ────────────────────────────────────────────────────
 
+
 def seed_institutional_memory(memory: Any) -> int:
     """Populate institutional memory with foundational knowledge.
 
@@ -315,7 +315,6 @@ def seed_institutional_memory(memory: Any) -> int:
     """
     import json
     import sqlite3
-    from pathlib import Path
 
     db_path = memory.db_path
     conn = sqlite3.connect(db_path)
@@ -325,9 +324,7 @@ def seed_institutional_memory(memory: Any) -> int:
 
     # Seed patterns
     for p in SEED_PATTERNS:
-        existing = c.execute(
-            "SELECT id FROM learned_patterns WHERE id = ?", (p["id"],)
-        ).fetchone()
+        existing = c.execute("SELECT id FROM learned_patterns WHERE id = ?", (p["id"],)).fetchone()
         if not existing:
             c.execute(
                 "INSERT INTO learned_patterns "
@@ -347,7 +344,15 @@ def seed_institutional_memory(memory: Any) -> int:
                 "INSERT INTO learned_anti_patterns "
                 "(id, description, context, failure_reason, occurrence_count, last_seen, severity) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (ap["id"], ap["description"], ap["context"], ap["failure_reason"], 3, ts, ap["severity"]),
+                (
+                    ap["id"],
+                    ap["description"],
+                    ap["context"],
+                    ap["failure_reason"],
+                    3,
+                    ts,
+                    ap["severity"],
+                ),
             )
             seeded += 1
 

@@ -182,6 +182,7 @@ class InstitutionalMemory:
         if has_seeds == 0:
             try:
                 from orion.core.memory.seed_knowledge import seed_institutional_memory
+
                 seed_institutional_memory(self)
             except Exception:
                 pass  # Seed data is optional — don't break init if missing

@@ -61,11 +61,13 @@ class TestConfidenceThresholds:
         assert ct.pause_and_ask == 0.50
 
     def test_from_dict(self):
-        ct = ConfidenceThresholds.from_dict({
-            "auto_execute": 0.95,
-            "execute_and_flag": 0.80,
-            "pause_and_ask": 0.60,
-        })
+        ct = ConfidenceThresholds.from_dict(
+            {
+                "auto_execute": 0.95,
+                "execute_and_flag": 0.80,
+                "pause_and_ask": 0.60,
+            }
+        )
         assert ct.auto_execute == 0.95
         assert ct.execute_and_flag == 0.80
 
@@ -211,9 +213,7 @@ class TestCmdRoleList:
         result = cmd_role_list(roles_dir=roles_dir)
         assert result.data["roles"][0]["source"] == "user"
 
-    def test_list_includes_starters(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_list_includes_starters(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """When starter dir has roles, they appear with source='starter'."""
         user_dir = tmp_path / "user_roles"
         user_dir.mkdir()
@@ -228,7 +228,8 @@ class TestCmdRoleList:
 class TestCmdRoleShow:
     def test_show_existing(self, roles_dir: Path):
         _make_role(
-            roles_dir, "show-test",
+            roles_dir,
+            "show-test",
             description="Test role",
             competencies=["Coding"],
             authority_autonomous=["read_files"],

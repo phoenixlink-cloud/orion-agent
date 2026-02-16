@@ -73,7 +73,9 @@ def _scan_workspace(workspace: Path) -> list[str]:
     skip = {".git", ".orion-archive", "__pycache__", "node_modules", ".venv", ".env"}
     files = []
     for f in sorted(workspace.rglob("*")):
-        if f.is_file() and not any(part.startswith(".") or part in skip for part in f.relative_to(workspace).parts):
+        if f.is_file() and not any(
+            part.startswith(".") or part in skip for part in f.relative_to(workspace).parts
+        ):
             rel = str(f.relative_to(workspace))
             files.append(rel)
     return files[:50]  # Cap to avoid overwhelming output
@@ -151,7 +153,9 @@ def cmd_work(
         existing_files = _scan_workspace(ws)
         if existing_files:
             file_list = "\n".join(f"  - {f}" for f in existing_files[:15])
-            more = f"\n  ... and {len(existing_files) - 15} more" if len(existing_files) > 15 else ""
+            more = (
+                f"\n  ... and {len(existing_files) - 15} more" if len(existing_files) > 15 else ""
+            )
             return CommandResult(
                 success=False,
                 message=(
@@ -203,7 +207,9 @@ def cmd_work(
         import sys
 
         daemon_cmd = [
-            sys.executable, "-m", "orion.ara.daemon_launcher",
+            sys.executable,
+            "-m",
+            "orion.ara.daemon_launcher",
         ]
         subprocess.Popen(
             daemon_cmd,
@@ -379,7 +385,11 @@ def cmd_review(
         success=False,
         message="AEGIS Gate: BLOCKED.\n"
         + "\n".join(f"  ✗ {c}" for c in decision.checks_failed)
-        + ("\n" + "\n".join(f"  ✓ {c}" for c in decision.checks_passed) if decision.checks_passed else ""),
+        + (
+            "\n" + "\n".join(f"  ✓ {c}" for c in decision.checks_passed)
+            if decision.checks_passed
+            else ""
+        ),
         data=decision.to_dict(),
     )
 
@@ -467,6 +477,7 @@ def cmd_promote(
         # Update feedback store with promotion status
         try:
             from orion.ara.feedback_store import FeedbackStore
+
             store = FeedbackStore()
             outcomes = store.get_session_outcomes()
             for o in outcomes:
@@ -504,6 +515,7 @@ def cmd_review_diff(
     so a UI can render a GitHub-PR-style review experience.
     """
     import difflib
+
     from orion.ara.promotion import PromotionManager
 
     control = control or DaemonControl()
@@ -563,35 +575,51 @@ def cmd_review_diff(
 
             # Generate unified diff
             if d.status == "added":
-                diff_lines = list(difflib.unified_diff(
-                    [], d.content.splitlines(keepends=True),
-                    fromfile="/dev/null", tofile=d.path, lineterm="",
-                ))
+                diff_lines = list(
+                    difflib.unified_diff(
+                        [],
+                        d.content.splitlines(keepends=True),
+                        fromfile="/dev/null",
+                        tofile=d.path,
+                        lineterm="",
+                    )
+                )
             elif d.status == "modified":
-                diff_lines = list(difflib.unified_diff(
-                    original.splitlines(keepends=True),
-                    d.content.splitlines(keepends=True),
-                    fromfile=f"a/{d.path}", tofile=f"b/{d.path}", lineterm="",
-                ))
+                diff_lines = list(
+                    difflib.unified_diff(
+                        original.splitlines(keepends=True),
+                        d.content.splitlines(keepends=True),
+                        fromfile=f"a/{d.path}",
+                        tofile=f"b/{d.path}",
+                        lineterm="",
+                    )
+                )
             else:  # deleted
-                diff_lines = list(difflib.unified_diff(
-                    original.splitlines(keepends=True), [],
-                    fromfile=d.path, tofile="/dev/null", lineterm="",
-                ))
+                diff_lines = list(
+                    difflib.unified_diff(
+                        original.splitlines(keepends=True),
+                        [],
+                        fromfile=d.path,
+                        tofile="/dev/null",
+                        lineterm="",
+                    )
+                )
 
             total_add += d.additions
             total_del += d.deletions
 
-            files.append({
-                "path": d.path,
-                "status": d.status,
-                "additions": d.additions,
-                "deletions": d.deletions,
-                "diff": "\n".join(diff_lines),
-                "content": d.content[:50000],  # cap at 50k chars
-                "original": original[:50000] if original else "",
-                "conflict": d.path in conflicts,
-            })
+            files.append(
+                {
+                    "path": d.path,
+                    "status": d.status,
+                    "additions": d.additions,
+                    "deletions": d.deletions,
+                    "diff": "\n".join(diff_lines),
+                    "content": d.content[:50000],  # cap at 50k chars
+                    "original": original[:50000] if original else "",
+                    "conflict": d.path in conflicts,
+                }
+            )
 
     # If PM sandbox was empty or didn't exist, try daemon sandbox
     if not files and sandbox_path.exists():
@@ -629,43 +657,56 @@ def cmd_review_diff(
                     deletions = len(old_lines - new_lines)
                 else:
                     # Track unchanged files in case ALL are unchanged (already promoted)
-                    unchanged_files.append({
-                        "path": rel,
-                        "status": "unchanged",
-                        "additions": 0,
-                        "deletions": 0,
-                        "diff": "",
-                        "content": content[:50000],
-                        "original": "",
-                        "conflict": False,
-                    })
+                    unchanged_files.append(
+                        {
+                            "path": rel,
+                            "status": "unchanged",
+                            "additions": 0,
+                            "deletions": 0,
+                            "diff": "",
+                            "content": content[:50000],
+                            "original": "",
+                            "conflict": False,
+                        }
+                    )
                     continue
 
             if status == "added":
-                diff_lines = list(difflib.unified_diff(
-                    [], content.splitlines(keepends=True),
-                    fromfile="/dev/null", tofile=rel, lineterm="",
-                ))
+                diff_lines = list(
+                    difflib.unified_diff(
+                        [],
+                        content.splitlines(keepends=True),
+                        fromfile="/dev/null",
+                        tofile=rel,
+                        lineterm="",
+                    )
+                )
             else:
-                diff_lines = list(difflib.unified_diff(
-                    original.splitlines(keepends=True),
-                    content.splitlines(keepends=True),
-                    fromfile=f"a/{rel}", tofile=f"b/{rel}", lineterm="",
-                ))
+                diff_lines = list(
+                    difflib.unified_diff(
+                        original.splitlines(keepends=True),
+                        content.splitlines(keepends=True),
+                        fromfile=f"a/{rel}",
+                        tofile=f"b/{rel}",
+                        lineterm="",
+                    )
+                )
 
             total_add += additions
             total_del += deletions
 
-            files.append({
-                "path": rel,
-                "status": status,
-                "additions": additions,
-                "deletions": deletions,
-                "diff": "\n".join(diff_lines),
-                "content": content[:50000],
-                "original": original[:50000] if original else "",
-                "conflict": False,
-            })
+            files.append(
+                {
+                    "path": rel,
+                    "status": status,
+                    "additions": additions,
+                    "deletions": deletions,
+                    "diff": "\n".join(diff_lines),
+                    "content": content[:50000],
+                    "original": original[:50000] if original else "",
+                    "conflict": False,
+                }
+            )
 
         # If no changed files but sandbox has unchanged files (already promoted),
         # show them so the user can still review what was generated
@@ -681,7 +722,10 @@ def cmd_review_diff(
         return CommandResult(
             success=True,
             message="No file changes in sandbox.",
-            data={"files": [], "summary": {"total_files": 0, "additions": 0, "deletions": 0, "conflicts": 0}},
+            data={
+                "files": [],
+                "summary": {"total_files": 0, "additions": 0, "deletions": 0, "conflicts": 0},
+            },
         )
 
     conflict_count = sum(1 for f in files if f["conflict"])
@@ -754,7 +798,7 @@ def cmd_feedback(
         return CommandResult(
             success=True,
             message=f"Feedback recorded for session {session_id[:12]}: {rating}/5"
-            + (f" — \"{comment}\"" if comment else ""),
+            + (f' — "{comment}"' if comment else ""),
             data={"session_id": session_id, "rating": rating, "comment": comment},
         )
 
@@ -789,7 +833,9 @@ def cmd_notifications(
             pass
 
     if not notifications:
-        return CommandResult(success=True, message="No unread notifications.", data={"notifications": []})
+        return CommandResult(
+            success=True, message="No unread notifications.", data={"notifications": []}
+        )
 
     lines = [f"📬 {len(notifications)} notification(s):", ""]
     for n in notifications:
@@ -876,16 +922,22 @@ def cmd_role_list(roles_dir: Path | None = None) -> CommandResult:
                 try:
                     r = load_role(p)
                     if not any(role["name"] == r.name for role in roles):
-                        roles.append({
-                            "name": r.name,
-                            "scope": r.scope,
-                            "auth_method": r.auth_method,
-                            "source": source,
-                            "description": r.description or "",
-                            "path": str(p),
-                            "assigned_skills": list(r.assigned_skills) if r.assigned_skills else [],
-                            "assigned_skill_groups": list(r.assigned_skill_groups) if r.assigned_skill_groups else [],
-                        })
+                        roles.append(
+                            {
+                                "name": r.name,
+                                "scope": r.scope,
+                                "auth_method": r.auth_method,
+                                "source": source,
+                                "description": r.description or "",
+                                "path": str(p),
+                                "assigned_skills": list(r.assigned_skills)
+                                if r.assigned_skills
+                                else [],
+                                "assigned_skill_groups": list(r.assigned_skill_groups)
+                                if r.assigned_skill_groups
+                                else [],
+                            }
+                        )
                 except Exception:
                     pass
 
@@ -968,7 +1020,9 @@ def cmd_role_show(role_name: str, roles_dir: Path | None = None) -> CommandResul
         lines.append("")
 
     ct = role.confidence_thresholds
-    lines.append(f"Confidence: auto={ct.auto_execute}, flag={ct.execute_and_flag}, pause={ct.pause_and_ask}")
+    lines.append(
+        f"Confidence: auto={ct.auto_execute}, flag={ct.execute_and_flag}, pause={ct.pause_and_ask}"
+    )
     lines.append(f"Limits: {role.max_session_hours}h, ${role.max_cost_per_session} max cost")
 
     return CommandResult(
@@ -1071,7 +1125,9 @@ def cmd_role_update(
 
     # If it's a starter template, copy to user dir first
     source_path = Path(role.source_path) if role.source_path else None
-    is_starter = source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    is_starter = (
+        source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    )
 
     if is_starter:
         user_dir.mkdir(parents=True, exist_ok=True)
@@ -1205,15 +1261,18 @@ def cmd_sessions(sessions_dir: Path | None = None) -> CommandResult:
     for state_file in sorted(sdir.glob("*/session.json")):
         try:
             session = SessionState.load(
-                state_file.parent.name, sessions_dir=sdir,
+                state_file.parent.name,
+                sessions_dir=sdir,
             )
-            sessions.append({
-                "session_id": session.session_id,
-                "role": session.role_name,
-                "goal": session.goal[:60],
-                "status": session.status.value,
-                "cost_usd": round(session.cost_usd, 4),
-            })
+            sessions.append(
+                {
+                    "session_id": session.session_id,
+                    "role": session.role_name,
+                    "goal": session.goal[:60],
+                    "status": session.status.value,
+                    "cost_usd": round(session.cost_usd, 4),
+                }
+            )
         except Exception:
             pass
 
@@ -1268,7 +1327,8 @@ def cmd_sessions_cleanup(
 
         try:
             session = SessionState.load(
-                session_dir.name, sessions_dir=sdir,
+                session_dir.name,
+                sessions_dir=sdir,
             )
         except Exception:
             continue
@@ -1534,34 +1594,48 @@ def cmd_setup(
 
     # Step 1: Prerequisites
     docker_ok = skip_docker_check or shutil.which("docker") is not None
-    checks.append({
-        "name": "Docker",
-        "status": "ok" if docker_ok else "missing",
-        "message": "Docker installed" if docker_ok else "Docker not found — install Docker for sandbox support",
-    })
+    checks.append(
+        {
+            "name": "Docker",
+            "status": "ok" if docker_ok else "missing",
+            "message": "Docker installed"
+            if docker_ok
+            else "Docker not found — install Docker for sandbox support",
+        }
+    )
 
-    checks.append({
-        "name": "AEGIS governance",
-        "status": "ok",
-        "message": "AEGIS governance active",
-    })
+    checks.append(
+        {
+            "name": "AEGIS governance",
+            "status": "ok",
+            "message": "AEGIS governance active",
+        }
+    )
 
     # Step 2: Available roles
     roles = list_available_roles(roles_dir)
-    checks.append({
-        "name": "Roles",
-        "status": "ok" if roles else "none",
-        "message": f"{len(roles)} roles available: {', '.join(roles[:4])}" if roles else "No roles found — run `orion role example` to create one",
-    })
+    checks.append(
+        {
+            "name": "Roles",
+            "status": "ok" if roles else "none",
+            "message": f"{len(roles)} roles available: {', '.join(roles[:4])}"
+            if roles
+            else "No roles found — run `orion role example` to create one",
+        }
+    )
 
     # Step 3: Auth (report readiness)
     auth_dir = Path.home() / ".orion" / "auth"
     auth_configured = auth_dir.exists() and any(auth_dir.iterdir()) if auth_dir.exists() else False
-    checks.append({
-        "name": "Authentication",
-        "status": "ok" if auth_configured else "not_configured",
-        "message": "Auth configured" if auth_configured else "No auth configured — will be set up on first `orion work`",
-    })
+    checks.append(
+        {
+            "name": "Authentication",
+            "status": "ok" if auth_configured else "not_configured",
+            "message": "Auth configured"
+            if auth_configured
+            else "No auth configured — will be set up on first `orion work`",
+        }
+    )
 
     # Build output
     all_ok = all(c["status"] == "ok" for c in checks)
@@ -1574,11 +1648,13 @@ def cmd_setup(
     if all_ok:
         lines.append("Ready! Start with:")
         if roles:
-            lines.append(f"  orion work --role \"{roles[0]}\" \"<your goal>\"")
+            lines.append(f'  orion work --role "{roles[0]}" "<your goal>"')
         else:
             lines.append("  orion role example  (create a role first)")
     else:
-        lines.append("Some prerequisites are missing. Fix them and run `orion autonomous setup` again.")
+        lines.append(
+            "Some prerequisites are missing. Fix them and run `orion autonomous setup` again."
+        )
 
     # Dry-run scenarios
     scenarios = [
@@ -1650,23 +1726,29 @@ def cmd_skill_list(
     skill_list = []
     lines = ["Available skills:", ""]
     for s in sorted(skills, key=lambda x: x.name):
-        trust_icon = {"verified": "✓", "trusted": "●", "unreviewed": "?", "blocked": "✗"}.get(s.trust_level, "?")
+        trust_icon = {"verified": "✓", "trusted": "●", "unreviewed": "?", "blocked": "✗"}.get(
+            s.trust_level, "?"
+        )
         approved_icon = "✓" if s.aegis_approved else "✗"
         tag_str = ", ".join(s.tags[:3]) if s.tags else ""
         lines.append(f"  {trust_icon} {s.name:24s} {s.source:10s} [{approved_icon}] {tag_str}")
         if s.description:
             lines.append(f"    {s.description[:70]}")
-        skill_list.append({
-            "name": s.name,
-            "description": s.description,
-            "version": s.version,
-            "source": s.source,
-            "trust_level": s.trust_level,
-            "aegis_approved": s.aegis_approved,
-            "tags": s.tags,
-        })
+        skill_list.append(
+            {
+                "name": s.name,
+                "description": s.description,
+                "version": s.version,
+                "source": s.source,
+                "trust_level": s.trust_level,
+                "aegis_approved": s.aegis_approved,
+                "tags": s.tags,
+            }
+        )
 
-    lines.append(f"\n  Total: {len(skills)} skills ({sum(1 for s in skills if s.aegis_approved)} approved)")
+    lines.append(
+        f"\n  Total: {len(skills)} skills ({sum(1 for s in skills if s.aegis_approved)} approved)"
+    )
 
     return CommandResult(
         success=True,
@@ -1778,14 +1860,18 @@ def cmd_skill_assign(
         return CommandResult(success=False, message=f"Role '{role_name}' not found.")
 
     if skill_name in role.assigned_skills:
-        return CommandResult(success=False, message=f"Skill '{skill_name}' already assigned to role '{role_name}'.")
+        return CommandResult(
+            success=False, message=f"Skill '{skill_name}' already assigned to role '{role_name}'."
+        )
 
     role.assigned_skills.append(skill_name)
 
     # Save role (copy starter to user dir if needed)
     user_dir = roles_dir or DEFAULT_ROLES_DIR
     source_path = Path(role.source_path) if role.source_path else None
-    is_starter = source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    is_starter = (
+        source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    )
     if is_starter:
         user_dir.mkdir(parents=True, exist_ok=True)
         target_path = user_dir / f"{role_name}.yaml"
@@ -1811,13 +1897,17 @@ def cmd_skill_unassign(
         return CommandResult(success=False, message=f"Role '{role_name}' not found.")
 
     if skill_name not in role.assigned_skills:
-        return CommandResult(success=False, message=f"Skill '{skill_name}' not assigned to role '{role_name}'.")
+        return CommandResult(
+            success=False, message=f"Skill '{skill_name}' not assigned to role '{role_name}'."
+        )
 
     role.assigned_skills.remove(skill_name)
 
     user_dir = roles_dir or DEFAULT_ROLES_DIR
     source_path = Path(role.source_path) if role.source_path else None
-    is_starter = source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    is_starter = (
+        source_path and STARTER_ROLES_DIR.exists() and str(STARTER_ROLES_DIR) in str(source_path)
+    )
     if is_starter:
         user_dir.mkdir(parents=True, exist_ok=True)
         target_path = user_dir / f"{role_name}.yaml"
@@ -1850,14 +1940,16 @@ def cmd_skill_group_list(skills_dir: Path | None = None) -> CommandResult:
         lines.append(f"  {g.name:20s} ({g.group_type}) — {len(g.skill_names)} skills")
         if g.description:
             lines.append(f"    {g.description[:70]}")
-        group_list.append({
-            "name": g.name,
-            "display_name": g.display_name,
-            "description": g.description,
-            "group_type": g.group_type,
-            "skill_names": g.skill_names,
-            "tags": g.tags,
-        })
+        group_list.append(
+            {
+                "name": g.name,
+                "display_name": g.display_name,
+                "description": g.description,
+                "group_type": g.group_type,
+                "skill_names": g.skill_names,
+                "tags": g.tags,
+            }
+        )
 
     return CommandResult(
         success=True,
@@ -1882,7 +1974,11 @@ def cmd_skill_group_create(
     return CommandResult(
         success=True,
         message=f"Skill group '{name}' created.",
-        data={"name": group.name, "display_name": group.display_name, "group_type": group.group_type},
+        data={
+            "name": group.name,
+            "display_name": group.display_name,
+            "group_type": group.group_type,
+        },
     )
 
 

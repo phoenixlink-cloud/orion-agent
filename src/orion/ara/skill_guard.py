@@ -35,9 +35,9 @@ logger = logging.getLogger("orion.ara.skill_guard")
 
 # Zero-width and invisible characters to strip
 _INVISIBLE_CHARS = re.compile(
-    r"[\u200b\u200c\u200d\u2060\ufeff"   # Zero-width chars
-    r"\u00ad\u034f\u061c"                  # Soft hyphen, combining grapheme joiner, etc.
-    r"\u115f\u1160\u17b4\u17b5]"           # Hangul/Khmer fillers
+    r"[\u200b\u200c\u200d\u2060\ufeff"  # Zero-width chars
+    r"\u00ad\u034f\u061c"  # Soft hyphen, combining grapheme joiner, etc.
+    r"\u115f\u1160\u17b4\u17b5]"  # Hangul/Khmer fillers
 )
 
 
@@ -154,13 +154,13 @@ _SKILL_ADVERSARIAL_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
 # PromptGuard Base Patterns (re-imported)
 # ---------------------------------------------------------------------------
 
+
 def _get_prompt_guard_patterns() -> list[tuple[str, re.Pattern[str], str]]:
     """Import PromptGuard's adversarial patterns and tag them as critical."""
     try:
         from orion.ara.prompt_guard import _ADVERSARIAL_PATTERNS
-        return [
-            (name, pattern, "critical") for name, pattern in _ADVERSARIAL_PATTERNS
-        ]
+
+        return [(name, pattern, "critical") for name, pattern in _ADVERSARIAL_PATTERNS]
     except ImportError:
         logger.warning("Could not import PromptGuard patterns — using skill patterns only")
         return []
@@ -176,9 +176,9 @@ class SkillFinding:
     """A single security finding from a skill scan."""
 
     pattern_name: str
-    severity: str                   # critical | high | medium
-    file: str                       # Which file the finding was in
-    match_text: str = ""            # The matched text (truncated)
+    severity: str  # critical | high | medium
+    file: str  # Which file the finding was in
+    match_text: str = ""  # The matched text (truncated)
     line_number: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -199,7 +199,7 @@ class SkillScanResult:
     approved: bool = True
     findings: list[SkillFinding] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    trust_recommendation: str = "trusted"   # verified | trusted | unreviewed | blocked
+    trust_recommendation: str = "trusted"  # verified | trusted | unreviewed | blocked
     files_scanned: int = 0
 
     @property
@@ -265,13 +265,15 @@ class SkillGuard:
             for name, pattern, severity in self._patterns:
                 match = pattern.search(line)
                 if match:
-                    findings.append(SkillFinding(
-                        pattern_name=name,
-                        severity=severity,
-                        file=filename,
-                        match_text=match.group(0),
-                        line_number=line_num,
-                    ))
+                    findings.append(
+                        SkillFinding(
+                            pattern_name=name,
+                            severity=severity,
+                            file=filename,
+                            match_text=match.group(0),
+                            line_number=line_num,
+                        )
+                    )
 
         return findings
 
@@ -343,14 +345,16 @@ class SkillGuard:
             result.trust_recommendation = "blocked"
             logger.warning(
                 "SkillGuard BLOCKED '%s': %d critical findings",
-                skill_name, result.critical_count,
+                skill_name,
+                result.critical_count,
             )
         elif result.high_count > 0:
             result.approved = False
             result.trust_recommendation = "blocked"
             logger.warning(
                 "SkillGuard BLOCKED '%s': %d high-severity findings",
-                skill_name, result.high_count,
+                skill_name,
+                result.high_count,
             )
         elif len(result.findings) > 0:
             # Medium-severity only — approve but flag as unreviewed
@@ -358,7 +362,8 @@ class SkillGuard:
             result.trust_recommendation = "unreviewed"
             logger.info(
                 "SkillGuard approved '%s' with %d medium findings (unreviewed)",
-                skill_name, len(result.findings),
+                skill_name,
+                len(result.findings),
             )
         else:
             result.approved = True

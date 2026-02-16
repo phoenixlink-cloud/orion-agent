@@ -111,14 +111,14 @@ class ExecutionLoop:
     def _learn_from_outcome(self, task: Any, success: bool) -> None:
         """Feed task outcome to institutional memory (teach-student WRITE path)."""
         ref = self._task_executor_ref
-        if ref and hasattr(ref, 'learn_from_task_outcome'):
+        if ref and hasattr(ref, "learn_from_task_outcome"):
             ref.learn_from_task_outcome(
                 task_id=task.task_id,
-                action_type=getattr(task, 'action_type', 'unknown'),
-                title=getattr(task, 'title', ''),
+                action_type=getattr(task, "action_type", "unknown"),
+                title=getattr(task, "title", ""),
                 success=success,
-                output=getattr(task, 'output', '') or getattr(task, 'error', ''),
-                confidence=getattr(task, 'confidence', 0.5),
+                output=getattr(task, "output", "") or getattr(task, "error", ""),
+                confidence=getattr(task, "confidence", 0.5),
             )
 
     async def run(self) -> ExecutionResult:
@@ -150,9 +150,7 @@ class ExecutionLoop:
 
             # Check error streak
             if self._error_streak >= ERROR_THRESHOLD_STREAK:
-                result.stop_reason = (
-                    f"error_threshold: {self._error_streak} consecutive failures"
-                )
+                result.stop_reason = f"error_threshold: {self._error_streak} consecutive failures"
                 break
 
             # Get next ready task
@@ -181,13 +179,21 @@ class ExecutionLoop:
                     self._error_streak = 0
 
                     # Feed completed task context to executor for next tasks
-                    if hasattr(self._executor, '__self__') and hasattr(self._executor.__self__, 'add_task_context'):
+                    if hasattr(self._executor, "__self__") and hasattr(
+                        self._executor.__self__, "add_task_context"
+                    ):
                         self._executor.__self__.add_task_context(
-                            task.task_id, task.title, task.output,
+                            task.task_id,
+                            task.title,
+                            task.output,
                         )
-                    elif hasattr(self, '_task_executor_ref') and hasattr(self._task_executor_ref, 'add_task_context'):
+                    elif hasattr(self, "_task_executor_ref") and hasattr(
+                        self._task_executor_ref, "add_task_context"
+                    ):
                         self._task_executor_ref.add_task_context(
-                            task.task_id, task.title, task.output,
+                            task.task_id,
+                            task.title,
+                            task.output,
                         )
 
                     # Teach-student WRITE path: feed success to institutional memory

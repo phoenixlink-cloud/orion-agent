@@ -44,16 +44,18 @@ VALID_SCOPES = frozenset({"coding", "research", "devops", "full"})
 VALID_RISK_TOLERANCES = frozenset({"low", "medium", "high"})
 
 # AEGIS-enforced action blocklist — no role can enable these
-AEGIS_BLOCKED_ACTIONS = frozenset({
-    "delete_repository",
-    "force_push",
-    "modify_ci_pipeline",
-    "access_credentials_store",
-    "disable_aegis",
-    "modify_aegis_rules",
-    "execute_as_root",
-    "access_host_filesystem",
-})
+AEGIS_BLOCKED_ACTIONS = frozenset(
+    {
+        "delete_repository",
+        "force_push",
+        "modify_ci_pipeline",
+        "access_credentials_store",
+        "disable_aegis",
+        "modify_aegis_rules",
+        "execute_as_root",
+        "access_host_filesystem",
+    }
+)
 
 # Default role directory
 DEFAULT_ROLES_DIR = Path.home() / ".orion" / "roles"
@@ -67,9 +69,15 @@ class WorkingHours:
     start_hour: int = 22
     end_hour: int = 6
     timezone: str = "UTC"
-    days: list[str] = field(default_factory=lambda: [
-        "monday", "tuesday", "wednesday", "thursday", "friday",
-    ])
+    days: list[str] = field(
+        default_factory=lambda: [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+        ]
+    )
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WorkingHours:
@@ -209,7 +217,8 @@ class RoleProfile:
                 self.authority_autonomous.remove(action)
                 logger.warning(
                     "AEGIS: stripped blocked action '%s' from autonomous list of role '%s'",
-                    action, self.name,
+                    action,
+                    self.name,
                 )
 
         # Ensure AEGIS-blocked actions are in authority_forbidden
@@ -223,7 +232,8 @@ class RoleProfile:
                 self.allowed_actions.remove(action)
                 logger.warning(
                     "AEGIS: stripped blocked action '%s' from role '%s'",
-                    action, self.name,
+                    action,
+                    self.name,
                 )
 
         # AEGIS: always include blocked actions
@@ -265,9 +275,7 @@ class RoleProfile:
             "auth_method": self.auth_method,
             "description": self.description,
             "allowed_actions": self.allowed_actions,
-            "blocked_actions": [
-                a for a in self.blocked_actions if a not in AEGIS_BLOCKED_ACTIONS
-            ],
+            "blocked_actions": [a for a in self.blocked_actions if a not in AEGIS_BLOCKED_ACTIONS],
             "authority_autonomous": self.authority_autonomous,
             "authority_requires_approval": self.authority_requires_approval,
             "authority_forbidden": [
@@ -333,7 +341,9 @@ class RoleProfile:
             authority_requires_approval=data.get("authority_requires_approval", []),
             authority_forbidden=data.get("authority_forbidden", []),
             competencies=data.get("competencies", []),
-            confidence_thresholds=ConfidenceThresholds.from_dict(ct_data) if ct_data else ConfidenceThresholds(),
+            confidence_thresholds=ConfidenceThresholds.from_dict(ct_data)
+            if ct_data
+            else ConfidenceThresholds(),
             risk_tolerance=data.get("risk_tolerance", "medium"),
             success_criteria=data.get("success_criteria", []),
             max_session_hours=data.get("max_session_hours", 8.0),
@@ -342,7 +352,9 @@ class RoleProfile:
             require_review_before_promote=data.get("require_review_before_promote", True),
             working_hours=WorkingHours.from_dict(wh_data) if wh_data else WorkingHours(),
             write_limits=WriteLimits.from_dict(wl_data) if wl_data else WriteLimits(),
-            notifications=NotificationConfig.from_dict(notif_data) if notif_data else NotificationConfig(),
+            notifications=NotificationConfig.from_dict(notif_data)
+            if notif_data
+            else NotificationConfig(),
             model_override=data.get("model_override"),
             tags=data.get("tags", []),
             assigned_skills=data.get("assigned_skills", []),
@@ -414,7 +426,7 @@ def save_role(role: RoleProfile, path: Path) -> None:
 
 def generate_example_yaml() -> str:
     """Return an annotated example YAML template for creating a new role."""
-    return '''# Orion ARA Role Profile
+    return """# Orion ARA Role Profile
 # Copy this file to ~/.orion/roles/<role-name>.yaml and customize.
 # See ARA-001 §2 for full documentation.
 
@@ -508,7 +520,7 @@ notifications:
 
 # Optional: Tags for organizing roles
 tags: ["custom"]
-'''
+"""
 
 
 def validate_role_file(path: Path) -> tuple[bool, list[str]]:

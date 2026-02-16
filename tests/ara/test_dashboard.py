@@ -57,12 +57,14 @@ def _create_session(
 
     if tasks is not None:
         (session_dir / "plan.json").write_text(
-            json.dumps({"tasks": tasks}), encoding="utf-8",
+            json.dumps({"tasks": tasks}),
+            encoding="utf-8",
         )
 
     if file_changes is not None:
         (session_dir / "diff.json").write_text(
-            json.dumps(file_changes), encoding="utf-8",
+            json.dumps(file_changes),
+            encoding="utf-8",
         )
 
 

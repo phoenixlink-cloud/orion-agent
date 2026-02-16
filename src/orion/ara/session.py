@@ -157,9 +157,7 @@ class SessionState:
         elif new_status in (SessionStatus.COMPLETED, SessionStatus.FAILED, SessionStatus.CANCELLED):
             self.completed_at = time.time()
 
-        logger.info(
-            "Session %s: %s → %s", self.session_id, old.value, new_status.value
-        )
+        logger.info("Session %s: %s → %s", self.session_id, old.value, new_status.value)
 
     def heartbeat(self) -> None:
         """Update heartbeat timestamp and elapsed time."""

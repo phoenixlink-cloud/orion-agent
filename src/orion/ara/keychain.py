@@ -166,11 +166,14 @@ class MacOSBackend(KeychainBackend):
             # Delete existing first (ignore errors)
             subprocess.run(
                 ["security", "delete-generic-password", "-s", SERVICE_NAME, "-a", key],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             result = subprocess.run(
                 ["security", "add-generic-password", "-s", SERVICE_NAME, "-a", key, "-w", value],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             return result.returncode == 0
         except Exception as e:
@@ -181,7 +184,9 @@ class MacOSBackend(KeychainBackend):
         try:
             result = subprocess.run(
                 ["security", "find-generic-password", "-s", SERVICE_NAME, "-a", key, "-w"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -194,7 +199,8 @@ class MacOSBackend(KeychainBackend):
         try:
             result = subprocess.run(
                 ["security", "delete-generic-password", "-s", SERVICE_NAME, "-a", key],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
             return result.returncode == 0
         except Exception as e:

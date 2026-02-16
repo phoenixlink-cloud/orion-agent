@@ -77,11 +77,7 @@ class DaemonStatus:
     def summary(self) -> str:
         if not self.running:
             return "Daemon: not running"
-        pct = (
-            f"{self.tasks_completed}/{self.tasks_total}"
-            if self.tasks_total > 0
-            else "0/0"
-        )
+        pct = f"{self.tasks_completed}/{self.tasks_total}" if self.tasks_total > 0 else "0/0"
         hours = self.elapsed_seconds / 3600
         return (
             f"Session: {self.session_id} ({self.session_status})\n"
@@ -139,9 +135,7 @@ class DaemonControl:
 
     def write_status(self, status: DaemonStatus) -> None:
         """Write current daemon status."""
-        self._status_file.write_text(
-            json.dumps(status.to_dict(), indent=2), encoding="utf-8"
-        )
+        self._status_file.write_text(json.dumps(status.to_dict(), indent=2), encoding="utf-8")
 
     def read_status(self) -> DaemonStatus:
         """Read current daemon status."""
@@ -149,10 +143,9 @@ class DaemonControl:
             return DaemonStatus(running=False)
         try:
             data = json.loads(self._status_file.read_text(encoding="utf-8"))
-            return DaemonStatus(**{
-                k: v for k, v in data.items()
-                if k in DaemonStatus.__dataclass_fields__
-            })
+            return DaemonStatus(
+                **{k: v for k, v in data.items() if k in DaemonStatus.__dataclass_fields__}
+            )
         except (json.JSONDecodeError, OSError):
             return DaemonStatus(running=False)
 
@@ -165,10 +158,9 @@ class DaemonControl:
             if os.name == "nt":
                 # Windows: use kernel32 OpenProcess
                 import ctypes
+
                 process_query_limited = 0x1000
-                handle = ctypes.windll.kernel32.OpenProcess(
-                    process_query_limited, False, pid
-                )
+                handle = ctypes.windll.kernel32.OpenProcess(process_query_limited, False, pid)
                 if handle:
                     ctypes.windll.kernel32.CloseHandle(handle)
                     return True
@@ -300,27 +292,31 @@ class ARADaemon:
 
             # Record each task outcome
             for task in self._dag.tasks:
-                store.record_task(TaskOutcome(
-                    task_id=task.task_id,
-                    session_id=self._session.session_id,
-                    action_type=task.action_type,
-                    success=(task.status.value == "completed"),
-                    confidence=task.confidence,
-                    duration_seconds=task.actual_minutes * 60,
-                    error=task.error or None,
-                ))
+                store.record_task(
+                    TaskOutcome(
+                        task_id=task.task_id,
+                        session_id=self._session.session_id,
+                        action_type=task.action_type,
+                        success=(task.status.value == "completed"),
+                        confidence=task.confidence,
+                        duration_seconds=task.actual_minutes * 60,
+                        error=task.error or None,
+                    )
+                )
 
             # Record session outcome
-            store.record_session(SessionOutcome(
-                session_id=self._session.session_id,
-                role_name=self._session.role_name,
-                goal=self._session.goal,
-                status=self._session.status.value,
-                tasks_completed=result.tasks_completed,
-                tasks_failed=result.tasks_failed,
-                total_duration_seconds=result.total_elapsed_seconds,
-                total_cost_usd=result.total_cost_usd,
-            ))
+            store.record_session(
+                SessionOutcome(
+                    session_id=self._session.session_id,
+                    role_name=self._session.role_name,
+                    goal=self._session.goal,
+                    status=self._session.status.value,
+                    tasks_completed=result.tasks_completed,
+                    tasks_failed=result.tasks_failed,
+                    total_duration_seconds=result.total_elapsed_seconds,
+                    total_cost_usd=result.total_cost_usd,
+                )
+            )
             logger.info("Feedback recorded: %d tasks, 1 session", len(self._dag.tasks))
         except Exception as e:
             logger.warning("Failed to record feedback: %s", e)
@@ -360,7 +356,10 @@ class ARADaemon:
                         f"{result.tasks_completed}/{self._dag.total_tasks} tasks done. "
                         f"Run '/review' to approve and promote files.",
                     )
-                elif self._session.status == SessionStatus.FAILED and self._role.notifications.on_error:
+                elif (
+                    self._session.status == SessionStatus.FAILED
+                    and self._role.notifications.on_error
+                ):
                     self._write_notification(
                         "session_failed",
                         f"Session {self._session.session_id[:12]} failed: {result.stop_reason}",

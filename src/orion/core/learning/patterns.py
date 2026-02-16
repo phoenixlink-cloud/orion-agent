@@ -205,9 +205,7 @@ def get_learnings_for_prompt(
 
     # Include confirmed feedback / teaching corrections
     try:
-        feedback = institutional.get_relevant_feedback(
-            domain="institutional_learning"
-        )
+        feedback = institutional.get_relevant_feedback(domain="institutional_learning")
         if feedback:
             lines.append("\n## Corrections From Previous Lessons")
             for fb in feedback[:max_items]:

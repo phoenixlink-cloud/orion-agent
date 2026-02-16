@@ -136,15 +136,17 @@ class LifecycleManager:
                 continue
             try:
                 meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                sessions.append(SessionInfo(
-                    session_id=meta.get("session_id", session_dir.name),
-                    role_name=meta.get("role_name", "unknown"),
-                    status=meta.get("status", "unknown"),
-                    created_at=meta.get("created_at", 0),
-                    updated_at=meta.get("updated_at", 0),
-                    directory=session_dir,
-                    size_bytes=self._dir_size(session_dir),
-                ))
+                sessions.append(
+                    SessionInfo(
+                        session_id=meta.get("session_id", session_dir.name),
+                        role_name=meta.get("role_name", "unknown"),
+                        status=meta.get("status", "unknown"),
+                        created_at=meta.get("created_at", 0),
+                        updated_at=meta.get("updated_at", 0),
+                        directory=session_dir,
+                        size_bytes=self._dir_size(session_dir),
+                    )
+                )
             except Exception as e:
                 logger.warning("Failed to read session %s: %s", session_dir.name, e)
 
@@ -209,7 +211,7 @@ class LifecycleManager:
                     bytes_freed += size
                 except Exception as e:
                     logger.warning("Failed to prune checkpoint %s: %s", cp.name, e)
-            checkpoints = checkpoints[len(to_remove):]
+            checkpoints = checkpoints[len(to_remove) :]
 
         # Remove checkpoints older than TTL
         for cp in list(checkpoints):
@@ -227,7 +229,9 @@ class LifecycleManager:
         if pruned_count:
             logger.info(
                 "Pruned %d checkpoints for session %s (%.1fMB freed)",
-                pruned_count, session_id, bytes_freed / (1024 * 1024),
+                pruned_count,
+                session_id,
+                bytes_freed / (1024 * 1024),
             )
         return pruned_count, bytes_freed
 

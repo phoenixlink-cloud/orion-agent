@@ -62,9 +62,15 @@ class RetryPolicy:
     max_retries: int = DEFAULT_MAX_RETRIES
     delay_seconds: float = DEFAULT_RETRY_DELAY_SECONDS
     backoff_multiplier: float = DEFAULT_RETRY_BACKOFF_MULTIPLIER
-    retryable_errors: list[str] = field(default_factory=lambda: [
-        "timeout", "connection", "rate_limit", "temporary", "transient",
-    ])
+    retryable_errors: list[str] = field(
+        default_factory=lambda: [
+            "timeout",
+            "connection",
+            "rate_limit",
+            "temporary",
+            "transient",
+        ]
+    )
 
     def is_retryable(self, error: str) -> bool:
         """Check if an error message indicates a retryable failure."""
@@ -73,7 +79,7 @@ class RetryPolicy:
 
     def get_delay(self, attempt: int) -> float:
         """Calculate delay for a given retry attempt (exponential backoff)."""
-        return self.delay_seconds * (self.backoff_multiplier ** attempt)
+        return self.delay_seconds * (self.backoff_multiplier**attempt)
 
 
 class RecoveryManager:

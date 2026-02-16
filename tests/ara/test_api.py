@@ -81,10 +81,15 @@ class TestARARouterStatus:
 
     def test_get_status_with_session(self, router: ARARouter, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="running",
-            tasks_completed=3, tasks_total=10,
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="running",
+                tasks_completed=3,
+                tasks_total=10,
+            )
+        )
         resp = router.handle("GET", "/api/ara/status")
         assert resp.ok is True
         assert resp.data["session_id"] == "s1"
@@ -96,9 +101,14 @@ class TestARARouterWork:
         assert resp.status == 400
 
     def test_post_work_unknown_role(self, router: ARARouter):
-        resp = router.handle("POST", "/api/ara/work", body={
-            "role_name": "nonexistent", "goal": "test",
-        })
+        resp = router.handle(
+            "POST",
+            "/api/ara/work",
+            body={
+                "role_name": "nonexistent",
+                "goal": "test",
+            },
+        )
         assert resp.status == 409
 
 
@@ -117,17 +127,25 @@ class TestARARouterControl:
 
     def test_pause_running(self, router: ARARouter, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="running",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="running",
+            )
+        )
         resp = router.handle("POST", "/api/ara/pause")
         assert resp.ok is True
 
     def test_cancel_running(self, router: ARARouter, control: DaemonControl):
         control.write_pid(os.getpid())
-        control.write_status(DaemonStatus(
-            running=True, session_id="s1", session_status="running",
-        ))
+        control.write_status(
+            DaemonStatus(
+                running=True,
+                session_id="s1",
+                session_status="running",
+            )
+        )
         resp = router.handle("POST", "/api/ara/cancel")
         assert resp.ok is True
 
@@ -139,41 +157,72 @@ class TestARARouterFeedback:
         assert resp.data["stats"] == []
 
     def test_get_stats_with_data(self, router: ARARouter, feedback: FeedbackStore):
-        feedback.record_task(TaskOutcome(
-            task_id="t1", session_id="s1", action_type="write_files",
-            success=True, confidence=0.9,
-        ))
+        feedback.record_task(
+            TaskOutcome(
+                task_id="t1",
+                session_id="s1",
+                action_type="write_files",
+                success=True,
+                confidence=0.9,
+            )
+        )
         resp = router.handle("GET", "/api/ara/feedback/stats")
         assert resp.ok is True
         assert len(resp.data["stats"]) == 1
 
     def test_get_sessions(self, router: ARARouter, feedback: FeedbackStore):
-        feedback.record_session(SessionOutcome(
-            session_id="s1", role_name="coder", goal="build", status="completed",
-        ))
+        feedback.record_session(
+            SessionOutcome(
+                session_id="s1",
+                role_name="coder",
+                goal="build",
+                status="completed",
+            )
+        )
         resp = router.handle("GET", "/api/ara/feedback/sessions")
         assert resp.ok is True
         assert len(resp.data["sessions"]) == 1
 
     def test_post_feedback(self, router: ARARouter, feedback: FeedbackStore):
-        feedback.record_session(SessionOutcome(
-            session_id="s1", role_name="coder", goal="build", status="completed",
-        ))
-        resp = router.handle("POST", "/api/ara/feedback", body={
-            "session_id": "s1", "rating": 4, "comment": "Nice",
-        })
+        feedback.record_session(
+            SessionOutcome(
+                session_id="s1",
+                role_name="coder",
+                goal="build",
+                status="completed",
+            )
+        )
+        resp = router.handle(
+            "POST",
+            "/api/ara/feedback",
+            body={
+                "session_id": "s1",
+                "rating": 4,
+                "comment": "Nice",
+            },
+        )
         assert resp.ok is True
 
     def test_post_feedback_invalid_rating(self, router: ARARouter):
-        resp = router.handle("POST", "/api/ara/feedback", body={
-            "session_id": "s1", "rating": 0,
-        })
+        resp = router.handle(
+            "POST",
+            "/api/ara/feedback",
+            body={
+                "session_id": "s1",
+                "rating": 0,
+            },
+        )
         assert resp.status == 400
 
     def test_post_feedback_missing_session(self, router: ARARouter, feedback: FeedbackStore):
-        resp = router.handle("POST", "/api/ara/feedback", body={
-            "session_id": "nonexistent", "rating": 3,
-        })
+        resp = router.handle(
+            "POST",
+            "/api/ara/feedback",
+            body={
+                "session_id": "nonexistent",
+                "rating": 3,
+            },
+        )
         assert resp.status == 404
 
     def test_no_feedback_store(self, control: DaemonControl):

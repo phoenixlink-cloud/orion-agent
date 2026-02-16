@@ -29,26 +29,50 @@ from typing import Any
 logger = logging.getLogger("orion.ara.drift_monitor")
 
 # Extensions to skip when hashing
-_SKIP_EXTENSIONS = frozenset({
-    ".pyc", ".pyo", ".so", ".dll", ".exe",
-    ".png", ".jpg", ".jpeg", ".gif", ".ico",
-    ".zip", ".tar", ".gz",
-    ".sqlite", ".db",
-})
+_SKIP_EXTENSIONS = frozenset(
+    {
+        ".pyc",
+        ".pyo",
+        ".so",
+        ".dll",
+        ".exe",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".ico",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".sqlite",
+        ".db",
+    }
+)
 
 # Directories to skip
-_SKIP_DIRS = frozenset({
-    "__pycache__", ".git", "node_modules", ".venv", "venv",
-    ".mypy_cache", ".pytest_cache", ".ruff_cache",
-    "dist", "build", ".eggs", "*.egg-info",
-})
+_SKIP_DIRS = frozenset(
+    {
+        "__pycache__",
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        ".eggs",
+        "*.egg-info",
+    }
+)
 
 
 class DriftSeverity(str, Enum):
     NONE = "none"
-    LOW = "low"         # Files changed but not in sandbox working set
-    MEDIUM = "medium"   # Files changed that overlap with sandbox changes
-    HIGH = "high"       # Critical files changed (e.g. requirements, config)
+    LOW = "low"  # Files changed but not in sandbox working set
+    MEDIUM = "medium"  # Files changed that overlap with sandbox changes
+    HIGH = "high"  # Critical files changed (e.g. requirements, config)
 
 
 @dataclass
@@ -93,13 +117,23 @@ class DriftResult:
 
 
 # Files that raise drift severity when changed
-CRITICAL_FILES = frozenset({
-    "requirements.txt", "pyproject.toml", "setup.py", "setup.cfg",
-    "package.json", "package-lock.json",
-    "Dockerfile", "docker-compose.yml",
-    ".env", ".env.local",
-    "Makefile", "Cargo.toml", "go.mod",
-})
+CRITICAL_FILES = frozenset(
+    {
+        "requirements.txt",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "package.json",
+        "package-lock.json",
+        "Dockerfile",
+        "docker-compose.yml",
+        ".env",
+        ".env.local",
+        "Makefile",
+        "Cargo.toml",
+        "go.mod",
+    }
+)
 
 
 class DriftMonitor:
@@ -189,7 +223,9 @@ class DriftMonitor:
             result.severity = DriftSeverity.NONE
         elif result.conflicting_files:
             result.severity = DriftSeverity.HIGH
-        elif any(Path(f).name in CRITICAL_FILES for f in result.changed_files + result.deleted_files):
+        elif any(
+            Path(f).name in CRITICAL_FILES for f in result.changed_files + result.deleted_files
+        ):
             result.severity = DriftSeverity.MEDIUM
         else:
             result.severity = DriftSeverity.LOW

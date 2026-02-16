@@ -31,7 +31,10 @@ def log(audit_path: Path, hmac_key: bytes) -> AuditLog:
 class TestAuditEntry:
     def test_compute_hash_deterministic(self):
         e = AuditEntry(
-            timestamp=1000.0, session_id="s1", event_type="test", actor="orion",
+            timestamp=1000.0,
+            session_id="s1",
+            event_type="test",
+            actor="orion",
         )
         h1 = e.compute_hash()
         h2 = e.compute_hash()
@@ -40,16 +43,25 @@ class TestAuditEntry:
 
     def test_compute_hash_changes_with_data(self):
         e1 = AuditEntry(
-            timestamp=1000.0, session_id="s1", event_type="test", actor="orion",
+            timestamp=1000.0,
+            session_id="s1",
+            event_type="test",
+            actor="orion",
         )
         e2 = AuditEntry(
-            timestamp=1000.0, session_id="s2", event_type="test", actor="orion",
+            timestamp=1000.0,
+            session_id="s2",
+            event_type="test",
+            actor="orion",
         )
         assert e1.compute_hash() != e2.compute_hash()
 
     def test_compute_hmac(self):
         e = AuditEntry(
-            timestamp=1000.0, session_id="s1", event_type="test", actor="orion",
+            timestamp=1000.0,
+            session_id="s1",
+            event_type="test",
+            actor="orion",
         )
         e.entry_hash = e.compute_hash()
         sig = e.compute_hmac(b"key1")
@@ -154,7 +166,9 @@ class TestAuditLogVerify:
         assert valid is False
 
     def test_persistence_across_instances(
-        self, audit_path: Path, hmac_key: bytes,
+        self,
+        audit_path: Path,
+        hmac_key: bytes,
     ):
         log1 = AuditLog(path=audit_path, hmac_key=hmac_key)
         log1.log_event("s1", "from_log1")

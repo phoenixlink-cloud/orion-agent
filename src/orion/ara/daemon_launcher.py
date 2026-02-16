@@ -49,17 +49,16 @@ async def launch_from_pending() -> None:
     role_source = config.get("role_source")
     project_mode = config.get("project_mode", "new")
 
-    logger.info(
-        "Launching daemon for session %s (role=%s)", session_id, role_name
-    )
+    logger.info("Launching daemon for session %s (role=%s)", session_id, role_name)
 
     # Load role profile
-    from orion.ara.role_profile import RoleProfile, load_role
+    from orion.ara.role_profile import load_role
 
     if role_source and Path(role_source).exists():
         role = load_role(Path(role_source))
     else:
         from orion.ara.cli_commands import _find_role
+
         role = _find_role(role_name)
         if role is None:
             logger.error("Role '%s' not found", role_name)
@@ -67,6 +66,7 @@ async def launch_from_pending() -> None:
 
     # Load session
     from orion.ara.session import SessionState
+
     try:
         session = SessionState.load(session_id, sessions_dir=SESSIONS_DIR)
     except FileNotFoundError:
@@ -86,9 +86,9 @@ async def launch_from_pending() -> None:
         model = role.model_override
 
     # Create goal engine with provider-agnostic LLM provider
+    from orion.ara.goal_engine import GoalEngine
     from orion.ara.ollama_provider import ARALLMProvider
     from orion.ara.task_executor import ARATaskExecutor
-    from orion.ara.goal_engine import GoalEngine
 
     llm_provider = ARALLMProvider(provider=provider, model=model)
     engine = GoalEngine(llm_provider)
@@ -107,6 +107,7 @@ async def launch_from_pending() -> None:
     # Seed sandbox from workspace if continuing an existing project
     if project_mode == "continue":
         import shutil
+
         ws = Path(workspace_path)
         skip = {".git", ".orion-archive", "__pycache__", "node_modules", ".venv", ".env"}
         seeded = 0
@@ -125,16 +126,17 @@ async def launch_from_pending() -> None:
 
     # Save DAG to session dir for inspection
     dag_path = SESSIONS_DIR / session_id / "plan.json"
-    dag_path.write_text(
-        json.dumps(dag.to_dict(), indent=2), encoding="utf-8"
-    )
+    dag_path.write_text(json.dumps(dag.to_dict(), indent=2), encoding="utf-8")
 
     # Load institutional memory for teach-student cycle
     from orion.core.memory.institutional import InstitutionalMemory
+
     try:
         institutional = InstitutionalMemory()
-        logger.info("Institutional memory loaded (%d patterns)",
-                     institutional.get_statistics().get("learned_patterns", 0))
+        logger.info(
+            "Institutional memory loaded (%d patterns)",
+            institutional.get_statistics().get("learned_patterns", 0),
+        )
     except Exception as e:
         logger.warning("Could not load institutional memory: %s", e)
         institutional = None
@@ -150,6 +152,7 @@ async def launch_from_pending() -> None:
 
     # Create and run daemon
     from orion.ara.daemon import ARADaemon, DaemonControl
+
     control = DaemonControl()
 
     daemon = ARADaemon(
@@ -171,13 +174,12 @@ async def launch_from_pending() -> None:
     session.save()
 
     # Save final DAG state
-    dag_path.write_text(
-        json.dumps(dag.to_dict(), indent=2), encoding="utf-8"
-    )
+    dag_path.write_text(json.dumps(dag.to_dict(), indent=2), encoding="utf-8")
 
     logger.info(
         "Daemon finished. Session %s status: %s",
-        session_id, session.status.value,
+        session_id,
+        session.status.value,
     )
 
 

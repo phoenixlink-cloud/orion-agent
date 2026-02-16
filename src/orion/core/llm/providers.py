@@ -134,7 +134,9 @@ async def retry_api_call(
 
             # Auth errors — never retry, give clear guidance
             if status in (401, 403):
-                logger.error("[%s] Auth error %d (not retrying): %s", component, status, str(e)[:200])
+                logger.error(
+                    "[%s] Auth error %d (not retrying): %s", component, status, str(e)[:200]
+                )
                 return _error_json(
                     "API key is invalid or expired. Update your key via Settings → API Keys "
                     "in the dashboard, or run: /key set <provider> <new-key>"
@@ -154,15 +156,26 @@ async def retry_api_call(
             # Server errors may be transient — retry
             if status in (500, 502, 503, 429):
                 if attempt < max_retries - 1:
-                    wait_time = delay_seconds * (2 ** attempt)
-                    logger.warning("[%s] Retrying in %.1fs (HTTP %d, attempt %d/%d)",
-                                   component, wait_time, status, attempts_made, max_retries)
+                    wait_time = delay_seconds * (2**attempt)
+                    logger.warning(
+                        "[%s] Retrying in %.1fs (HTTP %d, attempt %d/%d)",
+                        component,
+                        wait_time,
+                        status,
+                        attempts_made,
+                        max_retries,
+                    )
                     await asyncio.sleep(wait_time)
                     continue
 
             # Other HTTP errors — don't retry
-            logger.error("[%s] HTTP %d after %d attempt(s): %s",
-                         component, status, attempts_made, str(e)[:200])
+            logger.error(
+                "[%s] HTTP %d after %d attempt(s): %s",
+                component,
+                status,
+                attempts_made,
+                str(e)[:200],
+            )
             break
 
         except Exception as e:
