@@ -95,7 +95,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/unit/ \
+          pytest tests/unit/ tests/ara/ \
             --cov=src/orion \
             --cov-report=xml \
             --cov-report=term-missing \
