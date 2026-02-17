@@ -4,17 +4,14 @@ Web interface for Orion - Governed AI Assistant.
 
 ## Quick Start
 
-### 1. Start the Orion API Server (Required for Settings)
+### 1. Start the Orion API Server (Required)
 
 ```bash
-# From the Orion_MVP directory
-cd D:\multi_agent_cli\Orion_MVP
-
-# Install Python dependencies (first time only)
-pip install -r requirements.txt
+# From the orion-agent root
+pip install -e ".[dev]"
 
 # Start the API server
-uvicorn api.server:app --reload --port 8000
+uvicorn orion.api.server:app --reload --port 8001
 ```
 
 ### 2. Start the Web UI
@@ -32,8 +29,8 @@ npm run dev
 
 ### 3. Open in Browser
 
-- **Web UI**: http://localhost:3001
-- **API Server**: http://localhost:8000 (health check: http://localhost:8000/health)
+- **Web UI**: http://localhost:3000
+- **API Server**: http://localhost:8001 (health check: http://localhost:8001/health)
 
 ## Full Stack Architecture
 
@@ -56,7 +53,7 @@ npm run dev
                     ┌──────▼──────┐
                     │ Orion API   │
                     │ (FastAPI)   │
-                    │   @ :8000   │
+                    │   @ :8001   │
                     └──────┬──────┘
                            │
         ┌──────────────────┼──────────────────┐
