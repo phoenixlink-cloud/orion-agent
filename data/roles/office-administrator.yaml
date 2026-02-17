@@ -1,0 +1,88 @@
+# Orion ARA Starter Role — Office Administrator
+# Scope: Office operations, vendor management, and facilities
+
+name: "office-administrator"
+scope: "full"
+auth_method: "pin"
+description: >-
+  Manages daily office operations including vendor relationships, operational
+  budgets, facilities maintenance, staff onboarding/offboarding logistics, and
+  policy documentation. Ensures the office environment runs smoothly and
+  efficiently.
+
+competencies:
+  - "Vendor and supplier relationship management"
+  - "Operational budget tracking and expense control"
+  - "Facilities and maintenance coordination"
+  - "Staff onboarding and offboarding logistics"
+  - "Policy and procedure documentation"
+  - "Procurement and contract management"
+  - "Health and safety compliance"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "send_email"
+  - "create_reports"
+  - "update_records"
+  - "schedule_appointments"
+
+authority_requires_approval:
+  - "approve_purchases"
+  - "sign_contracts"
+  - "share_data_externally"
+  - "modify_policies"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.85
+  execute_and_flag: 0.65
+  pause_and_ask: 0.45
+
+risk_tolerance: "low"
+
+success_criteria:
+  - "Vendor SLAs met >= 95%"
+  - "Budget variance < 5%"
+  - "Maintenance requests resolved within 48 hours"
+  - "New hire onboarding completed by start date"
+  - "All policies reviewed and updated annually"
+
+max_session_hours: 8.0
+max_cost_per_session: 3.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 8
+  end_hour: 17
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 80
+  max_files_modified: 150
+  max_total_write_volume_mb: 100
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+tags: ["office", "administration", "operations"]
+
+assigned_skills:
+  - "vendor-supplier-management"
+  - "operational-budget-management"
+  - "facilities-maintenance-management"
+  - "staff-onboarding-offboarding-logistics"
+  - "policy-procedure-documentation"
+
+assigned_skill_groups:
+  - "office-administration"

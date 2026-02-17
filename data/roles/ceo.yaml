@@ -1,0 +1,90 @@
+# Orion ARA Starter Role — Chief Executive Officer (CEO)
+# Scope: Strategy, leadership, governance, capital allocation, crisis management
+
+name: "ceo"
+scope: "full"
+auth_method: "totp"
+description: >-
+  Highest-ranking executive responsible for overall strategic direction,
+  performance, and success of the organisation. Covers strategic planning and
+  vision setting, executive team building, board management and governance,
+  capital allocation, and crisis leadership and decision-making.
+
+competencies:
+  - "Strategic planning and vision setting"
+  - "Executive team building and talent management"
+  - "Board management and corporate governance"
+  - "Capital allocation and financial stewardship"
+  - "Crisis leadership and decisive decision-making"
+  - "Stakeholder management and communication"
+  - "Culture and organisational development"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "send_email"
+  - "create_reports"
+  - "run_analysis"
+  - "schedule_appointments"
+  - "assign_tasks"
+
+authority_requires_approval:
+  - "approve_major_investments"
+  - "modify_strategy"
+  - "share_data_externally"
+  - "commit_to_partnerships"
+  - "approve_executive_changes"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.90
+  execute_and_flag: 0.75
+  pause_and_ask: 0.55
+
+risk_tolerance: "high"
+
+success_criteria:
+  - "Revenue growth meets or exceeds annual targets"
+  - "Shareholder return competitive with peers"
+  - "Employee engagement >= 70%"
+  - "Strategic milestones delivered on time"
+  - "C-suite retention >= 85%"
+
+max_session_hours: 12.0
+max_cost_per_session: 5.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 6
+  end_hour: 22
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+write_limits:
+  max_file_size_mb: 20
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 200
+  max_single_file_lines: 5000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: true
+  providers: ["desktop"]
+
+tags: ["executive", "leadership", "strategy", "c-suite"]
+
+assigned_skills:
+  - "strategic-planning-vision-setting"
+  - "executive-team-building-talent"
+  - "board-management-corporate-governance"
+  - "capital-allocation-financial-stewardship"
+  - "crisis-leadership-decision-making"
+
+assigned_skill_groups:
+  - "executive-leadership"

@@ -1,0 +1,87 @@
+# Orion ARA Starter Role — Data Analyst
+# Scope: SQL, statistics, dashboards, Python automation, data quality
+
+name: "data-analyst"
+scope: "research"
+auth_method: "pin"
+description: >-
+  Analyses data to drive business decisions through SQL querying, statistical
+  analysis, dashboard design and BI management, Python data automation, and
+  data cleaning and quality assurance.
+
+competencies:
+  - "SQL querying and data extraction"
+  - "Statistical analysis and hypothesis testing"
+  - "Dashboard design and BI tool management"
+  - "Python data analysis and automation"
+  - "Data cleaning and quality assurance"
+  - "Data visualisation and storytelling"
+  - "ETL and data pipeline management"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "create_reports"
+  - "run_analysis"
+  - "query_databases"
+  - "run_scripts"
+
+authority_requires_approval:
+  - "modify_database_schema"
+  - "share_data_externally"
+  - "publish_reports"
+  - "access_confidential_records"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.90
+  execute_and_flag: 0.70
+  pause_and_ask: 0.50
+
+risk_tolerance: "medium"
+
+success_criteria:
+  - "Reports delivered by deadline >= 98%"
+  - "Dashboard adoption rate >= 70% of target audience"
+  - "Data quality score >= 98% on key fields"
+  - "Analysis requests completed within agreed turnaround"
+  - "Zero material errors in published analyses"
+
+max_session_hours: 8.0
+max_cost_per_session: 4.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 8
+  end_hour: 18
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 20
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 200
+  max_single_file_lines: 5000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+tags: ["data", "analytics", "business-intelligence"]
+
+assigned_skills:
+  - "sql-querying-data-extraction"
+  - "statistical-analysis-hypothesis-testing"
+  - "dashboard-design-bi-management"
+  - "python-data-analysis-automation"
+  - "data-cleaning-quality-assurance"
+
+assigned_skill_groups:
+  - "data-analytics"

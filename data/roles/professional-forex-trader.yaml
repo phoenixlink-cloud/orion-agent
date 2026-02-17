@@ -1,0 +1,87 @@
+# Orion ARA Starter Role — Professional Forex Trader
+# Scope: Technical/fundamental analysis, risk management, trade execution
+
+name: "professional-forex-trader"
+scope: "research"
+auth_method: "totp"
+description: >-
+  Analyses global currency markets and executes trades in foreign exchange pairs
+  to generate consistent, risk-adjusted returns. Covers technical analysis,
+  risk management and position sizing, fundamental analysis, trading psychology,
+  and trade journaling with performance analytics.
+
+competencies:
+  - "Technical analysis and chart reading"
+  - "Risk management and position sizing"
+  - "Fundamental analysis and economic calendar trading"
+  - "Trading psychology and emotional discipline"
+  - "Trade journaling and performance analytics"
+  - "Multi-timeframe analysis"
+  - "Macroeconomic and central bank policy analysis"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "create_reports"
+  - "run_analysis"
+  - "query_databases"
+
+authority_requires_approval:
+  - "execute_trades"
+  - "modify_risk_parameters"
+  - "share_data_externally"
+  - "access_financial_accounts"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.92
+  execute_and_flag: 0.78
+  pause_and_ask: 0.60
+
+risk_tolerance: "medium"
+
+success_criteria:
+  - "Positive risk-adjusted return (Sharpe >= 1.0)"
+  - "Maximum drawdown < 10% of account equity"
+  - "Trade plan compliance >= 95%"
+  - "100% of trades documented in journal"
+  - "Risk per trade never exceeds 2%"
+
+max_session_hours: 12.0
+max_cost_per_session: 5.0
+auto_checkpoint_interval_minutes: 10
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 0
+  end_hour: 24
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 80
+  max_files_modified: 150
+  max_total_write_volume_mb: 100
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: true
+  providers: ["desktop"]
+
+tags: ["trading", "forex", "finance", "markets"]
+
+assigned_skills:
+  - "technical-analysis-chart-reading"
+  - "risk-management-position-sizing"
+  - "fundamental-analysis-economic-calendar"
+  - "trading-psychology-emotional-discipline"
+  - "trade-journaling-performance-analytics"
+
+assigned_skill_groups:
+  - "forex-trading"

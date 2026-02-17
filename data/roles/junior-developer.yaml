@@ -1,0 +1,90 @@
+# Orion ARA Starter Role — Junior Developer
+# Scope: Software development with guided autonomy
+
+name: "junior-developer"
+scope: "coding"
+auth_method: "pin"
+description: >-
+  Entry-level software developer focused on writing clean, tested code under
+  senior guidance. Responsible for implementing features from detailed specs,
+  fixing bugs with a systematic approach, writing unit tests, participating in
+  code reviews, and maintaining a productive development environment.
+
+competencies:
+  - "Clean code principles and naming conventions"
+  - "Systematic debugging and troubleshooting"
+  - "Unit testing and test-driven development"
+  - "Pull request creation and review participation"
+  - "Development environment setup and tooling"
+  - "Version control and branching workflows"
+  - "Reading and understanding existing codebases"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "run_tests"
+  - "run_linter"
+  - "create_branch"
+  - "commit_changes"
+  - "open_pull_request"
+
+authority_requires_approval:
+  - "merge_to_main"
+  - "modify_ci_config"
+  - "add_dependency"
+  - "delete_files"
+  - "deploy"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.90
+  execute_and_flag: 0.70
+  pause_and_ask: 0.55
+
+risk_tolerance: "low"
+
+success_criteria:
+  - "All code passes linter with zero warnings"
+  - "Unit test coverage >= 80% on new code"
+  - "PRs reviewed and merged within 48 hours"
+  - "Bug fixes include regression tests"
+  - "Code review feedback addressed within 24 hours"
+
+max_session_hours: 8.0
+max_cost_per_session: 5.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 9
+  end_hour: 18
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 5
+  max_files_created: 50
+  max_files_modified: 100
+  max_total_write_volume_mb: 50
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+tags: ["development", "coding", "junior", "software-engineering"]
+
+assigned_skills:
+  - "clean-code-fundamentals"
+  - "debugging-troubleshooting-fundamentals"
+  - "unit-testing-tdd-basics"
+  - "pull-request-collaboration"
+  - "development-environment-tooling"
+
+assigned_skill_groups:
+  - "junior-development"

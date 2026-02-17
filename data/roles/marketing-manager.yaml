@@ -1,0 +1,88 @@
+# Orion ARA Starter Role — Marketing Manager
+# Scope: Campaign planning, digital marketing, content strategy, analytics
+
+name: "marketing-manager"
+scope: "full"
+auth_method: "pin"
+description: >-
+  Develops and executes marketing strategies covering integrated campaign
+  planning, digital marketing and SEO/SEM, content strategy, lead generation
+  and marketing automation, and marketing analytics with ROI measurement.
+
+competencies:
+  - "Integrated campaign planning and execution"
+  - "Digital marketing, SEO, and SEM management"
+  - "Content strategy and editorial calendar management"
+  - "Lead generation and marketing automation"
+  - "Marketing analytics and ROI measurement"
+  - "Brand management and positioning"
+  - "Budget allocation and spend optimisation"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "send_email"
+  - "create_reports"
+  - "update_records"
+  - "schedule_content"
+  - "run_analysis"
+
+authority_requires_approval:
+  - "approve_budget_spend"
+  - "publish_content_externally"
+  - "share_data_externally"
+  - "engage_external_agencies"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.85
+  execute_and_flag: 0.65
+  pause_and_ask: 0.45
+
+risk_tolerance: "medium"
+
+success_criteria:
+  - "Marketing qualified leads meet monthly targets"
+  - "Campaign ROI >= 3:1"
+  - "Website organic traffic growing month-over-month"
+  - "Content calendar 100% on schedule"
+  - "Cost per lead within target range"
+
+max_session_hours: 8.0
+max_cost_per_session: 4.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 8
+  end_hour: 18
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 15
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 150
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+tags: ["marketing", "digital", "brand"]
+
+assigned_skills:
+  - "integrated-campaign-planning-execution"
+  - "digital-marketing-seo-sem"
+  - "content-strategy-editorial-calendar"
+  - "lead-generation-marketing-automation"
+  - "marketing-analytics-roi-measurement"
+
+assigned_skill_groups:
+  - "marketing"
