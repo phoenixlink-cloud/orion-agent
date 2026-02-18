@@ -169,10 +169,30 @@ Key fields:
 - `audit_log_path` -- Path to JSONL audit log
 - `rate_limit_global_rpm` -- Global rate limit
 
+## Automatic Sandbox Lifecycle
+
+The sandbox boots automatically when Orion starts (CLI, Web UI, or API mode). No manual commands needed.
+
+**Startup flow:**
+1. Orion starts and shows the banner
+2. `SandboxLifecycle` checks for Docker availability in the background
+3. If Docker is available, the 6-step boot runs in a background thread
+4. The REPL / API server is available immediately (no blocking)
+5. When boot completes, a status message is printed
+
+**Graceful degradation:** If Docker is not installed or not running, Orion continues in BYOK-only mode with a one-time warning. No crash, no blocking.
+
+**Shutdown:** On `/quit`, SIGINT, or process exit, the lifecycle manager calls `orchestrator.stop()` for clean teardown. Signal handlers and `atexit` are registered to handle unexpected exits.
+
+**Manual override:** `/sandbox stop` sets a manual-stop flag that prevents auto-restart. `/sandbox start` clears the flag and reboots.
+
+**Source:** `src/orion/security/sandbox_lifecycle.py`
+
 ## Source Files
 
 | File | Purpose |
 |------|---------|
+| `src/orion/security/sandbox_lifecycle.py` | Lifecycle manager (auto-boot, shutdown, signal handlers) |
 | `src/orion/security/egress/proxy.py` | HTTP forward proxy with CONNECT tunneling |
 | `src/orion/security/egress/config.py` | EgressConfig and DomainRule dataclasses |
 | `src/orion/security/egress/inspector.py` | Content inspection (12 credential patterns) |

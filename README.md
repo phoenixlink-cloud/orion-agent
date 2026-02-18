@@ -257,22 +257,24 @@ Mode set: pro (read + write with approval)
 /settings model llama3
 ```
 
-### Sandbox Mode (Recommended for autonomous work)
+### Sandbox Mode (Automatic)
 
-Requires Docker Desktop. Orion runs inside a governed Docker container with:
-- All network traffic filtered through the egress proxy
-- DNS queries filtered (non-whitelisted domains get NXDOMAIN)
-- Write operations gated by human approval
-- AEGIS configuration immutable from inside the container
+When Docker Desktop is installed, Orion automatically boots its governed sandbox environment on startup.
+No manual commands needed -- the egress proxy, DNS filter, and approval queue start in the background.
+
+If Docker is not available, Orion runs in BYOK-only mode (no network governance).
 
 ```bash
-# Boot the sandbox
-orion sandbox start
-
-# Or use CLI directly (sandbox boots automatically in project mode)
+# Just start Orion -- sandbox boots automatically if Docker is available
 orion
-> /mode project
-> /workspace /path/to/project
+
+# Check sandbox status
+> /sandbox status
+
+# Manual control (overrides auto-boot)
+> /sandbox stop
+> /sandbox start
+> /sandbox restart
 ```
 
 [Full installation guide ->](docs/INSTALLATION.md)
