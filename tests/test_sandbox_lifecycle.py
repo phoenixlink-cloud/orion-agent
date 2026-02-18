@@ -31,13 +31,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from orion.security.sandbox_lifecycle import (
-    SandboxLifecycle,
     _PHASE_BOOTING,
     _PHASE_CHECKING,
     _PHASE_FAILED,
     _PHASE_NOT_STARTED,
     _PHASE_RUNNING,
     _PHASE_STOPPED,
+    SandboxLifecycle,
     get_sandbox_lifecycle,
     reset_sandbox_lifecycle,
 )
