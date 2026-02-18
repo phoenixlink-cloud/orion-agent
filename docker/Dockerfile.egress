@@ -1,0 +1,42 @@
+# Orion Agent — Egress Proxy Dockerfile
+# The Narrow Door: host-side network filter for Docker sandbox
+#
+# This service runs OUTSIDE the Orion sandbox and filters all outbound
+# traffic. AEGIS config is mounted read-only from the host.
+#
+# Usage:
+#   docker compose up egress-proxy
+#
+# Architecture:
+#   Orion Container --HTTP_PROXY--> Egress Proxy --> Internet (filtered)
+
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -r egress && useradd -r -g egress -m egress
+
+WORKDIR /app
+
+COPY --from=builder /build/dist/*.whl /tmp/
+
+# Install Orion (for the egress module) -- minimal deps
+RUN pip install --no-cache-dir /tmp/*.whl 2>/dev/null || \
+    pip install --no-cache-dir /tmp/*.whl && \
+    rm -f /tmp/*.whl
+
+COPY docker/entrypoint_egress.sh /app/entrypoint_egress.sh
+RUN chmod +x /app/entrypoint_egress.sh
+
+# Create directories for audit logs and config
+RUN mkdir -p /home/egress/.orion/logs && chown -R egress:egress /home/egress/.orion
+
+USER egress
+
+# Egress proxy listens on port 8888 by default
+EXPOSE 8888
+
+HEALTHCHECK --interval=15s --timeout=3s --retries=3 \
+    CMD curl -f http://localhost:8888/ || exit 1
+
+ENTRYPOINT ["/app/entrypoint_egress.sh"]

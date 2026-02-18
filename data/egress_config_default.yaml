@@ -1,0 +1,62 @@
+# Orion Agent — Default Egress Proxy Configuration
+# ================================================
+#
+# This file defines the network security policy for Orion's Docker sandbox.
+# It lives on the HOST filesystem, outside the sandbox. Orion cannot modify it.
+#
+# Copy this to ~/.orion/egress_config.yaml and customise as needed.
+#
+# Architecture: Additive Whitelist Model
+#   - Default: ONLY hardcoded LLM endpoints are allowed
+#   - Users add domains explicitly to expand access
+#   - There is no option to disable the firewall or use a wildcard
+#
+# Hardcoded LLM domains (always allowed, cannot be removed):
+#   - generativelanguage.googleapis.com (Google Gemini)
+#   - aiplatform.googleapis.com (Google Vertex AI)
+#   - accounts.google.com (Google OAuth)
+#   - oauth2.googleapis.com (Google OAuth)
+#   - api.anthropic.com (Anthropic Claude)
+#   - api.openai.com (OpenAI)
+#   - auth.openai.com (OpenAI OAuth)
+#   - localhost / 127.0.0.1 (Ollama and local services)
+
+# Proxy settings
+proxy:
+  host: "0.0.0.0"
+  port: 8888
+
+# Global rate limit (requests per minute across all domains)
+global_rate_limit_rpm: 300
+
+# Content inspection: check outbound payloads for credential leakage
+content_inspection: true
+
+# Maximum body size for content inspection (bytes)
+max_body_size: 10485760  # 10 MB
+
+# DNS-level filtering: non-whitelisted domains don't resolve
+dns_filtering: true
+
+# Enforcement mode:
+#   true  = block non-whitelisted requests (production)
+#   false = log-only / audit mode (for debugging)
+enforce: true
+
+# User domain whitelist (add domains here to expand Orion's reach)
+# Each entry can be a simple domain string or a detailed rule object.
+#
+# Simple form:
+#   whitelist:
+#     - github.com
+#     - pypi.org
+#
+# Detailed form:
+#   whitelist:
+#     - domain: github.com
+#       allow_write: true        # Allow POST/PUT/DELETE (default: false = GET only)
+#       protocols: [https]       # Allowed protocols (default: [https])
+#       rate_limit_rpm: 60       # Per-domain rate limit (default: 60)
+#       description: "GitHub API access"
+#
+whitelist: []

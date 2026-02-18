@@ -245,6 +245,7 @@ from orion.api.routes.platforms import router as platforms_router
 from orion.api.routes.settings import router as settings_router
 from orion.api.routes.tools import router as tools_router
 from orion.api.routes.training import router as training_router
+from orion.api.routes.egress import router as egress_router
 
 app.include_router(health_router)
 app.include_router(chat_router)
@@ -256,6 +257,7 @@ app.include_router(tools_router)
 app.include_router(training_router)
 app.include_router(gdpr_router)
 app.include_router(ara_router)
+app.include_router(egress_router)
 
 
 # =============================================================================

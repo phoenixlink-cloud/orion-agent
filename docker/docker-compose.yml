@@ -2,7 +2,52 @@ version: "3.9"
 
 services:
   # -------------------------------------------------------------------------
-  # Backend — FastAPI + WebSocket API
+  # Egress Proxy — The Narrow Door (HOST-SIDE, Phase 2)
+  # -------------------------------------------------------------------------
+  # Filters ALL outbound traffic from the Orion sandbox.
+  # Runs on the egress network (internet access) and the internal network
+  # (reachable by sandbox containers). Sandbox containers can ONLY reach
+  # the internet through this proxy.
+  #
+  # AEGIS config is mounted read-only from the host — Orion cannot modify it.
+  # Audit logs are written to a host-side volume — Orion cannot delete them.
+  # -------------------------------------------------------------------------
+  egress-proxy:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.egress
+    ports:
+      - "${EGRESS_PORT:-8888}:8888"
+    environment:
+      - EGRESS_PROXY_PORT=8888
+      - EGRESS_CONFIG_PATH=/etc/orion/egress_config.yaml
+      - EGRESS_AUDIT_LOG=/var/log/orion/egress_audit.log
+    volumes:
+      # AEGIS egress config — READ-ONLY mount from host
+      - ${ORION_HOME:-~/.orion}/egress_config.yaml:/etc/orion/egress_config.yaml:ro
+      # Audit logs — writable, but on host-side volume (Orion can't reach)
+      - egress-audit:/var/log/orion
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8888/", "-o", "/dev/null", "||", "true"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    networks:
+      - orion-egress   # Has internet access (for forwarding allowed traffic)
+      - orion-internal  # Reachable by sandbox containers
+
+  # -------------------------------------------------------------------------
+  # Backend — FastAPI + WebSocket API (SANDBOX)
+  # -------------------------------------------------------------------------
+  # Runs inside the Docker sandbox. All outbound traffic is routed through
+  # the egress proxy via HTTP_PROXY / HTTPS_PROXY environment variables.
+  # This container has NO direct internet access.
   # -------------------------------------------------------------------------
   api:
     build:
@@ -16,8 +61,17 @@ services:
       - PORT=8000
       - WORKERS=1
       - LOG_LEVEL=info
+      # Route all outbound traffic through the egress proxy
+      - HTTP_PROXY=http://egress-proxy:8888
+      - HTTPS_PROXY=http://egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1
     volumes:
       - orion-data:/home/orion/.orion
+      # Google OAuth credentials — READ-ONLY mount (Phase 2)
+      # - ${ORION_HOME:-~/.orion}/google_credentials.json:/home/orion/.orion/google_credentials.json:ro
+    depends_on:
+      egress-proxy:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -30,7 +84,11 @@ services:
           memory: 2G
           cpus: "2.0"
     networks:
-      - orion-net
+      - orion-internal  # Internal only — NO direct internet access
+    dns:
+      # Use the egress proxy's DNS filter (Phase 2.2)
+      # For now, use Docker's default DNS
+      - 127.0.0.11
 
   # -------------------------------------------------------------------------
   # Frontend — Next.js Web UI
@@ -49,11 +107,17 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - orion-net
+      - orion-internal
 
 volumes:
   orion-data:
+  egress-audit:
 
 networks:
-  orion-net:
+  # Internal network — sandbox containers only, NO internet access
+  orion-internal:
+    driver: bridge
+    internal: true  # KEY: This prevents direct internet access
+  # Egress network — only the proxy has internet access through this
+  orion-egress:
     driver: bridge
