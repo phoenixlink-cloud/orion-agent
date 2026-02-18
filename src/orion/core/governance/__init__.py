@@ -25,8 +25,10 @@ from orion.core.governance.aegis import (
     AegisResult,
     ExternalAccessRequest,
     Intent,
+    NetworkAccessRequest,
     check_aegis_gate,
     check_external_access,
+    check_network_access,
     classify_credential_access,
     validate_action_bundle,
 )
@@ -34,9 +36,11 @@ from orion.core.governance.aegis import (
 __all__ = [
     "check_aegis_gate",
     "check_external_access",
+    "check_network_access",
     "classify_credential_access",
     "validate_action_bundle",
     "AegisResult",
     "ExternalAccessRequest",
+    "NetworkAccessRequest",
     "Intent",
 ]

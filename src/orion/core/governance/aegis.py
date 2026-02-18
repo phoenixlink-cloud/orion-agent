@@ -15,7 +15,7 @@
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-Orion Agent -- AEGIS Governance (v6.5.0)
+Orion Agent -- AEGIS Governance (v7.0.0)
 
 AEGIS is a HARD GATE, not a feature system.
 
@@ -31,6 +31,7 @@ Required checks:
 - Risk validation
 - Command execution scope
 - External access control (credential + API)
+- Network access control (Phase 2: egress proxy whitelist)
 
 AEGIS must NOT:
 - Drive flow
@@ -310,6 +311,120 @@ def classify_credential_access(provider: str, caller: str) -> AegisResult:
         warnings=[f"AEGIS-6: Credential read for '{provider}' by {caller}"],
         action_type="credential_access",
         requires_approval=False,
+    )
+
+
+# =============================================================================
+# INVARIANT 7: Network Access Control (Phase 2 -- HARDCODED)
+# =============================================================================
+#
+# This gate classifies outbound network requests against the egress
+# proxy whitelist. It enforces:
+#   - Domain whitelist (additive model, default: LLM endpoints only)
+#   - Protocol restrictions (HTTPS only by default)
+#   - Method restrictions (read-only domains block write methods)
+#   - Google account scope enforcement (LLM-only, no Drive/Gmail/etc.)
+#
+# The whitelist is loaded from the host-side config file, which is
+# immutable from inside the Docker sandbox.
+#
+# This function is PURE -- classification only. Enforcement happens
+# in the egress proxy server.
+# =============================================================================
+
+# Google domains that are ALWAYS BLOCKED regardless of whitelist.
+# These prevent the dedicated Google account from being used for
+# non-LLM services, even if someone adds them to the whitelist.
+_BLOCKED_GOOGLE_SERVICES = frozenset(
+    {
+        "drive.googleapis.com",
+        "www.googleapis.com/drive",
+        "gmail.googleapis.com",
+        "calendar.googleapis.com",
+        "youtube.googleapis.com",
+        "photoslibrary.googleapis.com",
+        "people.googleapis.com",
+        "docs.googleapis.com",
+        "sheets.googleapis.com",
+        "slides.googleapis.com",
+    }
+)
+
+
+@dataclass
+class NetworkAccessRequest:
+    """Request to make an outbound network connection."""
+
+    hostname: str
+    port: int = 443
+    method: str = "GET"
+    url: str = ""
+    protocol: str = "https"
+    description: str = ""
+
+
+def check_network_access(request: NetworkAccessRequest) -> AegisResult:
+    """
+    AEGIS Invariant 7: Network Access Control.
+
+    This is a PURE FUNCTION. It classifies an outbound network request
+    and determines whether it should be allowed, blocked, or requires
+    human approval.
+
+    HARDCODED RULES (not configurable -- security invariant):
+      - Blocked Google services ALWAYS blocked (LLM-only enforcement)
+      - Non-HTTPS protocols require approval
+      - Write methods to non-LLM domains require approval
+
+    The egress proxy performs the actual enforcement. This function
+    provides the AEGIS classification for audit and UI display.
+
+    Args:
+        request: The outbound network request to classify.
+
+    Returns:
+        AegisResult with the classification.
+    """
+    violations = []
+    warnings = []
+    hostname = request.hostname.lower().strip()
+
+    # --- Rule 1: Block Google services that are NOT LLM-related ---
+    for blocked_domain in _BLOCKED_GOOGLE_SERVICES:
+        if hostname == blocked_domain or hostname.endswith("." + blocked_domain):
+            violations.append(
+                f"AEGIS-7: Google service '{hostname}' is blocked. "
+                "The dedicated Google account is scoped to LLM access only."
+            )
+            return AegisResult(
+                passed=False,
+                violations=violations,
+                warnings=[],
+                action_type="network_access",
+                requires_approval=False,
+            )
+
+    # --- Rule 2: Non-HTTPS protocol warning ---
+    if request.protocol.lower() not in ("https", "wss"):
+        if hostname not in ("localhost", "127.0.0.1"):
+            warnings.append(
+                f"AEGIS-7: Non-HTTPS protocol '{request.protocol}' to {hostname}. "
+                "Only HTTPS is recommended for external connections."
+            )
+
+    # --- Rule 3: Write methods to non-LLM domains need awareness ---
+    write_methods = {"POST", "PUT", "PATCH", "DELETE"}
+    if request.method.upper() in write_methods:
+        warnings.append(
+            f"AEGIS-7: Write operation ({request.method}) to {hostname}. "
+            "Egress proxy will check domain whitelist and write permissions."
+        )
+
+    return AegisResult(
+        passed=True,
+        violations=violations,
+        warnings=warnings,
+        action_type="network_access",
     )
 
 

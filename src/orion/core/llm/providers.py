@@ -85,7 +85,7 @@ OLLAMA_TIMEOUT = 300
 
 
 def _get_key(provider: str) -> str | None:
-    """Retrieve API key from SecureStore, falling back to environment variables."""
+    """Retrieve credential: SecureStore API key -> env var."""
     # Try SecureStore first
     try:
         from orion.security.store import SecureStore
@@ -328,14 +328,16 @@ async def _call_google(
     max_tokens: int = 8000,
     temperature: float = 0.3,
 ) -> str:
-    """Call Google Gemini API via REST."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    """Call Google Gemini API via REST (API key auth)."""
+    base = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    url = f"{base}?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
         "generationConfig": {"maxOutputTokens": max_tokens, "temperature": temperature},
     }
     async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(url, json=payload)
+        resp = await client.post(url, json=payload, headers=headers)
         resp.raise_for_status()
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"]
@@ -513,11 +515,19 @@ async def call_provider(
     elif provider == "google":
         api_key = _get_key("google")
         if not api_key:
-            return _error_json("Google API key not configured. Use /key set google <key>.")
+            return _error_json(
+                "Google API key not configured. Get a free key at "
+                "https://aistudio.google.com/apikey or use /key set google <key>."
+            )
 
         async def _do():
             return await _call_google(
-                model, system_prompt, user_prompt, api_key, max_tokens, temperature
+                model,
+                system_prompt,
+                user_prompt,
+                api_key,
+                max_tokens,
+                temperature,
             )
 
         return await retry_api_call(_do, component=component)

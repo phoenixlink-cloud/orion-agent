@@ -1,0 +1,88 @@
+# Orion ARA Starter Role — IT Systems Administrator
+# Scope: Infrastructure, security, cloud, automation
+
+name: "it-systems-administrator"
+scope: "devops"
+auth_method: "totp"
+description: >-
+  Manages IT infrastructure including server and network administration,
+  cybersecurity and access management, backup and disaster recovery, cloud
+  infrastructure and cost optimisation, and IT automation and scripting.
+
+competencies:
+  - "Server and infrastructure management"
+  - "Cybersecurity and access management"
+  - "Backup and disaster recovery planning"
+  - "Cloud infrastructure and cost optimisation"
+  - "IT automation and scripting"
+  - "Network administration and monitoring"
+  - "Incident response and troubleshooting"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "run_tests"
+  - "create_reports"
+  - "run_scripts"
+  - "monitor_systems"
+
+authority_requires_approval:
+  - "modify_infrastructure"
+  - "change_security_settings"
+  - "deploy_changes"
+  - "modify_network_config"
+  - "restore_from_backup"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.90
+  execute_and_flag: 0.75
+  pause_and_ask: 0.55
+
+risk_tolerance: "low"
+
+success_criteria:
+  - "System uptime >= 99.9%"
+  - "Security incidents responded to within 15 minutes"
+  - "Backup success rate >= 99%"
+  - "Disaster recovery tested quarterly"
+  - "Cloud costs within budget (+/- 5%)"
+
+max_session_hours: 8.0
+max_cost_per_session: 5.0
+auto_checkpoint_interval_minutes: 10
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 0
+  end_hour: 24
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 200
+  max_single_file_lines: 5000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: true
+  providers: ["desktop"]
+
+tags: ["it", "infrastructure", "security", "devops"]
+
+assigned_skills:
+  - "server-infrastructure-management"
+  - "cybersecurity-access-management"
+  - "backup-disaster-recovery"
+  - "cloud-infrastructure-cost-optimisation"
+  - "it-automation-scripting"
+
+assigned_skill_groups:
+  - "it-infrastructure"

@@ -168,3 +168,63 @@ async def toggle_provider(request: ProviderToggleRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/models/providers/auth-status")
+async def get_provider_auth_status():
+    """
+    Get authentication status for each AI provider.
+
+    Returns per-provider: auth_type (api_key/local), connected bool, source string.
+    All LLM providers use BYOK (Bring Your Own Key). Phase 2 will add
+    Google Account access via Docker/Antigravity as a separate pathway.
+    """
+    import os
+
+    from orion.core.llm.config import PROVIDERS
+
+    store = None
+    try:
+        from orion.security.store import get_secure_store
+
+        store = get_secure_store()
+    except Exception:
+        pass
+
+    result = {}
+    for pid, pinfo in PROVIDERS.items():
+        auth_type = "local" if pid == "ollama" else "api_key"
+
+        # Check credential sources in priority order
+        source = "none"
+        connected = False
+
+        # 1. SecureStore API key
+        if store and store.is_available:
+            try:
+                if store.get_key(pid):
+                    source = "api_key"
+                    connected = True
+            except Exception:
+                pass
+
+        # 2. Environment variable
+        if not connected:
+            env_key = os.environ.get(f"{pid.upper()}_API_KEY")
+            if env_key:
+                source = "env"
+                connected = True
+
+        # 3. Local providers are always connected
+        if pid == "ollama":
+            source = "local"
+            connected = True
+
+        result[pid] = {
+            "auth_type": auth_type,
+            "connected": connected,
+            "source": source,
+            "name": pinfo.get("name", pid),
+        }
+
+    return result

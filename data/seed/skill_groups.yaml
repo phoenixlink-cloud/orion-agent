@@ -1,0 +1,207 @@
+# Orion ARA Skill Groups
+# Groups skills by role/domain for easy assignment to role profiles.
+# See ARA-006 §5 for full design.
+
+office-reception:
+  display_name: "Office Reception"
+  description: "Skills for front-desk and reception professionals"
+  group_type: "specialized"
+  skills:
+    - "multi-line-phone-management"
+    - "visitor-check-in-access-management"
+    - "appointment-scheduling-calendar-coordination"
+    - "mail-courier-package-handling"
+    - "office-supplies-procurement-inventory"
+  tags: ["office", "front-desk", "reception"]
+
+office-administration:
+  display_name: "Office Administration"
+  description: "Skills for office operations and administration management"
+  group_type: "specialized"
+  skills:
+    - "vendor-supplier-management"
+    - "operational-budget-management"
+    - "facilities-maintenance-management"
+    - "staff-onboarding-offboarding-logistics"
+    - "policy-procedure-documentation"
+  tags: ["office", "administration", "operations"]
+
+executive-support:
+  display_name: "Executive Support"
+  description: "Skills for executive assistants and C-suite support professionals"
+  group_type: "specialized"
+  skills:
+    - "c-suite-calendar-schedule-optimization"
+    - "international-travel-planning"
+    - "board-pack-preparation-minutes"
+    - "executive-correspondence-email-management"
+    - "executive-presentation-report-preparation"
+  tags: ["executive-support", "c-suite", "administration"]
+
+human-resources:
+  display_name: "Human Resources"
+  description: "Skills for HR managers covering recruitment, employee relations, and compliance"
+  group_type: "specialized"
+  skills:
+    - "full-cycle-recruitment"
+    - "employee-relations-disciplinary-management"
+    - "performance-management-cycle"
+    - "compensation-benefits-administration"
+    - "hr-policy-development-compliance"
+  tags: ["human-resources", "hr", "people-management"]
+
+financial-analysis:
+  display_name: "Financial Analysis"
+  description: "Skills for financial analysts covering modelling, reporting, and investment appraisal"
+  group_type: "specialized"
+  skills:
+    - "financial-modelling-scenario-analysis"
+    - "budgeting-rolling-forecast"
+    - "management-reporting-dashboards"
+    - "investment-appraisal-business-case"
+    - "data-visualisation-financial-storytelling"
+  tags: ["finance", "analysis", "reporting"]
+
+project-management:
+  display_name: "Project Management"
+  description: "Skills for project managers covering planning, risk, Agile, and stakeholder management"
+  group_type: "specialized"
+  skills:
+    - "project-planning-wbs"
+    - "risk-issue-management-raid"
+    - "stakeholder-communication-reporting"
+    - "agile-project-delivery"
+    - "change-control-scope-management"
+  tags: ["project-management", "delivery", "planning"]
+
+sales:
+  display_name: "Sales"
+  description: "Skills for sales professionals covering prospecting, negotiation, and CRM"
+  group_type: "specialized"
+  skills:
+    - "prospecting-lead-qualification"
+    - "consultative-discovery-needs-analysis"
+    - "proposal-writing-solution-presentation"
+    - "negotiation-deal-closing"
+    - "crm-management-sales-forecasting"
+  tags: ["sales", "business-development", "revenue"]
+
+marketing:
+  display_name: "Marketing"
+  description: "Skills for marketing managers covering campaigns, digital, content, and analytics"
+  group_type: "specialized"
+  skills:
+    - "integrated-campaign-planning-execution"
+    - "digital-marketing-seo-sem"
+    - "content-strategy-editorial-calendar"
+    - "lead-generation-marketing-automation"
+    - "marketing-analytics-roi-measurement"
+  tags: ["marketing", "digital", "brand"]
+
+social-media:
+  display_name: "Social Media"
+  description: "Skills for social media content creators across platforms"
+  group_type: "specialized"
+  skills:
+    - "x-twitter-content-thread-strategy"
+    - "reddit-community-engagement"
+    - "short-form-video-creation"
+    - "social-media-analytics-reporting"
+    - "community-crisis-management"
+  tags: ["social-media", "content", "digital-marketing"]
+
+customer-service:
+  display_name: "Customer Service"
+  description: "Skills for customer service managers covering support operations and satisfaction"
+  group_type: "specialized"
+  skills:
+    - "multi-channel-support-sla-management"
+    - "quality-assurance-agent-coaching"
+    - "complaint-handling-escalation"
+    - "customer-satisfaction-measurement"
+    - "knowledge-base-self-service"
+  tags: ["customer-service", "support", "cx"]
+
+it-infrastructure:
+  display_name: "IT Infrastructure"
+  description: "Skills for IT systems administrators covering servers, security, cloud, and automation"
+  group_type: "specialized"
+  skills:
+    - "server-infrastructure-management"
+    - "cybersecurity-access-management"
+    - "backup-disaster-recovery"
+    - "cloud-infrastructure-cost-optimisation"
+    - "it-automation-scripting"
+  tags: ["it", "infrastructure", "security", "devops"]
+
+legal-compliance:
+  display_name: "Legal & Compliance"
+  description: "Skills for legal compliance officers covering regulation, privacy, audit, and ethics"
+  group_type: "specialized"
+  skills:
+    - "regulatory-compliance-risk-assessment"
+    - "data-protection-privacy-management"
+    - "contract-review-legal-risk"
+    - "internal-audit-compliance-monitoring"
+    - "compliance-training-ethics-programme"
+  tags: ["legal", "compliance", "governance"]
+
+data-analytics:
+  display_name: "Data Analytics"
+  description: "Skills for data analysts covering SQL, statistics, dashboards, Python, and data quality"
+  group_type: "specialized"
+  skills:
+    - "sql-querying-data-extraction"
+    - "statistical-analysis-hypothesis-testing"
+    - "dashboard-design-bi-management"
+    - "python-data-analysis-automation"
+    - "data-cleaning-quality-assurance"
+  tags: ["data", "analytics", "business-intelligence"]
+
+forex-trading:
+  display_name: "Forex Trading"
+  description: "Skills for professional forex traders covering analysis, risk, psychology, and journaling"
+  group_type: "specialized"
+  skills:
+    - "technical-analysis-chart-reading"
+    - "risk-management-position-sizing"
+    - "fundamental-analysis-economic-calendar"
+    - "trading-psychology-emotional-discipline"
+    - "trade-journaling-performance-analytics"
+  tags: ["trading", "forex", "finance"]
+
+executive-leadership:
+  display_name: "Executive Leadership"
+  description: "Skills for CEOs covering strategy, team building, governance, and crisis leadership"
+  group_type: "specialized"
+  skills:
+    - "strategic-planning-vision-setting"
+    - "executive-team-building-talent"
+    - "board-management-corporate-governance"
+    - "capital-allocation-financial-stewardship"
+    - "crisis-leadership-decision-making"
+  tags: ["executive", "leadership", "strategy"]
+
+junior-development:
+  display_name: "Junior Development"
+  description: "Skills for junior developers covering clean code, debugging, testing, PRs, and tooling"
+  group_type: "specialized"
+  skills:
+    - "clean-code-fundamentals"
+    - "debugging-troubleshooting-fundamentals"
+    - "unit-testing-tdd-basics"
+    - "pull-request-collaboration"
+    - "development-environment-tooling"
+  tags: ["development", "coding", "junior"]
+
+senior-development:
+  display_name: "Senior Development"
+  description: "Skills for senior developers covering architecture, mentorship, refactoring, performance, and leadership"
+  group_type: "specialized"
+  skills:
+    - "software-architecture-design-patterns"
+    - "code-review-mentorship"
+    - "technical-debt-refactoring-strategy"
+    - "performance-optimisation-scalability"
+    - "technical-leadership-planning"
+  tags: ["development", "coding", "senior", "architecture"]

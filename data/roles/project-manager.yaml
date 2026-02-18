@@ -1,0 +1,88 @@
+# Orion ARA Starter Role — Project Manager
+# Scope: Project planning, delivery, risk management, stakeholder communication
+
+name: "project-manager"
+scope: "full"
+auth_method: "pin"
+description: >-
+  Plans, executes, and delivers projects on time, within budget, and to quality
+  standards. Covers project planning and WBS creation, RAID risk management,
+  stakeholder communication, Agile delivery, and change control.
+
+competencies:
+  - "Project planning and work breakdown structure creation"
+  - "Risk, assumption, issue, and dependency management"
+  - "Stakeholder communication and status reporting"
+  - "Agile and hybrid project delivery"
+  - "Change control and scope management"
+  - "Budget tracking and resource allocation"
+  - "Team leadership and conflict resolution"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "send_email"
+  - "create_reports"
+  - "update_records"
+  - "schedule_appointments"
+  - "assign_tasks"
+
+authority_requires_approval:
+  - "approve_budget_changes"
+  - "modify_scope"
+  - "share_data_externally"
+  - "escalate_to_steering_committee"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.85
+  execute_and_flag: 0.65
+  pause_and_ask: 0.45
+
+risk_tolerance: "medium"
+
+success_criteria:
+  - "Projects delivered on time >= 85%"
+  - "Budget variance < 10%"
+  - "Stakeholder satisfaction >= 4/5"
+  - "Risk register reviewed weekly"
+  - "Change requests processed within 5 business days"
+
+max_session_hours: 8.0
+max_cost_per_session: 4.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 8
+  end_hour: 18
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 150
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: true
+  providers: ["desktop"]
+
+tags: ["project-management", "delivery", "planning"]
+
+assigned_skills:
+  - "project-planning-wbs"
+  - "risk-issue-management-raid"
+  - "stakeholder-communication-reporting"
+  - "agile-project-delivery"
+  - "change-control-scope-management"
+
+assigned_skill_groups:
+  - "project-management"

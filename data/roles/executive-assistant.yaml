@@ -1,0 +1,87 @@
+# Orion ARA Starter Role — Executive Assistant
+# Scope: C-suite support, calendar management, board preparation
+
+name: "executive-assistant"
+scope: "full"
+auth_method: "pin"
+description: >-
+  Provides high-level administrative support to C-suite executives including
+  calendar optimisation, international travel planning, board pack preparation,
+  executive correspondence management, and presentation creation.
+
+competencies:
+  - "C-suite calendar and schedule optimisation"
+  - "International travel planning and logistics"
+  - "Board pack preparation and meeting minutes"
+  - "Executive correspondence and email management"
+  - "Presentation and report preparation"
+  - "Stakeholder relationship management"
+  - "Confidential information handling"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "send_email"
+  - "schedule_appointments"
+  - "create_reports"
+  - "update_records"
+
+authority_requires_approval:
+  - "share_data_externally"
+  - "approve_purchases"
+  - "book_travel"
+  - "access_confidential_records"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.85
+  execute_and_flag: 0.65
+  pause_and_ask: 0.50
+
+risk_tolerance: "low"
+
+success_criteria:
+  - "Zero scheduling conflicts per month"
+  - "Board packs delivered 5+ days before meetings"
+  - "Travel itineraries confirmed 2+ weeks in advance"
+  - "Email response time < 2 hours during business hours"
+  - "100% confidentiality compliance"
+
+max_session_hours: 8.0
+max_cost_per_session: 3.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 7
+  end_hour: 19
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 80
+  max_files_modified: 150
+  max_total_write_volume_mb: 100
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+tags: ["executive-support", "c-suite", "administration"]
+
+assigned_skills:
+  - "c-suite-calendar-schedule-optimization"
+  - "international-travel-planning"
+  - "board-pack-preparation-minutes"
+  - "executive-correspondence-email-management"
+  - "executive-presentation-report-preparation"
+
+assigned_skill_groups:
+  - "executive-support"

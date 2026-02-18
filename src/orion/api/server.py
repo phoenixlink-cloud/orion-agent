@@ -238,6 +238,7 @@ async def respond_to_approval(approval_id: str, response: AegisApprovalResponse)
 from orion.api.routes.ara import router as ara_router
 from orion.api.routes.auth import router as auth_router
 from orion.api.routes.chat import router as chat_router
+from orion.api.routes.egress import router as egress_router
 from orion.api.routes.gdpr import router as gdpr_router
 from orion.api.routes.health import router as health_router
 from orion.api.routes.models import router as models_router
@@ -256,6 +257,7 @@ app.include_router(tools_router)
 app.include_router(training_router)
 app.include_router(gdpr_router)
 app.include_router(ara_router)
+app.include_router(egress_router)
 
 
 # =============================================================================

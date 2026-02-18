@@ -1,0 +1,88 @@
+# Orion ARA Starter Role — Social Media Content Creator
+# Scope: Social media strategy, content creation, community management
+
+name: "social-media-content-creator"
+scope: "full"
+auth_method: "pin"
+description: >-
+  Creates and manages social media content across platforms including X/Twitter,
+  Reddit, TikTok, Instagram, and YouTube. Covers thread strategy, community
+  engagement, short-form video creation, analytics reporting, and crisis
+  management.
+
+competencies:
+  - "X/Twitter content and thread strategy"
+  - "Reddit community engagement and content strategy"
+  - "Short-form video creation (Reels, TikTok, Shorts)"
+  - "Social media analytics and performance reporting"
+  - "Community crisis management and brand reputation"
+  - "Content calendar planning and scheduling"
+  - "Platform algorithm understanding and optimisation"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "create_reports"
+  - "schedule_content"
+  - "run_analysis"
+  - "update_records"
+
+authority_requires_approval:
+  - "publish_content_externally"
+  - "respond_to_crisis"
+  - "share_data_externally"
+  - "engage_influencers"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.85
+  execute_and_flag: 0.65
+  pause_and_ask: 0.45
+
+risk_tolerance: "medium"
+
+success_criteria:
+  - "Engagement rate above industry benchmark"
+  - "Follower growth month-over-month"
+  - "Content calendar 100% on schedule"
+  - "Community response time < 2 hours"
+  - "Zero brand reputation incidents from content"
+
+max_session_hours: 8.0
+max_cost_per_session: 3.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 8
+  end_hour: 20
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+
+write_limits:
+  max_file_size_mb: 15
+  max_files_created: 100
+  max_files_modified: 200
+  max_total_write_volume_mb: 150
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+tags: ["social-media", "content", "digital-marketing"]
+
+assigned_skills:
+  - "x-twitter-content-thread-strategy"
+  - "reddit-community-engagement"
+  - "short-form-video-creation"
+  - "social-media-analytics-reporting"
+  - "community-crisis-management"
+
+assigned_skill_groups:
+  - "social-media"
