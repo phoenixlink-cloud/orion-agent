@@ -1709,13 +1709,21 @@ def _get_skill_library(skills_dir: Path | None = None):
     # Load user skills
     loaded, warnings = lib.load_all()
 
-    # Also load seed/bundled skills
+    # Also load seed/bundled skills (trusted first-party, skip scan)
     if SEED_SKILLS_DIR.exists():
+        from orion.ara.skill import load_skill as _load_skill
+
         for item in sorted(SEED_SKILLS_DIR.iterdir()):
             if item.is_dir() and (item / "SKILL.md").exists():
                 if lib.get_skill(item.name) is None:
                     try:
-                        lib.import_skill(item)
+                        skill, _ = _load_skill(item)
+                        skill.source = "bundled"
+                        skill.trust_level = "verified"
+                        skill.aegis_approved = True
+                        skill.directory = item
+                        skill.content_hash = skill.compute_disk_hash()
+                        lib._skills[skill.name] = skill
                     except Exception:
                         pass
 

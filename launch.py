@@ -13,6 +13,7 @@ This replaces all other startup scripts for a clean user experience.
 
 import sys
 import os
+import locale
 import socket
 import subprocess
 import threading
@@ -22,6 +23,12 @@ import time
 import atexit
 from pathlib import Path
 from typing import Optional
+
+# Windows encoding fix: Python defaults to cp1252 for subprocess text mode,
+# but Docker, Git, and npm all emit UTF-8.  Override at process level to
+# prevent UnicodeDecodeError in subprocess reader threads.
+if sys.platform == "win32":
+    locale.getpreferredencoding = lambda do_setlocale=True: "utf-8"
 
 # Ensure imports work
 ORION_DIR = Path(__file__).parent
