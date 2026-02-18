@@ -163,7 +163,7 @@ def get_client_id(provider: str) -> str | None:
     bundled_id = defaults.get(provider, {}).get("client_id")
     if bundled_id:
         return bundled_id
-    # 4. Public client_id from PROVIDERS config (e.g. OpenAI Codex public client)
+    # 4. Public client_id from PROVIDERS config
     provider_def = PROVIDERS.get(provider, {})
     public_id = provider_def.get("public_client_id")
     if public_id:
