@@ -1683,8 +1683,23 @@ def cmd_setup(
 # ---------------------------------------------------------------------------
 
 
+_skill_library_cache: object | None = None
+_skill_library_warnings: list[str] = []
+
+
 def _get_skill_library(skills_dir: Path | None = None):
-    """Get or create a SkillLibrary instance."""
+    """Get or create a SkillLibrary instance.
+
+    The library is cached at module level so that ``load_all()`` and
+    seed-skill imports only run once.  Pass a custom *skills_dir* to
+    bypass the cache (used by tests).
+    """
+    global _skill_library_cache, _skill_library_warnings
+
+    # Return cached instance when using default dir
+    if skills_dir is None and _skill_library_cache is not None:
+        return _skill_library_cache, _skill_library_warnings
+
     from orion.ara.skill_library import SkillLibrary
 
     user_dir = skills_dir or DEFAULT_SKILLS_DIR
@@ -1703,6 +1718,11 @@ def _get_skill_library(skills_dir: Path | None = None):
                         lib.import_skill(item)
                     except Exception:
                         pass
+
+    # Cache only when using default dir
+    if skills_dir is None:
+        _skill_library_cache = lib
+        _skill_library_warnings = warnings
 
     return lib, warnings
 

@@ -26,10 +26,12 @@ If Docker is unavailable, Orion continues in BYOK-only mode (no sandbox).
 from __future__ import annotations
 
 import atexit
+import locale
 import logging
 import shutil
 import signal
 import subprocess
+import sys
 import threading
 import time
 from typing import Any
@@ -160,6 +162,14 @@ class SandboxLifecycle:
         self._phase = _PHASE_BOOTING
         self._notify_status("Booting governed sandbox (host services)...")
 
+        # On Windows, subprocess.run(text=True) defaults to cp1252 which
+        # can't decode Docker's UTF-8 output.  Temporarily override the
+        # preferred encoding so the orchestrator's _docker_cmd() works.
+        _orig_getpreferredencoding = None
+        if sys.platform == "win32":
+            _orig_getpreferredencoding = locale.getpreferredencoding
+            locale.getpreferredencoding = lambda do_setlocale=True: "utf-8"
+
         try:
             from orion.security.orchestrator import BootPhase, SandboxOrchestrator
 
@@ -218,6 +228,10 @@ class SandboxLifecycle:
                     pass
             self._boot_done.set()
             return False
+        finally:
+            # Restore original encoding function
+            if _orig_getpreferredencoding is not None:
+                locale.getpreferredencoding = _orig_getpreferredencoding
 
     # ------------------------------------------------------------------
     # Shutdown
