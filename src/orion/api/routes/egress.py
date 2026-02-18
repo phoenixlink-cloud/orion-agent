@@ -179,6 +179,75 @@ async def remove_domain(domain: str) -> dict:
     return {"status": "removed", "domain": domain}
 
 
+# ---------------------------------------------------------------------------
+# Sandbox Orchestrator endpoints (Phase 3)
+# ---------------------------------------------------------------------------
+
+# Singleton orchestrator instance (created on first use)
+_orchestrator = None
+
+
+def _get_orchestrator():
+    """Get or create the singleton SandboxOrchestrator."""
+    global _orchestrator
+    if _orchestrator is None:
+        from orion.security.orchestrator import SandboxOrchestrator
+
+        _orchestrator = SandboxOrchestrator()
+    return _orchestrator
+
+
+@router.get("/sandbox/status")
+async def get_sandbox_status() -> dict:
+    """Get the current sandbox orchestrator status."""
+    orch = _get_orchestrator()
+    return orch.status.to_dict()
+
+
+@router.post("/sandbox/start")
+async def start_sandbox() -> dict:
+    """Start the governed sandbox (6-step boot sequence)."""
+    orch = _get_orchestrator()
+    if orch.is_running:
+        raise HTTPException(status_code=409, detail="Sandbox is already running")
+
+    status = orch.start()
+    if status.phase == "failed":
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sandbox boot failed: {status.error}",
+        )
+
+    return status.to_dict()
+
+
+@router.post("/sandbox/stop")
+async def stop_sandbox() -> dict:
+    """Stop the governed sandbox (reverse shutdown)."""
+    orch = _get_orchestrator()
+    if not orch.is_running:
+        raise HTTPException(status_code=409, detail="Sandbox is not running")
+
+    orch.stop()
+    return orch.status.to_dict()
+
+
+@router.post("/sandbox/reload")
+async def reload_sandbox_config() -> dict:
+    """Hot-reload egress/DNS config without restarting the sandbox."""
+    orch = _get_orchestrator()
+    if not orch.is_running:
+        raise HTTPException(status_code=409, detail="Sandbox is not running")
+
+    orch.reload_config()
+    return {"status": "reloaded"}
+
+
+# ---------------------------------------------------------------------------
+# Audit endpoints
+# ---------------------------------------------------------------------------
+
+
 @router.get("/audit")
 async def get_audit_log(limit: int = 50) -> dict:
     """Get recent audit log entries."""
