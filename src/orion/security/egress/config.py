@@ -247,7 +247,21 @@ class EgressConfig:
             for d in self.research_domains
         ]
 
-        return hardcoded_rules + search_rules + research_rules + list(self.whitelist)
+        # User-enabled Google services (Phase 3.2 graduated access)
+        google_rules = [
+            DomainRule(
+                domain=d,
+                allow_write=False,  # Default: read-only; user can upgrade via whitelist
+                protocols=["https"],
+                rate_limit_rpm=120,
+                added_by="user",
+                description=f"Google service (user-enabled): {GOOGLE_SERVICES.get(d, {}).get('name', d)}",
+            )
+            for d in self.allowed_google_services
+            if d in GOOGLE_SERVICES
+        ]
+
+        return hardcoded_rules + search_rules + google_rules + research_rules + list(self.whitelist)
 
     def is_domain_allowed(self, hostname: str) -> DomainRule | None:
         """Check if a hostname is allowed. Returns the matching rule or None."""

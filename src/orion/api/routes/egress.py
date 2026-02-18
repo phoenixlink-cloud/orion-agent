@@ -242,6 +242,12 @@ async def toggle_google_service(domain: str, request: GoogleServiceToggleRequest
     service_name = GOOGLE_SERVICES[domain]["name"]
     logger.info("Google service %s: %s (%s)", action, service_name, domain)
 
+    # Trigger hot-reload on the running orchestrator (if active)
+    orch = _get_orchestrator()
+    if orch.is_running:
+        orch.reload_config()
+        logger.info("Orchestrator config reloaded after Google service toggle")
+
     return {
         "domain": domain,
         "name": service_name,
