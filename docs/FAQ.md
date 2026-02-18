@@ -55,7 +55,7 @@ Only in `project` mode, and only allowlisted commands. AEGIS blocks dangerous pa
 
 ### What is AEGIS?
 
-AEGIS (Autonomous Execution Governance and Integrity System) is Orion's security core. It validates every operation against six invariants: workspace confinement, mode enforcement, action scope, risk validation, command execution safety, and external access control.
+AEGIS (Autonomous Execution Governance and Integrity System) is Orion's security core. It validates every operation against seven invariants (v7.0.0): workspace confinement, mode enforcement, action scope, risk validation, command execution safety, external access control, and network access control.
 
 See [AEGIS documentation](AEGIS.md) for full details.
 

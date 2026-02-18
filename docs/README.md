@@ -32,6 +32,7 @@ Welcome to the Orion Agent documentation. This guide will help you understand, i
 | [Learning System](LEARNING_SYSTEM.md) | Knowledge distillation | Developers |
 | [Agents](AGENTS.md) | Multi-agent system | Developers |
 | [Security](SECURITY.md) | Security model | Security-focused |
+| [Network Security](NETWORK_SECURITY.md) | Egress proxy, DNS filter, approval queue | Security-focused |
 
 ### Operations
 
@@ -54,7 +55,7 @@ Welcome to the Orion Agent documentation. This guide will help you understand, i
 
 - **I want to try Orion** -- [Getting Started](GETTING_STARTED.md)
 - **I want to understand the architecture** -- [Architecture](ARCHITECTURE.md)
-- **I want to know about security** -- [AEGIS](AEGIS.md) and [Security](SECURITY.md)
+- **I want to know about security** -- [AEGIS](AEGIS.md), [Security](SECURITY.md), and [Network Security](NETWORK_SECURITY.md)
 - **I want to deploy to production** -- [Deployment](DEPLOYMENT.md)
 - **I have a problem** -- [Troubleshooting](TROUBLESHOOTING.md)
 - **I want to contribute** -- [Contributing](../CONTRIBUTING.md)
@@ -88,6 +89,7 @@ Looking for something specific?
 | Memory | [Memory System](MEMORY_SYSTEM.md) |
 | Modes | [User Guide](USER_GUIDE.md#modes) |
 | Security | [Security](SECURITY.md) |
+| Network Security | [Network Security](NETWORK_SECURITY.md) |
 | WebSocket | [API Reference](API_REFERENCE.md#websocket) |
 
 ---

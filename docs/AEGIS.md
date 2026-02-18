@@ -281,7 +281,7 @@ AEGIS is not a complete security solution on its own:
 - **Not encryption** -- Doesn't protect data at rest
 - **Not a replacement for OS permissions** -- Doesn't manage user accounts
 
-AEGIS is one layer in a defense-in-depth strategy. Phase 2 adds Docker-based network isolation as a complementary layer.
+AEGIS is one layer in a defense-in-depth strategy. Phase 2 added Docker-based network isolation as a complementary layer. See [Network Security](NETWORK_SECURITY.md) for full details.
 
 ## FAQ
 

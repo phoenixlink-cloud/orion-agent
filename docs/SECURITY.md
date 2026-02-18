@@ -36,7 +36,7 @@ Orion operates on the principle of **governed autonomy** -- AI agents are powerf
 
 The primary security gate. See [AEGIS documentation](AEGIS.md) for full details.
 
-- 6 invariants enforced on every operation
+- 7 invariants enforced on every operation
 - Pure-function design (no state, no bypass)
 - 6-layer path traversal defense
 - 46 security tests
