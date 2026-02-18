@@ -10,6 +10,17 @@
 # Architecture:
 #   Orion Container --HTTP_PROXY--> Egress Proxy --> Internet (filtered)
 
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+COPY pyproject.toml README.md ./
+COPY src/ src/
+
+RUN touch LICENSE
+RUN pip install --no-cache-dir build && \
+    python -m build --wheel
+
+# --- Runtime ---
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && \

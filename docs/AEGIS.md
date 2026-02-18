@@ -107,18 +107,28 @@ chmod 777          # Unsafe permissions
 | Read (GET) | Public APIs | Private/auth |
 | Write (POST/PUT/DELETE) | Never | Always |
 
-### Invariant 7: Network Access Control (Phase 2)
+### Invariant 7: Network Access Control
 
-**Outbound network requests are classified against a hardcoded domain whitelist.**
+**All network requests from governed contexts must pass through the egress proxy.** The proxy enforces:
 
-This invariant works in concert with the Docker egress proxy to provide defence in depth:
+- **Domain whitelist** (additive model) -- only explicitly allowed domains are reachable
+- **Hardcoded LLM domains** -- cannot be removed (api.openai.com, api.anthropic.com, etc.)
+- **Blocked Google services** -- Drive, Gmail, Calendar, YouTube, Photos, Docs, Sheets, Slides, People (default DENY, user can enable individually)
+- **Content inspection** -- POST/PUT/PATCH requests to non-LLM domains are scanned for credential patterns
+- **Rate limiting** -- Per-domain and global RPM limits
+- **Audit logging** -- Every request logged to JSONL (host-side, unmodifiable by Orion)
+
+This invariant ensures Orion cannot exfiltrate data, contact unauthorized services, or leak credentials -- even if compromised by prompt injection.
 
 | Rule | Behaviour |
 |------|-----------|
 | Blocked Google service | **DENY** -- Drive, Gmail, Calendar, YouTube, Photos, People, Docs, Sheets, Slides |
 | Allowed LLM domain | **ALLOW** -- generativelanguage.googleapis.com, api.openai.com, api.anthropic.com |
+| Search API domain | **ALLOW** -- customsearch.googleapis.com, api.bing.microsoft.com, etc. |
+| Research domain | **GET-only** -- user-configured, no POST/PUT/DELETE |
 | Non-HTTPS protocol | **WARNING** -- logged but not blocked |
 | Write method (POST/PUT/DELETE) | **WARNING** -- flagged for approval queue |
+| Everything else | **BLOCKED** |
 
 **Additive whitelist model:** The default config allows only hardcoded LLM provider domains. Users can add domains via the host-side config file, but cannot remove the hardcoded set. The container cannot modify the config.
 
@@ -126,13 +136,36 @@ This invariant works in concert with the Docker egress proxy to provide defence 
 
 | Layer | Component | Enforcement |
 |-------|-----------|-------------|
-| L1 | Egress Proxy | Domain whitelist + rate limiting |
-| L2 | DNS Filter | NXDOMAIN for blocked domains |
-| L3 | Content Inspector | Credential pattern detection (12 patterns) |
-| L4 | Approval Queue | Human gate for write operations |
-| L5 | AEGIS Invariant 7 | Hardcoded blocked Google services |
-| L6 | Docker Networks | `orion-internal` (no internet) + `orion-egress` (proxy only) |
-| L7 | Google Credentials | Scope-enforced OAuth (blocked: Drive, Gmail, Calendar, YouTube) |
+| L1 | AEGIS Configuration | Host filesystem, read-only mount into container |
+| L2 | Docker Network Isolation | Kernel namespaces, no direct internet |
+| L3 | Egress Proxy | Domain whitelist, content inspection, rate limiting |
+| L4 | Filesystem Isolation | Docker volumes, read-only config mount |
+| L5 | Approval Queue | Host-side human gate for write operations |
+| L6 | Credential Isolation | Access token only, no refresh token in container |
+| L7 | Orion Self-Governance | Software-level AEGIS checks (least trusted layer) |
+
+## Architectural Immutability
+
+AEGIS configuration lives on the host filesystem at `~/.orion/egress_config.yaml`. Inside Docker, it is mounted as read-only (`:ro`). This means:
+
+1. **Orion cannot modify its own rules** -- the config file is physically read-only
+2. **Orion cannot approve its own requests** -- the approval queue runs on the host
+3. **Orion cannot escalate permissions** -- the egress proxy runs on the host
+4. **Prompt injection cannot change governance** -- AEGIS is outside the agent's execution context
+
+This is not a software restriction. It is a physical boundary enforced by Linux kernel namespaces (Docker).
+
+```
+Host Machine (trusted)                    Docker Sandbox (untrusted)
+┌─────────────────────────────┐          ┌──────────────────────────┐
+│ AEGIS Config (~/.orion/)    │──:ro──>  │ Orion Agent              │
+│ Egress Proxy (port 8888)    │<─HTTP──  │  ├── Builder Agent       │
+│ DNS Filter (port 5353)      │<─UDP───  │  ├── Reviewer Agent      │
+│ Approval Queue              │<─API───  │  └── Governor Agent      │
+│ Sandbox Orchestrator        │──ctrl──> │                          │
+│ Ollama / Cloud LLM          │<─proxy─  │ Workspace (/workspace)   │
+└─────────────────────────────┘          └──────────────────────────┘
+```
 
 ## How AEGIS Works
 

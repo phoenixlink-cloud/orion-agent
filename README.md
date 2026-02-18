@@ -6,7 +6,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1609%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1702%2B%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Status: Stable](https://img.shields.io/badge/status-10.0.0-brightgreen.svg)](#)
 
@@ -22,7 +22,27 @@
 
 </div>
 
-> **v10.0.0** -- Orion Agent is under active development. Core features are functional and tested (1,609+ passing tests). Phase 2 adds Docker-based network security with an egress proxy, DNS filter, approval queue, and AEGIS Invariant 7. The Autonomous Role Architecture (ARA) is complete with 37 CLI commands, 106+ API endpoints, Skills system, and a full React Web UI. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+> **v10.0.0** -- Orion Agent's full governed execution pipeline is operational and proven (1,702+ passing tests, 26/26 operational validation, 17/17 E2E live tests). The Digital Agent Architecture (Phase 2) and Graduated Services (Phase 3) are complete: egress proxy, DNS filter, approval queue, sandbox orchestrator, and AEGIS Invariant 7 -- all verified with real Ollama LLM generating real code through governed infrastructure. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+
+---
+
+## Current Status
+
+| Component | Status | Tests |
+|-----------|--------|-------|
+| BYOK (11 LLM Providers) | Shipped | 1,702+ |
+| AEGIS Governance (7 Invariants) | Shipped | Included |
+| Digital Agent Architecture | Shipped | 26 operational + 17 E2E |
+| Egress Proxy ("The Narrow Door") | Shipped | Domain whitelist, content inspection, rate limiting, JSONL audit |
+| DNS Filter | Shipped | Container DNS isolation |
+| Approval Queue | Shipped | Human-gated write operations |
+| Sandbox Orchestrator | Shipped | 6-step governed boot, Docker isolation |
+| Graduated Google Services | Shipped | Per-service toggle, hot reload |
+| LLM Web Search Routing | Shipped | Search API auto-allow, research domain GET-only |
+| CLI (REPL) | Working | Interactive, Ollama + cloud providers |
+| Web UI | Working | Network dashboard, service toggles |
+
+**Proven end-to-end:** Task -> LLM (Ollama qwen2.5:7b) -> Builder -> Reviewer -> Governor -> Sandbox -> Workspace -> pytest 4/4 pass.
 
 ---
 
@@ -237,13 +257,31 @@ Mode set: pro (read + write with approval)
 /settings model llama3
 ```
 
+### Sandbox Mode (Recommended for autonomous work)
+
+Requires Docker Desktop. Orion runs inside a governed Docker container with:
+- All network traffic filtered through the egress proxy
+- DNS queries filtered (non-whitelisted domains get NXDOMAIN)
+- Write operations gated by human approval
+- AEGIS configuration immutable from inside the container
+
+```bash
+# Boot the sandbox
+orion sandbox start
+
+# Or use CLI directly (sandbox boots automatically in project mode)
+orion
+> /mode project
+> /workspace /path/to/project
+```
+
 [Full installation guide ->](docs/INSTALLATION.md)
 
 ---
 
 ## AEGIS Governance
 
-AEGIS is what makes Orion safe for production use. It's a **pure-function security gate** with six invariants:
+AEGIS is what makes Orion safe for production use. It's a **pure-function security gate** with seven invariants (v7.0.0):
 
 1. **Workspace Confinement** -- All file operations must stay within the workspace
 2. **Mode Enforcement** -- Actions must be permitted by the current mode
@@ -251,10 +289,33 @@ AEGIS is what makes Orion safe for production use. It's a **pure-function securi
 4. **Risk Validation** -- High-risk operations require human confirmation
 5. **Command Execution** -- Shell commands are validated for safety
 6. **External Access** -- Network operations follow read/write approval rules
+7. **Network Access Control** -- Hardcoded domain whitelist, blocked Google services, protocol enforcement
 
 AEGIS cannot be bypassed, disabled, or reconfigured by AI agents.
 
 [Complete AEGIS documentation ->](docs/AEGIS.md)
+
+---
+
+## Security Architecture: 7 Layers of Defense in Depth
+
+Orion's security model is built on one architectural invariant: **Orion cannot modify its own governance.** AEGIS configuration lives on the host filesystem, mounted read-only into the Docker sandbox. No prompt injection, no code execution, no agent behavior can change the rules.
+
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| 1. AEGIS Configuration | Host filesystem (read-only mount) | Governance rules, invariants |
+| 2. Docker Network Isolation | Kernel namespaces | Container cannot reach internet directly |
+| 3. Egress Proxy | Host-side process | Domain whitelist, content inspection, credential leak detection |
+| 4. Filesystem Isolation | Docker volumes | Read-only mounts for config, sandboxed workspace |
+| 5. Approval Queue | Host-side process | Human gate for write operations |
+| 6. Credential Isolation | Read-only mount | Access token only -- no refresh token in container |
+| 7. Orion Self-Governance | Software layer | AEGIS invariant checks (least trusted layer) |
+
+### Why Orion is Different
+
+Orion is the only open-source AI agent framework where the agent **architecturally cannot modify its own governance**. This isn't a feature flag -- it's a physical boundary enforced by Docker container isolation. No other agent framework (OpenClaw, Claude Code, Copilot, Cursor) has this property.
+
+[Network Security documentation ->](docs/NETWORK_SECURITY.md)
 
 ---
 
@@ -288,6 +349,7 @@ Orion connects to 79+ external services:
 | [AEGIS](docs/AEGIS.md) | Governance system documentation |
 | [Memory System](docs/MEMORY_SYSTEM.md) | Three-tier memory explained |
 | [Security](docs/SECURITY.md) | Security model and practices |
+| [Network Security](docs/NETWORK_SECURITY.md) | Egress proxy, DNS filter, approval queue, audit logging |
 | [Deployment](docs/DEPLOYMENT.md) | Production deployment guide |
 | [FAQ](docs/FAQ.md) | Frequently asked questions |
 
@@ -388,6 +450,7 @@ src/orion/
 │   └── routes/        # ara, auth, chat, gdpr, health, models, platforms, settings, tools, training
 ├── integrations/      # 79 connectors (LLM, voice, image, messaging, ...)
 ├── security/          # Encrypted store, Docker sandbox, secret scanner
+│   └── egress/        # Egress proxy, DNS filter, approval queue, content inspector, config
 └── plugins/           # Plugin lifecycle API (8 hooks)
 
 orion-web/             # React (Next.js) Web UI
@@ -411,7 +474,7 @@ cd orion-agent
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                        # 1,348 tests
+pytest                        # 1,702+ tests
 
 # API Server
 uvicorn orion.api.server:app --port 8001

@@ -46,6 +46,20 @@ interface AuditData {
   entries: AuditEntry[]
 }
 
+interface GoogleService {
+  domain: string
+  name: string
+  description: string
+  risk: 'low' | 'medium' | 'high'
+  enabled: boolean
+}
+
+interface GoogleServicesData {
+  services: GoogleService[]
+  enabled_count: number
+  total_count: number
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -317,14 +331,16 @@ export default function NetworkDashboard() {
   const [audit, setAudit] = useState<AuditData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<'whitelist' | 'audit' | 'security'>('whitelist')
+  const [googleServices, setGoogleServices] = useState<GoogleServicesData | null>(null)
+  const [tab, setTab] = useState<'whitelist' | 'services' | 'audit' | 'security'>('whitelist')
 
   const fetchData = useCallback(async () => {
     try {
-      const [statusRes, whitelistRes, auditRes] = await Promise.all([
+      const [statusRes, whitelistRes, auditRes, servicesRes] = await Promise.all([
         fetch(`${API_BASE}/api/egress/status`),
         fetch(`${API_BASE}/api/egress/whitelist`),
         fetch(`${API_BASE}/api/egress/audit?limit=50`),
+        fetch(`${API_BASE}/api/egress/google-services`),
       ])
 
       if (statusRes.ok) setStatus(await statusRes.json())
@@ -334,6 +350,7 @@ export default function NetworkDashboard() {
         setUserDomains(wl.user_domains || [])
       }
       if (auditRes.ok) setAudit(await auditRes.json())
+      if (servicesRes.ok) setGoogleServices(await servicesRes.json())
 
       setError('')
     } catch {
@@ -467,6 +484,9 @@ export default function NetworkDashboard() {
         <button style={tabStyle(tab === 'whitelist')} onClick={() => setTab('whitelist')}>
           Domain Whitelist
         </button>
+        <button style={tabStyle(tab === 'services')} onClick={() => setTab('services')}>
+          Google Services
+        </button>
         <button style={tabStyle(tab === 'audit')} onClick={() => setTab('audit')}>
           Audit Log
         </button>
@@ -503,6 +523,125 @@ export default function NetworkDashboard() {
           {loading && hardcoded.length === 0 && (
             <div style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 40 }}>
               Loading whitelist...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Google Services Tab */}
+      {tab === 'services' && (
+        <div style={{ marginBottom: 48 }}>
+          <div style={sectionHeader}>Google Service Access</div>
+          <div style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 24 }}>
+            By default, all Google services except LLM endpoints are blocked (AEGIS Invariant 7).
+            Enable individual services below. Each toggle is an explicit, conscious decision
+            recorded in the host-side AEGIS configuration. Orion cannot modify these settings.
+          </div>
+
+          {googleServices && googleServices.services.length > 0 ? (
+            <>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+                <StatCard
+                  label="Enabled Services"
+                  value={googleServices.enabled_count}
+                  sub={`of ${googleServices.total_count} available`}
+                />
+                <StatCard
+                  label="Risk Profile"
+                  value={
+                    googleServices.enabled_count === 0
+                      ? 'Minimal'
+                      : googleServices.services.filter(s => s.enabled && s.risk === 'high').length > 0
+                        ? 'Elevated'
+                        : 'Moderate'
+                  }
+                  sub="Based on enabled services"
+                />
+              </div>
+
+              {googleServices.services.map((svc) => {
+                const riskColor = svc.risk === 'high' ? '#f87171' : svc.risk === 'medium' ? '#fbbf24' : '#4ade80'
+                return (
+                  <div
+                    key={svc.domain}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '16px 20px',
+                      background: 'var(--tile)',
+                      border: `1px solid ${svc.enabled ? 'rgba(74,222,128,0.25)' : 'var(--line)'}`,
+                      borderRadius: 'var(--r-md)',
+                      marginBottom: 10,
+                      transition: 'all 200ms ease',
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                        <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>
+                          {svc.name}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: `${riskColor}20`,
+                            color: riskColor,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {svc.risk} risk
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--muted)' }}>{svc.description}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, opacity: 0.7 }}>
+                        {svc.domain}
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(
+                            `${API_BASE}/api/egress/google-services/${encodeURIComponent(svc.domain)}`,
+                            {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ enabled: !svc.enabled }),
+                            }
+                          )
+                          if (res.ok) await fetchData()
+                          else {
+                            const data = await res.json()
+                            setError(data.detail || 'Failed to toggle service')
+                          }
+                        } catch {
+                          setError('Failed to toggle service')
+                        }
+                      }}
+                      style={{
+                        minWidth: 80,
+                        padding: '8px 16px',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        border: `1px solid ${svc.enabled ? 'rgba(74,222,128,0.3)' : 'var(--line)'}`,
+                        borderRadius: 999,
+                        background: svc.enabled ? 'rgba(74,222,128,0.15)' : 'var(--tile)',
+                        color: svc.enabled ? '#4ade80' : 'var(--muted)',
+                        cursor: 'pointer',
+                        transition: 'all 200ms ease',
+                      }}
+                    >
+                      {svc.enabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                  </div>
+                )
+              })}
+            </>
+          ) : (
+            <div style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: 40 }}>
+              {loading ? 'Loading services...' : 'No Google services available.'}
             </div>
           )}
         </div>

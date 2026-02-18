@@ -179,6 +179,206 @@ async def remove_domain(domain: str) -> dict:
     return {"status": "removed", "domain": domain}
 
 
+# ---------------------------------------------------------------------------
+# Google Services toggle endpoints (Phase 3.2)
+# ---------------------------------------------------------------------------
+
+
+class GoogleServiceToggleRequest(BaseModel):
+    enabled: bool
+
+
+@router.get("/google-services")
+async def get_google_services() -> dict:
+    """List all Google services with their current enabled/disabled state."""
+    from orion.security.egress.config import GOOGLE_SERVICES
+
+    config = load_config()
+    allowed = set(config.allowed_google_services)
+
+    services = []
+    for domain, info in GOOGLE_SERVICES.items():
+        services.append(
+            {
+                "domain": domain,
+                "name": info["name"],
+                "description": info["description"],
+                "risk": info["risk"],
+                "enabled": domain in allowed,
+            }
+        )
+
+    return {
+        "services": services,
+        "enabled_count": len(allowed),
+        "total_count": len(GOOGLE_SERVICES),
+    }
+
+
+@router.put("/google-services/{domain}")
+async def toggle_google_service(domain: str, request: GoogleServiceToggleRequest) -> dict:
+    """Enable or disable a specific Google service."""
+    from orion.security.egress.config import GOOGLE_SERVICES
+
+    if domain not in GOOGLE_SERVICES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown Google service: {domain}",
+        )
+
+    config = load_config()
+    current = set(config.allowed_google_services)
+
+    if request.enabled:
+        current.add(domain)
+        action = "enabled"
+    else:
+        current.discard(domain)
+        action = "disabled"
+
+    config.allowed_google_services = sorted(current)
+    save_config(config)
+
+    service_name = GOOGLE_SERVICES[domain]["name"]
+    logger.info("Google service %s: %s (%s)", action, service_name, domain)
+
+    # Trigger hot-reload on the running orchestrator (if active)
+    orch = _get_orchestrator()
+    if orch.is_running:
+        orch.reload_config()
+        logger.info("Orchestrator config reloaded after Google service toggle")
+
+    return {
+        "domain": domain,
+        "name": service_name,
+        "enabled": request.enabled,
+        "action": action,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Research Domains endpoints (Phase 3.3 — LLM web search routing)
+# ---------------------------------------------------------------------------
+
+
+class ResearchDomainRequest(BaseModel):
+    domain: str
+    description: str = ""
+
+
+@router.get("/research-domains")
+async def get_research_domains() -> dict:
+    """List research domains (GET-only browsing access for LLM search)."""
+    config = load_config()
+    return {
+        "domains": config.research_domains,
+        "count": len(config.research_domains),
+    }
+
+
+@router.post("/research-domains")
+async def add_research_domain(request: ResearchDomainRequest) -> dict:
+    """Add a research domain (GET-only access for web browsing)."""
+    domain = request.domain.strip().lower()
+    if not domain:
+        raise HTTPException(status_code=400, detail="Domain cannot be empty")
+
+    config = load_config()
+    if domain in config.research_domains:
+        raise HTTPException(status_code=409, detail=f"'{domain}' already in research domains")
+
+    config.research_domains.append(domain)
+    save_config(config)
+
+    logger.info("Added research domain: %s", domain)
+    return {"status": "added", "domain": domain}
+
+
+@router.delete("/research-domains/{domain}")
+async def remove_research_domain(domain: str) -> dict:
+    """Remove a research domain."""
+    config = load_config()
+    domain_lower = domain.lower()
+
+    if domain_lower not in [d.lower() for d in config.research_domains]:
+        raise HTTPException(status_code=404, detail=f"'{domain}' not in research domains")
+
+    config.research_domains = [d for d in config.research_domains if d.lower() != domain_lower]
+    save_config(config)
+
+    logger.info("Removed research domain: %s", domain)
+    return {"status": "removed", "domain": domain}
+
+
+# ---------------------------------------------------------------------------
+# Sandbox Orchestrator endpoints (Phase 3)
+# ---------------------------------------------------------------------------
+
+# Singleton orchestrator instance (created on first use)
+_orchestrator = None
+
+
+def _get_orchestrator():
+    """Get or create the singleton SandboxOrchestrator."""
+    global _orchestrator
+    if _orchestrator is None:
+        from orion.security.orchestrator import SandboxOrchestrator
+
+        _orchestrator = SandboxOrchestrator()
+    return _orchestrator
+
+
+@router.get("/sandbox/status")
+async def get_sandbox_status() -> dict:
+    """Get the current sandbox orchestrator status."""
+    orch = _get_orchestrator()
+    return orch.status.to_dict()
+
+
+@router.post("/sandbox/start")
+async def start_sandbox() -> dict:
+    """Start the governed sandbox (6-step boot sequence)."""
+    orch = _get_orchestrator()
+    if orch.is_running:
+        raise HTTPException(status_code=409, detail="Sandbox is already running")
+
+    status = orch.start()
+    if status.phase == "failed":
+        raise HTTPException(
+            status_code=500,
+            detail=f"Sandbox boot failed: {status.error}",
+        )
+
+    return status.to_dict()
+
+
+@router.post("/sandbox/stop")
+async def stop_sandbox() -> dict:
+    """Stop the governed sandbox (reverse shutdown)."""
+    orch = _get_orchestrator()
+    if not orch.is_running:
+        raise HTTPException(status_code=409, detail="Sandbox is not running")
+
+    orch.stop()
+    return orch.status.to_dict()
+
+
+@router.post("/sandbox/reload")
+async def reload_sandbox_config() -> dict:
+    """Hot-reload egress/DNS config without restarting the sandbox."""
+    orch = _get_orchestrator()
+    if not orch.is_running:
+        raise HTTPException(status_code=409, detail="Sandbox is not running")
+
+    orch.reload_config()
+    return {"status": "reloaded"}
+
+
+# ---------------------------------------------------------------------------
+# Audit endpoints
+# ---------------------------------------------------------------------------
+
+
 @router.get("/audit")
 async def get_audit_log(limit: int = 50) -> dict:
     """Get recent audit log entries."""

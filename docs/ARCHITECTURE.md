@@ -258,19 +258,90 @@ Client                    Server
   │                         │
 ```
 
+## Digital Agent Architecture (Phase 2 + Phase 3)
+
+The Digital Agent Architecture governs how Orion operates autonomously inside a Docker sandbox with network-level security enforcement.
+
+### Execution Model
+
+```
+Host Machine (trusted)                    Docker Sandbox (untrusted)
+┌─────────────────────────────┐          ┌──────────────────────────┐
+│ AEGIS Config (~/.orion/)    │──:ro──>  │ Orion Agent              │
+│ Egress Proxy (port 8888)    │<─HTTP──  │  ├── Builder Agent       │
+│ DNS Filter (port 5353)      │<─UDP───  │  ├── Reviewer Agent      │
+│ Approval Queue              │<─API───  │  └── Governor Agent      │
+│ Sandbox Orchestrator        │──ctrl──> │                          │
+│ Ollama / Cloud LLM          │<─proxy─  │ Workspace (/workspace)   │
+└─────────────────────────────┘          └──────────────────────────┘
+```
+
+**Key property:** All trusted components (config, proxy, DNS, approval, orchestrator) run on the host. The container is untrusted -- it can only reach the internet through the egress proxy.
+
+### Boot Sequence
+
+The SandboxOrchestrator executes a 6-step governed boot:
+
+1. **AEGIS Config** -- Read and validate governance rules (host)
+2. **Docker Build** -- Verify Docker daemon, build images (host)
+3. **Egress Proxy** -- Start HTTP proxy with domain whitelist (host)
+4. **Approval Queue** -- Start human gate for write operations (host)
+5. **DNS Filter** -- Start UDP DNS proxy (host)
+6. **Container Launch** -- Start Orion in governed container (sandbox)
+
+Teardown is reverse-order. If any step fails, all previous steps are rolled back.
+
+### Network Flow
+
+```
+Container App ──HTTP──> Egress Proxy ──check whitelist──> Internet
+                             │
+                        Content Inspector
+                        (credential patterns)
+                             │
+                        Rate Limiter
+                        (per-domain RPM)
+                             │
+                        Audit Logger
+                        (JSONL on host)
+
+Container DNS ──UDP──> DNS Filter ──check whitelist──> Upstream DNS
+                             │
+                        Non-whitelisted = NXDOMAIN
+```
+
+### Docker Network Topology
+
+```
+┌─────────────────────────────────────────┐
+│             orion-egress                │
+│  ┌─────────────┐   ┌────────────────┐  │
+│  │ Egress Proxy│   │  DNS Filter    │  │
+│  └──────┬──────┘   └───────┬────────┘  │
+│         │                  │            │
+│  ┌──────┴──────────────────┴─────────┐  │
+│  │         orion-internal            │  │
+│  │  ┌───────────────────────────┐    │  │
+│  │  │    Orion Container        │    │  │
+│  │  │  (no direct internet)     │    │  │
+│  │  └───────────────────────────┘    │  │
+│  └───────────────────────────────────┘  │
+└─────────────────────────────────────────┘
+```
+
 ## Security Architecture
 
-Defense in depth with multiple layers:
+Defense in depth with 7 layers:
 
 | Layer | Component | Protection |
 |-------|-----------|------------|
-| 1 | AEGIS | Operation validation, path confinement |
-| 2 | Mode Enforcement | Graduated permissions |
-| 3 | Credential Store | Encrypted API key storage |
-| 4 | Workspace Sandbox | Isolated file operations |
-| 5 | Code Sandbox | Docker-isolated execution |
-| 6 | External Access Control | Network operation approval |
-| 7 | Audit Logging | All actions logged |
+| 1 | AEGIS Configuration | Governance rules on host, read-only mount |
+| 2 | Docker Network Isolation | Kernel namespaces, no direct internet |
+| 3 | Egress Proxy | Domain whitelist, content inspection, credential leak detection |
+| 4 | Filesystem Isolation | Docker volumes, read-only config mounts |
+| 5 | Approval Queue | Host-side human gate for write operations |
+| 6 | Credential Isolation | Access token only, no refresh token in container |
+| 7 | Orion Self-Governance | Software-level AEGIS checks (least trusted layer) |
 
 ## Technology Stack
 

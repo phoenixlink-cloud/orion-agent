@@ -215,6 +215,13 @@ def handle_command(
     elif command == "/auth-switch":
         return _handle_ara_auth_switch(parts, console)
 
+    # =====================================================================
+    # Sandbox Commands (Phase 3 -- Docker Governed Sandbox)
+    # =====================================================================
+
+    elif command == "/sandbox":
+        return _handle_sandbox(parts, console)
+
     else:
         console.print_error(f"Unknown command: {command}")
         return {}
@@ -1315,6 +1322,83 @@ def _handle_ara_skill(parts, console):
 
     except Exception as e:
         console.print_error(f"ARA skill failed: {e}")
+    return {}
+
+
+def _handle_sandbox(parts, console):
+    """Handle /sandbox [start|stop|status|reload] -- Governed Docker sandbox."""
+    sub = parts[1].lower() if len(parts) > 1 else "status"
+
+    try:
+        from orion.security.orchestrator import SandboxOrchestrator
+
+        # Use a module-level singleton
+        if not hasattr(_handle_sandbox, "_orch"):
+            _handle_sandbox._orch = SandboxOrchestrator()
+        orch = _handle_sandbox._orch
+
+        if sub == "start":
+            if orch.is_running:
+                console.print_info("Sandbox is already running")
+                return {}
+            console.print_info("Starting governed sandbox (6-step boot)...")
+            status = orch.start()
+            if status.phase == "running":
+                console.print_success("Sandbox started successfully")
+                for entry in status.boot_log[-10:]:
+                    console.print_info(f"  {entry}")
+            else:
+                console.print_error(f"Sandbox boot failed: {status.error}")
+
+        elif sub == "stop":
+            if not orch.is_running:
+                console.print_info("Sandbox is not running")
+                return {}
+            orch.stop()
+            console.print_success("Sandbox stopped")
+
+        elif sub == "status":
+            status = orch.status
+            console.print_info(f"Phase: {status.phase}")
+            console.print_info(f"Running: {status.running}")
+            console.print_info(
+                f"Docker: {'available' if status.docker_available else 'not available'}"
+            )
+            console.print_info(
+                f"Egress proxy: {'running' if status.egress_proxy_running else 'stopped'}"
+            )
+            console.print_info(
+                f"DNS filter: {'running' if status.dns_filter_running else 'stopped'}"
+            )
+            console.print_info(
+                f"Approval queue: {'running' if status.approval_queue_running else 'stopped'}"
+            )
+            console.print_info(
+                f"Container: {'healthy' if status.container_healthy else 'running' if status.container_running else 'stopped'}"
+            )
+            if status.uptime_s > 0:
+                console.print_info(f"Uptime: {status.uptime_s:.0f}s")
+            if status.error:
+                console.print_error(f"Error: {status.error}")
+
+        elif sub == "reload":
+            if not orch.is_running:
+                console.print_info("Sandbox is not running")
+                return {}
+            orch.reload_config()
+            console.print_success("Configuration reloaded")
+
+        else:
+            console.print_info(
+                "Usage: /sandbox [start|stop|status|reload]\n"
+                "  start  -- Launch governed Docker sandbox (6-step boot)\n"
+                "  stop   -- Graceful reverse shutdown\n"
+                "  status -- Show current sandbox state\n"
+                "  reload -- Hot-reload egress/DNS config"
+            )
+
+    except Exception as e:
+        console.print_error(f"Sandbox command failed: {e}")
     return {}
 
 
