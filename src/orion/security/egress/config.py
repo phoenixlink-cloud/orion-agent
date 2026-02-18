@@ -83,9 +83,7 @@ class DomainRule:
         if hostname == domain:
             return True
         # Subdomain match: rule for "example.com" matches "api.example.com"
-        if hostname.endswith("." + domain):
-            return True
-        return False
+        return bool(hostname.endswith("." + domain))
 
 
 @dataclass
@@ -211,7 +209,9 @@ def save_config(config: EgressConfig, path: Path | str | None = None) -> None:
             for rule in config.whitelist
         ],
     }
-    config_path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8")
+    config_path.write_text(
+        yaml.dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8"
+    )
     logger.info("Saved egress config to %s", config_path)
 
 

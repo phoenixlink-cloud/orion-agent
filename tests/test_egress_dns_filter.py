@@ -233,7 +233,7 @@ class TestDNSFilter:
                 rcode = flags & 0x000F
                 # Should NOT be NXDOMAIN (3) -- either NOERROR (0) or SERVFAIL (2)
                 assert rcode != 3, "Allowed domain should not get NXDOMAIN"
-            except socket.timeout:
+            except TimeoutError:
                 # If there's no internet, the upstream DNS will time out
                 # This is acceptable -- the key test is that it wasn't blocked
                 pass
@@ -294,7 +294,7 @@ class TestDNSFilter:
                 sock.sendto(query, ("127.0.0.1", port))
                 try:
                     sock.recvfrom(512)
-                except socket.timeout:
+                except TimeoutError:
                     pass
 
             sock.close()

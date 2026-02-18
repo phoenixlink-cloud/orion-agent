@@ -302,6 +302,7 @@ class TestApprovalQueue:
         # Verify the file exists and contains data
         assert persist_path.exists()
         import json
+
         data = json.loads(persist_path.read_text())
         assert len(data) >= 1
         assert data[0]["summary"] == "Persistent"

@@ -5,8 +5,8 @@
 import pytest
 
 from orion.core.governance.aegis import (
-    NetworkAccessRequest,
     _BLOCKED_GOOGLE_SERVICES,
+    NetworkAccessRequest,
     check_network_access,
 )
 

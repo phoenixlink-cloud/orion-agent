@@ -40,7 +40,7 @@ import os
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
@@ -201,9 +201,7 @@ class ApprovalQueue:
         with self._lock:
             # Check queue capacity
             pending_count = sum(
-                1
-                for r in self._requests.values()
-                if r.status == ApprovalStatus.PENDING.value
+                1 for r in self._requests.values() if r.status == ApprovalStatus.PENDING.value
             )
             if pending_count >= self._max_pending:
                 raise RuntimeError(
@@ -260,9 +258,7 @@ class ApprovalQueue:
         """
         return self._decide(request_id, ApprovalStatus.CANCELLED, reason, "system")
 
-    def wait_for_decision(
-        self, request_id: str, timeout: float | None = None
-    ) -> ApprovalStatus:
+    def wait_for_decision(self, request_id: str, timeout: float | None = None) -> ApprovalStatus:
         """Block until a decision is made on the request.
 
         Args:
@@ -432,9 +428,7 @@ class ApprovalQueue:
         try:
             with self._lock:
                 data = [r.to_dict() for r in self._requests.values()]
-            self._persist_path.write_text(
-                json.dumps(data, indent=2), encoding="utf-8"
-            )
+            self._persist_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except OSError as exc:
             logger.error("Failed to persist approval queue: %s", exc)
 

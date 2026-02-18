@@ -15,7 +15,9 @@ class TestAuditEntry:
     """Tests for AuditEntry dataclass and factory methods."""
 
     def test_blocked_entry(self):
-        entry = AuditEntry.blocked("GET", "http://evil.com/steal", "evil.com", "Domain not whitelisted")
+        entry = AuditEntry.blocked(
+            "GET", "http://evil.com/steal", "evil.com", "Domain not whitelisted"
+        )
         assert entry.event_type == "blocked"
         assert entry.method == "GET"
         assert entry.hostname == "evil.com"
@@ -25,10 +27,14 @@ class TestAuditEntry:
 
     def test_allowed_entry(self):
         entry = AuditEntry.allowed(
-            "POST", "https://api.openai.com/v1/chat/completions",
-            "api.openai.com", "api.openai.com",
-            status_code=200, duration_ms=150.5,
-            request_size=1024, response_size=2048,
+            "POST",
+            "https://api.openai.com/v1/chat/completions",
+            "api.openai.com",
+            "api.openai.com",
+            status_code=200,
+            duration_ms=150.5,
+            request_size=1024,
+            response_size=2048,
         )
         assert entry.event_type == "request"
         assert entry.status_code == 200
@@ -42,7 +48,9 @@ class TestAuditEntry:
 
     def test_credential_leak_entry(self):
         entry = AuditEntry.credential_leak(
-            "POST", "https://evil.com/exfil", "evil.com",
+            "POST",
+            "https://evil.com/exfil",
+            "evil.com",
             ["openai_api_key", "github_token"],
         )
         assert entry.event_type == "credential_leak"

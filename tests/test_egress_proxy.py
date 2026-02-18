@@ -98,6 +98,7 @@ class TestEgressProxyServer:
 
         # Write new config and reload
         from orion.security.egress.config import save_config
+
         new_config = EgressConfig(
             proxy_port=port,
             global_rate_limit_rpm=500,
@@ -162,7 +163,9 @@ class TestEgressProxyBlocking:
     def test_blocked_domain_returns_403(self):
         status, body = self._proxy_request("GET", "http://evil.example.com/steal")
         assert status == 403
-        assert "not whitelisted" in body.lower() or "blocked" in body.lower() or "403" in body.lower()
+        assert (
+            "not whitelisted" in body.lower() or "blocked" in body.lower() or "403" in body.lower()
+        )
 
     def test_allowed_domain_passes(self):
         # This will try to connect to allowed.example.com which won't resolve,
@@ -172,7 +175,9 @@ class TestEgressProxyBlocking:
         assert status != 403 or "not whitelisted" not in body.lower()
 
     def test_write_to_readonly_domain_blocked(self):
-        status, body = self._proxy_request("POST", "http://readonly.example.com/api", '{"data": "test"}')
+        status, body = self._proxy_request(
+            "POST", "http://readonly.example.com/api", '{"data": "test"}'
+        )
         assert status == 403
         assert "read-only" in body.lower() or "blocked" in body.lower() or "403" in body.lower()
 

@@ -80,16 +80,12 @@ class TestEgressConfig:
         assert config.is_domain_allowed("evil.example.com") is None
 
     def test_user_whitelist_domain_allowed(self):
-        config = EgressConfig(
-            whitelist=[DomainRule(domain="github.com", added_by="user")]
-        )
+        config = EgressConfig(whitelist=[DomainRule(domain="github.com", added_by="user")])
         assert config.is_domain_allowed("github.com") is not None
         assert config.is_domain_allowed("api.github.com") is not None
 
     def test_user_whitelist_subdomain(self):
-        config = EgressConfig(
-            whitelist=[DomainRule(domain="google.com", added_by="user")]
-        )
+        config = EgressConfig(whitelist=[DomainRule(domain="google.com", added_by="user")])
         assert config.is_domain_allowed("drive.google.com") is not None
 
     def test_write_allowed_on_llm_domains(self):
@@ -98,15 +94,11 @@ class TestEgressConfig:
         assert config.is_write_allowed("api.anthropic.com") is True
 
     def test_write_blocked_on_readonly_domain(self):
-        config = EgressConfig(
-            whitelist=[DomainRule(domain="example.com", allow_write=False)]
-        )
+        config = EgressConfig(whitelist=[DomainRule(domain="example.com", allow_write=False)])
         assert config.is_write_allowed("example.com") is False
 
     def test_write_allowed_when_configured(self):
-        config = EgressConfig(
-            whitelist=[DomainRule(domain="github.com", allow_write=True)]
-        )
+        config = EgressConfig(whitelist=[DomainRule(domain="github.com", allow_write=True)])
         assert config.is_write_allowed("github.com") is True
 
     def test_protocol_allowed_https(self):
@@ -114,9 +106,7 @@ class TestEgressConfig:
         assert config.is_protocol_allowed("api.openai.com", "https") is True
 
     def test_protocol_blocked_http_by_default(self):
-        config = EgressConfig(
-            whitelist=[DomainRule(domain="example.com", protocols=["https"])]
-        )
+        config = EgressConfig(whitelist=[DomainRule(domain="example.com", protocols=["https"])])
         assert config.is_protocol_allowed("example.com", "http") is False
 
     def test_localhost_allows_http(self):
@@ -124,9 +114,7 @@ class TestEgressConfig:
         assert config.is_protocol_allowed("localhost", "http") is True
 
     def test_get_all_allowed_domains_includes_both(self):
-        config = EgressConfig(
-            whitelist=[DomainRule(domain="github.com")]
-        )
+        config = EgressConfig(whitelist=[DomainRule(domain="github.com")])
         all_domains = config.get_all_allowed_domains()
         domain_names = [r.domain for r in all_domains]
         assert "github.com" in domain_names
@@ -177,9 +165,7 @@ class TestConfigPersistence:
 
     def test_load_simple_domain_list(self, tmp_path):
         path = tmp_path / "egress_config.yaml"
-        path.write_text(yaml.dump({
-            "whitelist": ["github.com", "pypi.org", "npmjs.com"]
-        }))
+        path.write_text(yaml.dump({"whitelist": ["github.com", "pypi.org", "npmjs.com"]}))
         config = load_config(path)
         assert len(config.whitelist) == 3
         assert config.whitelist[0].domain == "github.com"
@@ -198,9 +184,7 @@ class TestConfigPersistence:
         assert isinstance(config, EgressConfig)
 
     def test_saved_file_is_valid_yaml(self, tmp_path):
-        config = EgressConfig(
-            whitelist=[DomainRule(domain="test.com")]
-        )
+        config = EgressConfig(whitelist=[DomainRule(domain="test.com")])
         path = tmp_path / "egress_config.yaml"
         save_config(config, path)
 
@@ -211,13 +195,17 @@ class TestConfigPersistence:
 
     def test_empty_domain_entries_filtered(self, tmp_path):
         path = tmp_path / "egress_config.yaml"
-        path.write_text(yaml.dump({
-            "whitelist": [
-                {"domain": "github.com"},
-                {"domain": ""},
-                {"domain": "  "},
-            ]
-        }))
+        path.write_text(
+            yaml.dump(
+                {
+                    "whitelist": [
+                        {"domain": "github.com"},
+                        {"domain": ""},
+                        {"domain": "  "},
+                    ]
+                }
+            )
+        )
         config = load_config(path)
         assert len(config.whitelist) == 1
 

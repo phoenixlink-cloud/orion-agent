@@ -51,7 +51,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .audit import AuditEntry, AuditLogger
-from .config import DomainRule, EgressConfig, load_config
+from .config import EgressConfig, load_config
 from .inspector import ContentInspector
 from .rate_limiter import RateLimiter
 
@@ -103,7 +103,13 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         if rule is None:
             if self.egress_config.enforce:
                 self.audit_logger.log(
-                    AuditEntry.blocked("CONNECT", f"{hostname}:{port}", hostname, "Domain not whitelisted", client_ip)
+                    AuditEntry.blocked(
+                        "CONNECT",
+                        f"{hostname}:{port}",
+                        hostname,
+                        "Domain not whitelisted",
+                        client_ip,
+                    )
                 )
                 self._send_error(403, f"Blocked: {hostname} is not whitelisted")
                 return
@@ -113,7 +119,13 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         # --- Protocol check ---
         if rule and not self.egress_config.is_protocol_allowed(hostname, "https"):
             self.audit_logger.log(
-                AuditEntry.blocked("CONNECT", f"{hostname}:{port}", hostname, "HTTPS not allowed for domain", client_ip)
+                AuditEntry.blocked(
+                    "CONNECT",
+                    f"{hostname}:{port}",
+                    hostname,
+                    "HTTPS not allowed for domain",
+                    client_ip,
+                )
             )
             self._send_error(403, f"Blocked: HTTPS not allowed for {hostname}")
             return
@@ -122,14 +134,16 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         rate_limit = rule.rate_limit_rpm if rule else 60
         rl_result = self.rate_limiter.check(hostname, rate_limit)
         if not rl_result.allowed:
-            self.audit_logger.log(AuditEntry.rate_limited("CONNECT", f"{hostname}:{port}", hostname, client_ip))
+            self.audit_logger.log(
+                AuditEntry.rate_limited("CONNECT", f"{hostname}:{port}", hostname, client_ip)
+            )
             self._send_error(429, f"Rate limited: {rl_result.reason}")
             return
 
         # --- Establish tunnel ---
         try:
             upstream = socket.create_connection((hostname, port), timeout=_UPSTREAM_TIMEOUT)
-        except (socket.error, socket.timeout, OSError) as exc:
+        except (TimeoutError, OSError) as exc:
             logger.error("Failed to connect to %s:%d -- %s", hostname, port, exc)
             self._send_error(502, f"Cannot reach {hostname}:{port}")
             return
@@ -141,7 +155,9 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         # Log the successful tunnel
         self.audit_logger.log(
             AuditEntry.allowed(
-                "CONNECT", f"{hostname}:{port}", hostname,
+                "CONNECT",
+                f"{hostname}:{port}",
+                hostname,
                 rule.domain if rule else "AUDIT-ONLY",
                 status_code=200,
                 client_ip=client_ip,
@@ -180,7 +196,6 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         """Process an HTTP request through the security pipeline."""
         parsed = urlparse(self.path)
         hostname = parsed.hostname or ""
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
         client_ip = self.client_address[0] if self.client_address else ""
         url = self.path
 
@@ -188,7 +203,9 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         rule = self.egress_config.is_domain_allowed(hostname)
         if rule is None:
             if self.egress_config.enforce:
-                self.audit_logger.log(AuditEntry.blocked(method, url, hostname, "Domain not whitelisted", client_ip))
+                self.audit_logger.log(
+                    AuditEntry.blocked(method, url, hostname, "Domain not whitelisted", client_ip)
+                )
                 self._send_error(403, f"Blocked: {hostname} is not whitelisted")
                 return
             else:
@@ -198,7 +215,9 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         protocol = parsed.scheme or "http"
         if rule and not self.egress_config.is_protocol_allowed(hostname, protocol):
             self.audit_logger.log(
-                AuditEntry.blocked(method, url, hostname, f"Protocol {protocol} not allowed", client_ip)
+                AuditEntry.blocked(
+                    method, url, hostname, f"Protocol {protocol} not allowed", client_ip
+                )
             )
             self._send_error(403, f"Blocked: {protocol} not allowed for {hostname}")
             return
@@ -207,7 +226,13 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
         if method.upper() in _WRITE_METHODS:
             if rule and not rule.allow_write:
                 self.audit_logger.log(
-                    AuditEntry.blocked(method, url, hostname, "Write operations not allowed (read-only domain)", client_ip)
+                    AuditEntry.blocked(
+                        method,
+                        url,
+                        hostname,
+                        "Write operations not allowed (read-only domain)",
+                        client_ip,
+                    )
                 )
                 self._send_error(403, f"Blocked: {hostname} is read-only (GET only)")
                 return
@@ -230,7 +255,9 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
             inspection = self.content_inspector.inspect(body, hostname, method)
             if inspection.blocked:
                 self.audit_logger.log(
-                    AuditEntry.credential_leak(method, url, hostname, inspection.patterns_found, client_ip)
+                    AuditEntry.credential_leak(
+                        method, url, hostname, inspection.patterns_found, client_ip
+                    )
                 )
                 self._send_error(
                     403,
@@ -247,7 +274,13 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
             fwd_headers = {}
             for key, value in self.headers.items():
                 key_lower = key.lower()
-                if key_lower in ("proxy-authorization", "proxy-connection", "connection", "keep-alive", "host"):
+                if key_lower in (
+                    "proxy-authorization",
+                    "proxy-connection",
+                    "connection",
+                    "keep-alive",
+                    "host",
+                ):
                     continue
                 fwd_headers[key] = value
 
@@ -274,7 +307,9 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
             # Audit log the successful request
             self.audit_logger.log(
                 AuditEntry.allowed(
-                    method, url, hostname,
+                    method,
+                    url,
+                    hostname,
                     rule.domain if rule else "AUDIT-ONLY",
                     status_code=resp.status_code,
                     duration_ms=duration_ms,
@@ -320,14 +355,14 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
                         if not data:
                             return
                         other.sendall(data)
-                    except (socket.error, OSError):
+                    except OSError:
                         return
         except Exception:
             pass
 
     def _send_error(self, code: int, message: str) -> None:
         """Send an error response to the client."""
-        body = f"AEGIS Egress Proxy: {message}\n".encode("utf-8")
+        body = f"AEGIS Egress Proxy: {message}\n".encode()
         try:
             self.send_response(code)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -462,7 +497,8 @@ class EgressProxyServer:
             "enforce": self._config.enforce,
             "content_inspection": self._config.content_inspection,
             "dns_filtering": self._config.dns_filtering,
-            "hardcoded_domains": len(self._config.get_all_allowed_domains()) - len(self._config.whitelist),
+            "hardcoded_domains": len(self._config.get_all_allowed_domains())
+            - len(self._config.whitelist),
             "user_domains": len(self._config.whitelist),
             "rate_limit_stats": self._rate_limiter.get_stats(),
             "audit_stats": self._audit.get_stats(),

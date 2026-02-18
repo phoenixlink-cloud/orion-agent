@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 import time
 from dataclasses import asdict, dataclass, field
@@ -163,6 +162,7 @@ class AuditLogger:
     def __init__(self, log_path: str | Path | None = None) -> None:
         if log_path is None:
             from .config import _ORION_HOME
+
             log_path = _ORION_HOME / "egress_audit.log"
 
         self._path = Path(log_path)

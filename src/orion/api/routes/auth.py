@@ -489,10 +489,7 @@ async def oauth_login(request: OAuthLoginRequest):
     code_verifier, code_challenge = _generate_pkce_pair()
     state_token = secrets.token_urlsafe(32)
 
-    if request.redirect_uri:
-        redirect_uri = request.redirect_uri
-    else:
-        redirect_uri = "http://localhost:8001/api/oauth/callback"
+    redirect_uri = request.redirect_uri or "http://localhost:8001/api/oauth/callback"
 
     # Store pending auth (short-lived)
     _oauth_pending[state_token] = {

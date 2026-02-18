@@ -62,9 +62,7 @@ class TestGoogleCredentials:
         assert creds.scopes == set()
 
     def test_blocked_scopes_detected(self):
-        creds = GoogleCredentials(
-            scope="openid email https://www.googleapis.com/auth/drive"
-        )
+        creds = GoogleCredentials(scope="openid email https://www.googleapis.com/auth/drive")
         assert creds.has_blocked_scopes is True
         assert "https://www.googleapis.com/auth/drive" in creds.blocked_scope_list
 

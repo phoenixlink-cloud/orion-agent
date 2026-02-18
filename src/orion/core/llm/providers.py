@@ -522,7 +522,12 @@ async def call_provider(
 
         async def _do():
             return await _call_google(
-                model, system_prompt, user_prompt, api_key, max_tokens, temperature,
+                model,
+                system_prompt,
+                user_prompt,
+                api_key,
+                max_tokens,
+                temperature,
             )
 
         return await retry_api_call(_do, component=component)

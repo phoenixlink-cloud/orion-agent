@@ -30,7 +30,7 @@ import logging
 import signal
 import sys
 
-from .config import EgressConfig, load_config
+from .config import load_config
 from .proxy import EgressProxyServer
 
 logger = logging.getLogger("orion.security.egress.server")
@@ -118,6 +118,7 @@ def main() -> None:
     except AttributeError:
         # signal.pause() not available on Windows -- use a loop
         import time
+
         while server.is_running:
             time.sleep(1)
 

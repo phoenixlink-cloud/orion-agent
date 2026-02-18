@@ -40,9 +40,7 @@ logger = logging.getLogger("orion.security.egress.inspector")
 # ---------------------------------------------------------------------------
 _CREDENTIAL_PATTERNS: dict[str, re.Pattern] = {
     "aws_access_key": re.compile(r"AKIA[0-9A-Z]{16}"),
-    "aws_secret_key": re.compile(
-        r"(?<![A-Za-z0-9/+])[0-9a-zA-Z/+]{40}(?![A-Za-z0-9/+=])"
-    ),
+    "aws_secret_key": re.compile(r"(?<![A-Za-z0-9/+])[0-9a-zA-Z/+]{40}(?![A-Za-z0-9/+=])"),
     "github_token": re.compile(r"gh[pousr]_[A-Za-z0-9_]{36,}"),
     "openai_api_key": re.compile(r"sk-[A-Za-z0-9]{20,}"),
     "anthropic_api_key": re.compile(r"sk-ant-[A-Za-z0-9\-]{20,}"),
@@ -52,12 +50,8 @@ _CREDENTIAL_PATTERNS: dict[str, re.Pattern] = {
         r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+"
     ),
     "private_key_header": re.compile(r"-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----"),
-    "connection_string": re.compile(
-        r"(?i)(mongodb|postgres|mysql|redis)://[^\s]+@[^\s]+"
-    ),
-    "generic_bearer_token": re.compile(
-        r"(?i)bearer\s+[A-Za-z0-9\-_.~+/]{40,}"
-    ),
+    "connection_string": re.compile(r"(?i)(mongodb|postgres|mysql|redis)://[^\s]+@[^\s]+"),
+    "generic_bearer_token": re.compile(r"(?i)bearer\s+[A-Za-z0-9\-_.~+/]{40,}"),
     "generic_password_assignment": re.compile(
         r'(?i)(password|passwd|pwd|secret)\s*[:=]\s*["\'][^"\']{8,}["\']'
     ),

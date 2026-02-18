@@ -36,7 +36,6 @@ import logging
 import socket
 import struct
 import threading
-import time
 from dataclasses import dataclass, field
 
 logger = logging.getLogger("orion.security.egress.dns_filter")
@@ -83,7 +82,6 @@ def parse_dns_name(data: bytes, offset: int) -> tuple[str, int]:
         Tuple of (domain_name, new_offset).
     """
     labels: list[str] = []
-    original_offset = offset
     jumped = False
     jump_offset = 0
 
@@ -177,7 +175,7 @@ class DNSFilter:
         listen_port: int = DNS_PORT,
         upstream_dns: list[str] | None = None,
     ) -> None:
-        from .config import EgressConfig, load_config
+        from .config import load_config
 
         self._config = egress_config or load_config()
         self._listen_host = listen_host
@@ -214,7 +212,7 @@ class DNSFilter:
                 response, _ = sock.recvfrom(DNS_MAX_PACKET)
                 sock.close()
                 return response
-            except (socket.timeout, socket.error, OSError) as exc:
+            except (TimeoutError, OSError) as exc:
                 logger.debug("Upstream DNS %s failed: %s", upstream, exc)
                 continue
         return None
@@ -333,7 +331,7 @@ class DNSFilter:
                     args=(data, addr),
                     daemon=True,
                 ).start()
-            except socket.timeout:
+            except TimeoutError:
                 continue
             except OSError:
                 if self._running:

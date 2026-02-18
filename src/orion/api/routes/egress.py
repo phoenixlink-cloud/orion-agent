@@ -26,7 +26,6 @@ Provides endpoints for:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -34,7 +33,6 @@ from pydantic import BaseModel
 from orion.security.egress.audit import AuditLogger
 from orion.security.egress.config import (
     DomainRule,
-    EgressConfig,
     load_config,
     save_config,
 )
@@ -168,9 +166,7 @@ async def remove_domain(domain: str) -> dict:
 
     # Find and remove
     original_len = len(config.whitelist)
-    config.whitelist = [
-        r for r in config.whitelist if r.domain.lower() != domain.lower()
-    ]
+    config.whitelist = [r for r in config.whitelist if r.domain.lower() != domain.lower()]
 
     if len(config.whitelist) == original_len:
         raise HTTPException(

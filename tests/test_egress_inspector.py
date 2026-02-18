@@ -63,49 +63,49 @@ class TestContentInspector:
     # --- Credential patterns (should block) ---
 
     def test_detect_openai_api_key(self):
-        body = 'Here is my key: sk-1234567890abcdefghijklmnop'
+        body = "Here is my key: sk-1234567890abcdefghijklmnop"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "openai_api_key" in result.patterns_found
 
     def test_detect_anthropic_api_key(self):
-        body = 'key: sk-ant-1234567890abcdefghijklmnop'
+        body = "key: sk-ant-1234567890abcdefghijklmnop"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "anthropic_api_key" in result.patterns_found
 
     def test_detect_github_token(self):
-        body = 'token: ghp_1234567890abcdefghijABCDEFGHIJklmnopqr'
+        body = "token: ghp_1234567890abcdefghijABCDEFGHIJklmnopqr"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "github_token" in result.patterns_found
 
     def test_detect_aws_access_key(self):
-        body = 'AKIAIOSFODNN7EXAMPLE'
+        body = "AKIAIOSFODNN7EXAMPLE"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "aws_access_key" in result.patterns_found
 
     def test_detect_google_api_key(self):
-        body = 'key=AIzaSyD-1234567890abcdefghijklmnopqrstuvw'
+        body = "key=AIzaSyD-1234567890abcdefghijklmnopqrstuvw"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "google_api_key" in result.patterns_found
 
     def test_detect_slack_webhook(self):
-        body = 'https://hooks.slack.com/services/T1234ABCD/B1234ABCD/abcdefghij1234567890'
+        body = "https://hooks.slack.com/services/T1234ABCD/B1234ABCD/abcdefghij1234567890"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "slack_webhook" in result.patterns_found
 
     def test_detect_private_key(self):
-        body = '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAA...'
+        body = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAA..."
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "private_key_header" in result.patterns_found
 
     def test_detect_connection_string(self):
-        body = 'mongodb://admin:password123@db.example.com:27017/mydb'
+        body = "mongodb://admin:password123@db.example.com:27017/mydb"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "connection_string" in result.patterns_found
@@ -120,8 +120,8 @@ class TestContentInspector:
 
     def test_multiple_patterns_detected(self):
         body = (
-            'sk-1234567890abcdefghijklmnop\n'
-            'ghp_1234567890abcdefghijABCDEFGHIJklmnopqr\n'
+            "sk-1234567890abcdefghijklmnop\n"
+            "ghp_1234567890abcdefghijABCDEFGHIJklmnopqr\n"
             'password="hunter2hunter2"'
         )
         result = self.inspector.inspect(body, "evil.com", "POST")
@@ -131,19 +131,19 @@ class TestContentInspector:
     # --- Bytes input ---
 
     def test_bytes_input(self):
-        body = b'sk-1234567890abcdefghijklmnop'
+        body = b"sk-1234567890abcdefghijklmnop"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
 
     def test_bytes_clean_input(self):
-        body = b'Hello world'
+        body = b"Hello world"
         result = self.inspector.inspect(body, "example.com", "POST")
         assert result.clean is True
 
     # --- Details contain redacted info ---
 
     def test_details_are_redacted(self):
-        body = 'sk-1234567890abcdefghijklmnop'
+        body = "sk-1234567890abcdefghijklmnop"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert len(result.details) > 0

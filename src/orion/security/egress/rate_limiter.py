@@ -90,9 +90,7 @@ class RateLimiter:
     def __init__(self, global_limit_rpm: int = 300) -> None:
         self._global_limit = global_limit_rpm
         self._global_counter = SlidingWindowCounter()
-        self._domain_counters: dict[str, SlidingWindowCounter] = defaultdict(
-            SlidingWindowCounter
-        )
+        self._domain_counters: dict[str, SlidingWindowCounter] = defaultdict(SlidingWindowCounter)
         self._lock = threading.Lock()
 
     def check(self, hostname: str, domain_limit_rpm: int = 60) -> RateLimitResult:

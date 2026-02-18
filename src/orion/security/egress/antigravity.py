@@ -41,12 +41,10 @@ This module provides:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncIterator
 
 logger = logging.getLogger("orion.security.egress.antigravity")
 
@@ -618,9 +616,7 @@ class AntigravityBridge:
             "total_requests": self._total_requests,
             "total_errors": self._total_errors,
             "error_rate": (
-                self._total_errors / self._total_requests
-                if self._total_requests > 0
-                else 0
+                self._total_errors / self._total_requests if self._total_requests > 0 else 0
             ),
             "session": session_status,
             "config": self._config.to_dict(),

@@ -44,7 +44,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -300,6 +300,7 @@ class GoogleCredentialManager:
         if self._use_secure_store:
             try:
                 from orion.security.store import SecureStore
+
                 store = SecureStore()
                 store.set_key("google_oauth_credentials", "")
             except Exception:
@@ -433,7 +434,9 @@ class GoogleCredentialManager:
 
                 tokens = resp.json()
 
-            self._credentials.access_token = tokens.get("access_token", self._credentials.access_token)
+            self._credentials.access_token = tokens.get(
+                "access_token", self._credentials.access_token
+            )
             self._credentials.expires_at = time.time() + tokens.get("expires_in", 3600)
             self._credentials.scope = tokens.get("scope", self._credentials.scope)
             self._credentials.last_refreshed_at = time.time()
