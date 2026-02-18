@@ -636,7 +636,7 @@ class TestCrossComponentIntegration:
 
         inspector = ContentInspector()
         # Google API key pattern
-        body = '{"key": "AIzaSyA1234567890abcdefghijklmnopqrstuv"}'
+        body = '{"key": "AIzaXXXX_THIS-IS-A-FAKE-TEST-KEY_123456"}'
         result = inspector.inspect(body, "random-server.com", "POST")
 
         assert result.blocked
