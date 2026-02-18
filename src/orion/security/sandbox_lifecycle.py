@@ -135,7 +135,13 @@ class SandboxLifecycle:
             return self._boot_sync()
 
     def _boot_sync(self) -> bool:
-        """Synchronous boot sequence.  Returns True on success."""
+        """Synchronous boot sequence.  Returns True on success.
+
+        Runs orchestrator steps 1-5 only (host-side services).
+        Step 6 (container launch) is skipped because the API server
+        and Web UI already run on the host.  Container launch will be
+        enabled when sandboxed agent workers are implemented.
+        """
         start = time.time()
 
         # Phase 1: Check Docker availability
@@ -150,37 +156,53 @@ class SandboxLifecycle:
             self._notify_status(f"Sandbox unavailable: {self._error}")
             return False
 
-        # Phase 2: Boot the orchestrator
+        # Phase 2: Boot host-side services (steps 1-5, skip container launch)
         self._phase = _PHASE_BOOTING
-        self._notify_status("Booting governed sandbox...")
+        self._notify_status("Booting governed sandbox (host services)...")
 
         try:
-            from orion.security.orchestrator import SandboxOrchestrator
+            from orion.security.orchestrator import BootPhase, SandboxOrchestrator
 
             self._orchestrator = SandboxOrchestrator()
-            status = self._orchestrator.start()
+            orch = self._orchestrator
 
-            if status.phase == "running":
-                elapsed = time.time() - start
-                self._available = True
-                self._phase = _PHASE_RUNNING
-                self._boot_time = round(elapsed, 1)
-                self._error = ""
-                logger.info("Sandbox ready (%.1fs)", elapsed)
-                self._notify_status(
-                    f"Sandbox ready ({self._boot_time}s) "
-                    f"-- egress proxy, DNS filter, approval queue active"
-                )
-                self._boot_done.set()
-                return True
-            else:
-                self._phase = _PHASE_FAILED
-                self._error = status.error or "Boot returned non-running phase"
-                self._available = False
-                logger.warning("Sandbox boot failed: %s", self._error)
-                self._notify_status(f"Sandbox boot failed: {self._error}")
-                self._boot_done.set()
-                return False
+            # Step 1: AEGIS configuration
+            orch._boot_step_1_aegis_config()
+
+            # Step 2: Verify Docker environment
+            orch._boot_step_2_docker_build()
+
+            # Step 3: Start egress proxy (host process)
+            orch._boot_step_3_egress_proxy()
+
+            # Step 4: Start approval queue (host process)
+            orch._boot_step_4_approval_queue()
+
+            # Step 5: Start DNS filter (host process)
+            orch._boot_step_5_dns_filter()
+
+            # SKIP Step 6: Container launch -- API/Web run on host,
+            # not in Docker.  Container launch is a future feature
+            # for sandboxed agent workers.
+
+            # Set orchestrator internal state so stop()/teardown() works
+            orch._running = True
+            orch._phase = BootPhase.RUNNING
+            orch._started_at = start
+            orch._log("Boot complete (steps 1-5) -- host services governed and running")
+
+            elapsed = time.time() - start
+            self._available = True
+            self._phase = _PHASE_RUNNING
+            self._boot_time = round(elapsed, 1)
+            self._error = ""
+            logger.info("Sandbox ready (%.1fs) -- host services only, no container", elapsed)
+            self._notify_status(
+                f"Sandbox ready ({self._boot_time}s) "
+                f"-- egress proxy, DNS filter, approval queue active"
+            )
+            self._boot_done.set()
+            return True
 
         except Exception as exc:
             self._phase = _PHASE_FAILED
@@ -188,6 +210,12 @@ class SandboxLifecycle:
             self._available = False
             logger.warning("Sandbox boot exception: %s", exc)
             self._notify_status(f"Sandbox boot failed: {exc}")
+            # Tear down anything that was partially started
+            if self._orchestrator:
+                try:
+                    self._orchestrator._teardown()
+                except Exception:
+                    pass
             self._boot_done.set()
             return False
 

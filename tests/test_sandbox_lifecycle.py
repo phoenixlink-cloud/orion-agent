@@ -62,21 +62,8 @@ def lifecycle():
 # -------------------------------------------------------------------------
 class TestBootWithDocker:
     def test_boot_success(self, lifecycle):
-        """SL-01: Lifecycle boot with Docker available."""
-        mock_status = MagicMock()
-        mock_status.phase = "running"
-        mock_status.error = ""
-        mock_status.egress_proxy_running = True
-        mock_status.dns_filter_running = True
-        mock_status.approval_queue_running = True
-        mock_status.container_running = True
-        mock_status.container_healthy = True
-        mock_status.uptime_s = 5.0
-
+        """SL-01: Lifecycle boot with Docker available (steps 1-5)."""
         mock_orch = MagicMock()
-        mock_orch.start.return_value = mock_status
-        mock_orch.is_running = True
-        mock_orch.status = mock_status
 
         with patch.object(lifecycle, "_check_docker", return_value=True), \
              patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch):
@@ -86,6 +73,14 @@ class TestBootWithDocker:
         assert lifecycle.is_available is True
         assert lifecycle.phase == _PHASE_RUNNING
         assert lifecycle._boot_time >= 0
+        # Verify steps 1-5 were called
+        mock_orch._boot_step_1_aegis_config.assert_called_once()
+        mock_orch._boot_step_2_docker_build.assert_called_once()
+        mock_orch._boot_step_3_egress_proxy.assert_called_once()
+        mock_orch._boot_step_4_approval_queue.assert_called_once()
+        mock_orch._boot_step_5_dns_filter.assert_called_once()
+        # Step 6 (container launch) should NOT be called
+        mock_orch._boot_step_6_container_launch.assert_not_called()
 
 
 # -------------------------------------------------------------------------
@@ -352,10 +347,10 @@ class TestSingleton:
 # SL-15: Port conflict / boot failure handling
 # -------------------------------------------------------------------------
 class TestBootFailure:
-    def test_orchestrator_exception(self, lifecycle):
-        """SL-15: Boot fails gracefully with clear error on exception."""
+    def test_boot_step_exception(self, lifecycle):
+        """SL-15: Boot fails gracefully when a boot step raises."""
         mock_orch = MagicMock()
-        mock_orch.start.side_effect = RuntimeError("port 8888 in use")
+        mock_orch._boot_step_3_egress_proxy.side_effect = RuntimeError("port 8888 in use")
 
         with patch.object(lifecycle, "_check_docker", return_value=True), \
              patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch):
@@ -365,15 +360,15 @@ class TestBootFailure:
         assert lifecycle.is_available is False
         assert lifecycle.phase == _PHASE_FAILED
         assert "8888" in lifecycle._error
+        # Verify teardown was attempted on partial failure
+        mock_orch._teardown.assert_called_once()
 
-    def test_orchestrator_returns_failed(self, lifecycle):
-        """SL-15b: Boot fails when orchestrator returns non-running status."""
-        mock_status = MagicMock()
-        mock_status.phase = "failed"
-        mock_status.error = "Compose file not found"
-
+    def test_docker_build_fails(self, lifecycle):
+        """SL-15b: Boot fails when Docker build step raises."""
         mock_orch = MagicMock()
-        mock_orch.start.return_value = mock_status
+        mock_orch._boot_step_2_docker_build.side_effect = RuntimeError(
+            "docker-compose.yml not found"
+        )
 
         with patch.object(lifecycle, "_check_docker", return_value=True), \
              patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch):
@@ -381,4 +376,4 @@ class TestBootFailure:
 
         assert result is False
         assert lifecycle.phase == _PHASE_FAILED
-        assert "Compose" in lifecycle._error or "non-running" in lifecycle._error
+        assert "docker-compose" in lifecycle._error.lower() or "not found" in lifecycle._error

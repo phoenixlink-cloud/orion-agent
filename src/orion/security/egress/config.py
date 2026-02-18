@@ -285,33 +285,76 @@ class EgressConfig:
         return protocol.lower() in [p.lower() for p in rule.protocols]
 
 
-def load_config(path: Path | str | None = None) -> EgressConfig:
+# ---------------------------------------------------------------------------
+# Module-level cache (avoids re-reading on every API request / health check)
+# ---------------------------------------------------------------------------
+_cached_config: EgressConfig | None = None
+_config_warning_shown: bool = False
+
+
+def load_config(path: Path | str | None = None, *, reload: bool = False) -> EgressConfig:
     """Load egress configuration from YAML file.
 
-    If the file does not exist, returns the default config
-    (hardcoded LLM endpoints only, everything else blocked).
+    Results are cached at module level.  Subsequent calls return the
+    cached config unless ``reload=True`` is passed.  Caching only
+    applies when using the default path; explicit paths always read
+    from disk.
+
+    If the file does not exist, a default config is created.
+    If the file cannot be read (permission denied), a warning is
+    logged **once** and the default config is returned.
     """
+    global _cached_config, _config_warning_shown
+
+    using_default_path = path is None
     config_path = Path(path) if path else DEFAULT_CONFIG_PATH
 
+    if using_default_path and _cached_config is not None and not reload:
+        return _cached_config
+
+    # Create default config on first run
     if not config_path.exists():
-        logger.info("No egress config at %s -- using defaults (LLM-only)", config_path)
-        return EgressConfig()
+        _write_default_config(config_path)
 
     try:
         raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):
-            logger.warning("Invalid egress config (not a dict) -- using defaults")
-            return EgressConfig()
-        return _parse_config(raw)
+            if not _config_warning_shown:
+                logger.warning("Invalid egress config (not a dict) -- using defaults")
+                _config_warning_shown = True
+            result = EgressConfig()
+            if using_default_path:
+                _cached_config = result
+            return result
+        result = _parse_config(raw)
+        if using_default_path:
+            _cached_config = result
+        return result
+    except PermissionError:
+        if not _config_warning_shown:
+            logger.warning("Cannot read %s (permission denied) -- using defaults", config_path)
+            _config_warning_shown = True
+        result = EgressConfig()
+        if using_default_path:
+            _cached_config = result
+        return result
     except Exception as exc:
-        logger.error("Failed to load egress config: %s -- using defaults", exc)
-        return EgressConfig()
+        if not _config_warning_shown:
+            logger.warning("Failed to load egress config: %s -- using defaults", exc)
+            _config_warning_shown = True
+        result = EgressConfig()
+        if using_default_path:
+            _cached_config = result
+        return result
+
+
+_save_warning_shown: bool = False
 
 
 def save_config(config: EgressConfig, path: Path | str | None = None) -> None:
     """Save egress configuration to YAML file."""
+    global _cached_config, _save_warning_shown
     config_path = Path(path) if path else DEFAULT_CONFIG_PATH
-    config_path.parent.mkdir(parents=True, exist_ok=True)
 
     data: dict[str, Any] = {
         "proxy": {
@@ -337,10 +380,49 @@ def save_config(config: EgressConfig, path: Path | str | None = None) -> None:
         "allowed_google_services": config.allowed_google_services,
         "research_domains": config.research_domains,
     }
-    config_path.write_text(
-        yaml.dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8"
-    )
-    logger.info("Saved egress config to %s", config_path)
+
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            yaml.dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8"
+        )
+        logger.info("Saved egress config to %s", config_path)
+        _cached_config = config  # Update cache on successful save
+    except PermissionError:
+        if not _save_warning_shown:
+            logger.warning("Cannot write %s (permission denied) -- config not saved", config_path)
+            _save_warning_shown = True
+    except Exception as exc:
+        if not _save_warning_shown:
+            logger.warning("Failed to save egress config: %s", exc)
+            _save_warning_shown = True
+
+
+_DEFAULT_CONFIG_YAML = """\
+# Orion Egress Proxy Configuration
+# See docs/NETWORK_SECURITY.md for details
+
+# User-added domains (additive -- hardcoded LLM domains are always present)
+user_whitelist: []
+
+# Google services enabled for sandbox access (default: none)
+allowed_google_services: []
+
+# Research domains (GET-only access for LLM web browsing)
+research_domains: []
+"""
+
+
+def _write_default_config(config_path: Path) -> None:
+    """Create a minimal default config file on first run."""
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(_DEFAULT_CONFIG_YAML, encoding="utf-8")
+        logger.info("Created default egress config at %s", config_path)
+    except PermissionError:
+        logger.warning("Cannot create %s (permission denied) -- using in-memory defaults", config_path)
+    except Exception as exc:
+        logger.warning("Cannot create default config: %s -- using in-memory defaults", exc)
 
 
 def _parse_config(raw: dict) -> EgressConfig:
