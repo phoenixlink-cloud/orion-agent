@@ -131,8 +131,18 @@ class TestEgressProxyIntegration:
 
         log_path = tmp_path / "audit.log"
         with AuditLogger(log_path) as logger:
-            logger.log(AuditEntry.blocked("POST", "https://evil.com/api", "evil.com", "Not whitelisted"))
-            logger.log(AuditEntry.allowed("GET", "https://api.openai.com/v1/chat", "api.openai.com", "api.openai.com", status_code=200))
+            logger.log(
+                AuditEntry.blocked("POST", "https://evil.com/api", "evil.com", "Not whitelisted")
+            )
+            logger.log(
+                AuditEntry.allowed(
+                    "GET",
+                    "https://api.openai.com/v1/chat",
+                    "api.openai.com",
+                    "api.openai.com",
+                    status_code=200,
+                )
+            )
 
         assert logger.entry_count == 2
 
@@ -151,9 +161,7 @@ class TestEgressProxyIntegration:
 
         config_file = tmp_path / "egress.yaml"
         config_file.write_text(
-            "whitelist:\n"
-            "  - domain: custom.example.com\n"
-            "    allow_write: false\n"
+            "whitelist:\n  - domain: custom.example.com\n    allow_write: false\n"
         )
 
         config = load_config(config_file)
@@ -389,7 +397,11 @@ class TestAegisInvariant7Integration:
         from orion.core.governance.aegis import NetworkAccessRequest, check_network_access
 
         result = check_network_access(
-            NetworkAccessRequest(hostname="drive.googleapis.com", method="GET", url="https://drive.googleapis.com/v3/files")
+            NetworkAccessRequest(
+                hostname="drive.googleapis.com",
+                method="GET",
+                url="https://drive.googleapis.com/v3/files",
+            )
         )
         assert not result.passed
         assert any("blocked" in v.lower() or "AEGIS-7" in v for v in result.violations)
@@ -399,7 +411,11 @@ class TestAegisInvariant7Integration:
         from orion.core.governance.aegis import NetworkAccessRequest, check_network_access
 
         result = check_network_access(
-            NetworkAccessRequest(hostname="generativelanguage.googleapis.com", method="POST", url="https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent")
+            NetworkAccessRequest(
+                hostname="generativelanguage.googleapis.com",
+                method="POST",
+                url="https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+            )
         )
         assert result.passed
 
@@ -408,7 +424,12 @@ class TestAegisInvariant7Integration:
         from orion.core.governance.aegis import NetworkAccessRequest, check_network_access
 
         result = check_network_access(
-            NetworkAccessRequest(hostname="api.openai.com", method="GET", url="http://api.openai.com/v1/models", protocol="http")
+            NetworkAccessRequest(
+                hostname="api.openai.com",
+                method="GET",
+                url="http://api.openai.com/v1/models",
+                protocol="http",
+            )
         )
         assert any("http" in w.lower() for w in result.warnings)
 
@@ -418,9 +439,13 @@ class TestAegisInvariant7Integration:
 
         for method in ("POST", "PUT", "DELETE"):
             result = check_network_access(
-                NetworkAccessRequest(hostname="api.openai.com", method=method, url=f"https://api.openai.com/v1/test")
+                NetworkAccessRequest(
+                    hostname="api.openai.com", method=method, url="https://api.openai.com/v1/test"
+                )
             )
-            assert any("write" in w.lower() for w in result.warnings), f"{method} should warn about write"
+            assert any("write" in w.lower() for w in result.warnings), (
+                f"{method} should warn about write"
+            )
 
     def test_aegis_version_7_or_higher(self):
         """AEGIS module version must be 7.0.0+."""
@@ -438,7 +463,12 @@ class TestAegisInvariant7Integration:
         """Blocked Google services frozenset must include Drive, Gmail, Calendar, YouTube."""
         from orion.core.governance.aegis import _BLOCKED_GOOGLE_SERVICES
 
-        required = {"drive.googleapis.com", "gmail.googleapis.com", "calendar.googleapis.com", "youtube.googleapis.com"}
+        required = {
+            "drive.googleapis.com",
+            "gmail.googleapis.com",
+            "calendar.googleapis.com",
+            "youtube.googleapis.com",
+        }
         for svc in required:
             assert svc in _BLOCKED_GOOGLE_SERVICES, f"Missing blocked service: {svc}"
 
@@ -574,8 +604,8 @@ class TestCrossComponentIntegration:
     def test_aegis_invariant7_matches_blocked_google_in_config(self):
         """AEGIS blocked Google services must be consistent with egress proxy config."""
         from orion.core.governance.aegis import (
-            NetworkAccessRequest,
             _BLOCKED_GOOGLE_SERVICES,
+            NetworkAccessRequest,
             check_network_access,
         )
         from orion.security.egress.config import EgressConfig
@@ -585,7 +615,9 @@ class TestCrossComponentIntegration:
         for blocked_domain in _BLOCKED_GOOGLE_SERVICES:
             # AEGIS must block it
             result = check_network_access(
-                NetworkAccessRequest(hostname=blocked_domain, method="GET", url=f"https://{blocked_domain}/")
+                NetworkAccessRequest(
+                    hostname=blocked_domain, method="GET", url=f"https://{blocked_domain}/"
+                )
             )
             assert not result.passed, f"AEGIS should block {blocked_domain}"
 
