@@ -180,6 +180,77 @@ async def remove_domain(domain: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Google Services toggle endpoints (Phase 3.2)
+# ---------------------------------------------------------------------------
+
+
+class GoogleServiceToggleRequest(BaseModel):
+    enabled: bool
+
+
+@router.get("/google-services")
+async def get_google_services() -> dict:
+    """List all Google services with their current enabled/disabled state."""
+    from orion.security.egress.config import GOOGLE_SERVICES
+
+    config = load_config()
+    allowed = set(config.allowed_google_services)
+
+    services = []
+    for domain, info in GOOGLE_SERVICES.items():
+        services.append(
+            {
+                "domain": domain,
+                "name": info["name"],
+                "description": info["description"],
+                "risk": info["risk"],
+                "enabled": domain in allowed,
+            }
+        )
+
+    return {
+        "services": services,
+        "enabled_count": len(allowed),
+        "total_count": len(GOOGLE_SERVICES),
+    }
+
+
+@router.put("/google-services/{domain}")
+async def toggle_google_service(domain: str, request: GoogleServiceToggleRequest) -> dict:
+    """Enable or disable a specific Google service."""
+    from orion.security.egress.config import GOOGLE_SERVICES
+
+    if domain not in GOOGLE_SERVICES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown Google service: {domain}",
+        )
+
+    config = load_config()
+    current = set(config.allowed_google_services)
+
+    if request.enabled:
+        current.add(domain)
+        action = "enabled"
+    else:
+        current.discard(domain)
+        action = "disabled"
+
+    config.allowed_google_services = sorted(current)
+    save_config(config)
+
+    service_name = GOOGLE_SERVICES[domain]["name"]
+    logger.info("Google service %s: %s (%s)", action, service_name, domain)
+
+    return {
+        "domain": domain,
+        "name": service_name,
+        "enabled": request.enabled,
+        "action": action,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Sandbox Orchestrator endpoints (Phase 3)
 # ---------------------------------------------------------------------------
 

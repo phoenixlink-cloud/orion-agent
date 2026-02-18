@@ -63,6 +63,59 @@ HARDCODED_LLM_DOMAINS: frozenset[str] = frozenset(
     }
 )
 
+# ---------------------------------------------------------------------------
+# Google services that can be individually whitelisted by users (Phase 3).
+# Default state: ALL BLOCKED (AEGIS Invariant 7).  Users toggle services
+# on the host side; the container cannot modify this list.
+# ---------------------------------------------------------------------------
+GOOGLE_SERVICES: dict[str, dict[str, str]] = {
+    "drive.googleapis.com": {
+        "name": "Google Drive",
+        "description": "File storage, sharing, and collaboration",
+        "risk": "high",
+    },
+    "gmail.googleapis.com": {
+        "name": "Gmail",
+        "description": "Email sending and inbox access",
+        "risk": "high",
+    },
+    "calendar.googleapis.com": {
+        "name": "Google Calendar",
+        "description": "Event creation, scheduling, and invitations",
+        "risk": "medium",
+    },
+    "youtube.googleapis.com": {
+        "name": "YouTube",
+        "description": "Video search, metadata, and playlist management",
+        "risk": "low",
+    },
+    "photoslibrary.googleapis.com": {
+        "name": "Google Photos",
+        "description": "Photo library access and management",
+        "risk": "medium",
+    },
+    "people.googleapis.com": {
+        "name": "Google People (Contacts)",
+        "description": "Contact list access and management",
+        "risk": "high",
+    },
+    "docs.googleapis.com": {
+        "name": "Google Docs",
+        "description": "Document creation and editing",
+        "risk": "medium",
+    },
+    "sheets.googleapis.com": {
+        "name": "Google Sheets",
+        "description": "Spreadsheet creation and data access",
+        "risk": "medium",
+    },
+    "slides.googleapis.com": {
+        "name": "Google Slides",
+        "description": "Presentation creation and editing",
+        "risk": "low",
+    },
+}
+
 
 @dataclass
 class DomainRule:
@@ -120,6 +173,12 @@ class EgressConfig:
     # Whether to block requests to non-whitelisted domains (True)
     # or just log them (False, for debugging)
     enforce: bool = True
+
+    # Google services explicitly enabled by the user (Phase 3).
+    # Default: empty (all blocked by AEGIS Invariant 7).
+    # Each entry is a domain from GOOGLE_SERVICES.
+    # This list lives on the HOST and cannot be modified by Orion.
+    allowed_google_services: list[str] = field(default_factory=list)
 
     def get_all_allowed_domains(self) -> list[DomainRule]:
         """Return all allowed domains: hardcoded LLM + user whitelist."""
@@ -208,6 +267,7 @@ def save_config(config: EgressConfig, path: Path | str | None = None) -> None:
             }
             for rule in config.whitelist
         ],
+        "allowed_google_services": config.allowed_google_services,
     }
     config_path.write_text(
         yaml.dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8"
@@ -240,6 +300,13 @@ def _parse_config(raw: dict) -> EgressConfig:
     # Filter out empty domain entries
     whitelist = [r for r in whitelist if r.domain.strip()]
 
+    # Parse allowed Google services (Phase 3)
+    allowed_google = raw.get("allowed_google_services", [])
+    if not isinstance(allowed_google, list):
+        allowed_google = []
+    # Validate entries against known services
+    allowed_google = [s for s in allowed_google if isinstance(s, str) and s in GOOGLE_SERVICES]
+
     return EgressConfig(
         whitelist=whitelist,
         global_rate_limit_rpm=raw.get("global_rate_limit_rpm", 300),
@@ -250,4 +317,5 @@ def _parse_config(raw: dict) -> EgressConfig:
         dns_filtering=raw.get("dns_filtering", True),
         audit_log_path=raw.get("audit_log_path", str(_ORION_HOME / "egress_audit.log")),
         enforce=raw.get("enforce", True),
+        allowed_google_services=allowed_google,
     )

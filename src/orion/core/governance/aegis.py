@@ -363,7 +363,10 @@ class NetworkAccessRequest:
     description: str = ""
 
 
-def check_network_access(request: NetworkAccessRequest) -> AegisResult:
+def check_network_access(
+    request: NetworkAccessRequest,
+    user_allowed_services: frozenset[str] | set[str] | None = None,
+) -> AegisResult:
     """
     AEGIS Invariant 7: Network Access Control.
 
@@ -373,6 +376,9 @@ def check_network_access(request: NetworkAccessRequest) -> AegisResult:
 
     HARDCODED RULES (not configurable -- security invariant):
       - Blocked Google services ALWAYS blocked (LLM-only enforcement)
+        UNLESS the user has explicitly whitelisted the service on the
+        host side (Phase 3 graduated access).  Orion cannot modify the
+        allowed list -- it lives outside the Docker sandbox.
       - Non-HTTPS protocols require approval
       - Write methods to non-LLM domains require approval
 
@@ -381,6 +387,9 @@ def check_network_access(request: NetworkAccessRequest) -> AegisResult:
 
     Args:
         request: The outbound network request to classify.
+        user_allowed_services: Optional set of Google service domains
+            that the user has explicitly enabled on the host.  These
+            override the default DENY for ``_BLOCKED_GOOGLE_SERVICES``.
 
     Returns:
         AegisResult with the classification.
@@ -388,10 +397,18 @@ def check_network_access(request: NetworkAccessRequest) -> AegisResult:
     violations = []
     warnings = []
     hostname = request.hostname.lower().strip()
+    allowed = frozenset(user_allowed_services) if user_allowed_services else frozenset()
 
     # --- Rule 1: Block Google services that are NOT LLM-related ---
     for blocked_domain in _BLOCKED_GOOGLE_SERVICES:
         if hostname == blocked_domain or hostname.endswith("." + blocked_domain):
+            # Phase 3: user may have explicitly whitelisted this service
+            if blocked_domain in allowed:
+                warnings.append(
+                    f"AEGIS-7: Google service '{hostname}' is user-whitelisted. "
+                    "Access granted via host-side AEGIS configuration."
+                )
+                break  # Don't block -- fall through to remaining checks
             violations.append(
                 f"AEGIS-7: Google service '{hostname}' is blocked. "
                 "The dedicated Google account is scoped to LLM access only."
