@@ -65,7 +65,8 @@ _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _TUNNEL_BUFSIZE = 65536
 
 # Timeout for upstream connections (seconds)
-_UPSTREAM_TIMEOUT = 30
+# Must be generous for local LLM inference (Ollama can take 60s+)
+_UPSTREAM_TIMEOUT = 120
 
 
 class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
@@ -284,7 +285,7 @@ class EgressProxyHandler(http.server.BaseHTTPRequestHandler):
                     continue
                 fwd_headers[key] = value
 
-            with httpx.Client(timeout=_UPSTREAM_TIMEOUT, follow_redirects=True) as client:
+            with httpx.Client(timeout=_UPSTREAM_TIMEOUT, follow_redirects=True, trust_env=False) as client:
                 resp = client.request(
                     method=method,
                     url=url,
