@@ -399,6 +399,22 @@ def start_repl():
 
     console.print_banner()
 
+    # =========================================================================
+    # SANDBOX LIFECYCLE: Auto-boot governed environment in background
+    # =========================================================================
+    sandbox_lifecycle = None
+    try:
+        from orion.security.sandbox_lifecycle import get_sandbox_lifecycle
+
+        sandbox_lifecycle = get_sandbox_lifecycle()
+        sandbox_lifecycle.set_status_callback(
+            lambda msg: console.print_info(msg)
+        )
+        console.print_info("Initializing governed environment...")
+        sandbox_lifecycle.boot(background=True)
+    except Exception:
+        pass  # Sandbox lifecycle not available -- continue in BYOK mode
+
     while True:
         try:
             user_input = console.get_input()
@@ -607,6 +623,19 @@ def start_repl():
             console.print_interrupted()
         except Exception as e:
             console.print_error(str(e))
+
+    # =========================================================================
+    # SANDBOX LIFECYCLE: Shutdown on quit
+    # =========================================================================
+    if sandbox_lifecycle:
+        try:
+            if sandbox_lifecycle.is_available:
+                console.print_info("Stopping sandbox...")
+            sandbox_lifecycle.shutdown()
+            if sandbox_lifecycle.phase == "stopped":
+                console.print_info("Sandbox stopped.")
+        except Exception:
+            pass
 
     # End memory session: promote valuable memories, consolidate
     if memory_engine:
