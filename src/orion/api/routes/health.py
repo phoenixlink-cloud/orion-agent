@@ -29,7 +29,22 @@ router = APIRouter()
 @router.get("/health")
 async def health_check():
     """Health check endpoint (K8s compatible)."""
-    return {"status": "healthy", "version": __version__}
+    result = {"status": "healthy", "version": __version__}
+
+    # Include sandbox status if available
+    try:
+        from orion.security.sandbox_lifecycle import get_sandbox_lifecycle
+
+        lifecycle = get_sandbox_lifecycle()
+        result["sandbox"] = lifecycle.get_status()
+    except Exception:
+        result["sandbox"] = {
+            "available": False,
+            "phase": "not_started",
+            "reason": "lifecycle not loaded",
+        }
+
+    return result
 
 
 @router.get("/ready")

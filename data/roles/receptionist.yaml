@@ -1,0 +1,86 @@
+# Orion ARA Starter Role — Receptionist / Front Desk Coordinator
+# Scope: Office administration and visitor management
+
+name: "receptionist"
+scope: "full"
+auth_method: "pin"
+description: >-
+  Front-desk professional responsible for visitor management, multi-line phone
+  handling, appointment scheduling, mail and courier processing, and maintaining
+  office supplies inventory. First point of contact for all visitors and callers.
+
+competencies:
+  - "Multi-line phone management and call routing"
+  - "Visitor reception and access control"
+  - "Appointment scheduling and calendar coordination"
+  - "Mail, courier, and package handling"
+  - "Office supplies procurement and inventory management"
+  - "Professional communication and customer service"
+  - "Data entry and records management"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "send_email"
+  - "schedule_appointments"
+  - "update_records"
+  - "create_reports"
+
+authority_requires_approval:
+  - "share_data_externally"
+  - "modify_access_controls"
+  - "approve_purchases"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.85
+  execute_and_flag: 0.65
+  pause_and_ask: 0.45
+
+risk_tolerance: "low"
+
+success_criteria:
+  - "Calls answered within 3 rings"
+  - "Visitor wait time < 5 minutes"
+  - "100% accurate message relay"
+  - "Mail distributed same day as received"
+  - "Supplies never out of stock for critical items"
+
+max_session_hours: 8.0
+max_cost_per_session: 3.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 8
+  end_hour: 17
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 5
+  max_files_created: 50
+  max_files_modified: 100
+  max_total_write_volume_mb: 50
+  max_single_file_lines: 2000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: false
+  providers: ["desktop"]
+
+tags: ["office", "front-desk", "reception", "administration"]
+
+assigned_skills:
+  - "multi-line-phone-management"
+  - "visitor-check-in-access-management"
+  - "appointment-scheduling-calendar-coordination"
+  - "mail-courier-package-handling"
+  - "office-supplies-procurement-inventory"
+
+assigned_skill_groups:
+  - "office-reception"

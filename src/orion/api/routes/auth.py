@@ -14,7 +14,12 @@
 #    See LICENSE-ENTERPRISE.md or contact info@phoenixlink.co.za
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
-"""Orion Agent -- API Key & OAuth Routes."""
+"""Orion Agent -- API Key & Platform OAuth Routes.
+
+API keys are the primary auth method for all LLM providers (BYOK).
+OAuth is retained only for non-LLM platform integrations
+(GitHub, Slack, Discord, Notion, etc.).
+"""
 
 import base64
 import hashlib
@@ -25,6 +30,8 @@ import secrets
 import string
 import time
 from urllib.parse import urlencode
+
+log = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -176,6 +183,9 @@ async def get_key_store_status():
 # OAUTH AUTHENTICATION
 # =============================================================================
 
+# NOTE: OpenAI and Google LLM access use API keys only (BYOK).
+# OAuth is retained here only for non-LLM platform integrations.
+# Phase 2 will add Google Account LLM access via Docker/Antigravity.
 OAUTH_PLATFORMS = {
     "google": {
         "name": "Google",
@@ -358,6 +368,83 @@ async def configure_oauth(request: OAuthConfigureRequest):
         )
 
 
+@router.get("/api/oauth/setup-info/{provider}")
+async def get_oauth_setup_info(provider: str):
+    """
+    Get setup instructions for registering an OAuth app with a provider.
+
+    Returns whether the provider is already configured, the setup URL,
+    step-by-step instructions, and the required redirect URI.
+    """
+    if provider not in OAUTH_PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {provider}")
+
+    # Check if already configured
+    from orion.integrations.oauth_manager import get_client_id
+
+    client_id = get_client_id(provider)
+    is_configured = bool(client_id)
+
+    # Load setup instructions from bundled defaults
+    from orion.integrations.oauth_manager import _load_bundled_defaults
+
+    defaults = _load_bundled_defaults()
+    provider_defaults = defaults.get(provider, {})
+
+    platform = OAUTH_PLATFORMS[provider]
+
+    return {
+        "provider": provider,
+        "name": platform["name"],
+        "configured": is_configured,
+        "redirect_uri": "http://localhost:8001/api/oauth/callback",
+        "setup_url": provider_defaults.get("setup_url", ""),
+        "setup_instructions": provider_defaults.get("setup_instructions", ""),
+        "supports_pkce": platform.get("supports_pkce", False),
+        "needs_secret": not platform.get("supports_pkce", False),
+    }
+
+
+@router.post("/api/oauth/quick-setup")
+async def oauth_quick_setup(request: OAuthConfigureRequest):
+    """
+    One-time OAuth app registration — saves client_id to config file.
+
+    This is the fast path: saves to ~/.orion/oauth_clients.json so the
+    sign-in flow works immediately. No SecureStore required.
+    """
+    if request.provider not in OAUTH_PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
+
+    if not request.client_id or len(request.client_id) < 5:
+        raise HTTPException(status_code=400, detail="client_id is required (minimum 5 characters)")
+
+    from orion.integrations.oauth_manager import _load_client_configs, _save_client_configs
+
+    configs = _load_client_configs()
+    configs[request.provider] = {"client_id": request.client_id}
+    if request.client_secret:
+        configs[request.provider]["client_secret"] = request.client_secret
+    _save_client_configs(configs)
+
+    # Also save to SecureStore if available (belt and suspenders)
+    store = _get_secure_store()
+    if store:
+        try:
+            store.set_key(f"oauth_{request.provider}_client_id", request.client_id)
+            if request.client_secret:
+                store.set_key(f"oauth_{request.provider}_client_secret", request.client_secret)
+        except Exception:
+            pass  # Config file save is sufficient
+
+    return {
+        "status": "success",
+        "provider": request.provider,
+        "message": f"OAuth app registered for {OAUTH_PLATFORMS[request.provider]['name']}. "
+        "You can now use Sign in.",
+    }
+
+
 @router.post("/api/oauth/login")
 async def oauth_login(request: OAuthLoginRequest):
     """
@@ -372,7 +459,7 @@ async def oauth_login(request: OAuthLoginRequest):
     platform = OAUTH_PLATFORMS[request.provider]
     store = _get_secure_store()
 
-    # Retrieve client_id from secure store or legacy
+    # Retrieve client_id: SecureStore → legacy → oauth_manager (config file + env + bundled)
     client_id = None
     if store:
         client_id = store.get_key(f"oauth_{request.provider}_client_id")
@@ -385,24 +472,33 @@ async def oauth_login(request: OAuthLoginRequest):
             except Exception:
                 pass
     if not client_id:
+        try:
+            from orion.integrations.oauth_manager import get_client_id
+
+            client_id = get_client_id(request.provider)
+        except Exception:
+            pass
+    if not client_id:
         raise HTTPException(
             status_code=400,
-            detail="OAuth not configured. Set client_id first via /api/oauth/configure.",
+            detail=f"OAuth app not registered for {request.provider}. "
+            "One-time setup required: register an OAuth app and save the client_id.",
         )
 
     # Generate PKCE pair and state token
     code_verifier, code_challenge = _generate_pkce_pair()
     state_token = secrets.token_urlsafe(32)
 
+    redirect_uri = request.redirect_uri or "http://localhost:8001/api/oauth/callback"
+
     # Store pending auth (short-lived)
     _oauth_pending[state_token] = {
         "provider": request.provider,
         "code_verifier": code_verifier,
+        "redirect_uri": redirect_uri,
+        "client_id": client_id,
         "created_at": str(time.time()),
     }
-
-    # Use provided redirect_uri or default to our callback
-    redirect_uri = request.redirect_uri or "http://localhost:8001/api/oauth/callback"
 
     # Build authorization URL
     params = {
@@ -429,6 +525,11 @@ async def oauth_login(request: OAuthLoginRequest):
     # Notion uses owner=user
     if platform.get("owner"):
         params["owner"] = platform["owner"]
+
+    # Provider-specific extra params (e.g. OpenAI codex_cli_simplified_flow)
+    extra = platform.get("extra_params", {})
+    if extra:
+        params.update(extra)
 
     auth_url = f"{platform['auth_url']}?{urlencode(params)}"
     return {
@@ -465,7 +566,7 @@ async def oauth_callback(
     platform = OAUTH_PLATFORMS[provider]
     store = _get_secure_store()
 
-    # Retrieve client credentials
+    # Retrieve client credentials: SecureStore → legacy → oauth_manager
     client_id = store.get_key(f"oauth_{provider}_client_id") if store else None
     client_secret = store.get_key(f"oauth_{provider}_client_secret") if store else None
 
@@ -481,6 +582,17 @@ async def oauth_callback(
             except Exception:
                 pass
 
+    # Fallback to oauth_manager (config file + env + bundled defaults)
+    if not client_id:
+        try:
+            from orion.integrations.oauth_manager import get_client_id, get_client_secret
+
+            client_id = get_client_id(provider)
+            if not client_secret:
+                client_secret = get_client_secret(provider)
+        except Exception:
+            pass
+
     if not client_id:
         return HTMLResponse(
             "<html><body><h2>Error: OAuth client_id not found.</h2></body></html>",
@@ -493,7 +605,7 @@ async def oauth_callback(
     token_data = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": "http://localhost:8001/api/oauth/callback",
+        "redirect_uri": pending["redirect_uri"],
         "client_id": client_id,
     }
     if client_secret:

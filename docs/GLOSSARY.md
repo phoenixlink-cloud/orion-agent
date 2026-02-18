@@ -4,7 +4,7 @@ Terms and definitions used throughout the Orion Agent documentation.
 
 ## A
 
-**AEGIS** -- Autonomous Execution Governance and Integrity System. Orion's hardened security gate that validates all operations against six invariants. Cannot be bypassed or disabled.
+**AEGIS** -- Autonomous Execution Governance and Integrity System. Orion's hardened security gate that validates all operations against seven invariants (v7.0.0). Cannot be bypassed or disabled.
 
 **Agent** -- A specialized AI component within Orion's multi-agent system. The three primary agents are Builder, Reviewer, and Governor.
 
@@ -56,7 +56,7 @@ Terms and definitions used throughout the Orion Agent documentation.
 
 **Institutional memory** -- Tier 3 of the memory system. Cross-project wisdom stored in SQLite. Persists for months to years.
 
-**Invariant** -- A security rule in AEGIS that is always enforced and cannot be bypassed. AEGIS has six invariants.
+**Invariant** -- A security rule in AEGIS that is always enforced and cannot be bypassed. AEGIS has seven invariants (v7.0.0).
 
 ## K
 

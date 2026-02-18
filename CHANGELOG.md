@@ -5,25 +5,96 @@ All notable changes to Orion Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [10.0.0] -- 2026-02-16
+## [Unreleased]
 
 ### Added
-- **Web UI Audit & Wiring Fixes**
-  - `handleReview` now calls `POST /promote` after AEGIS gate passes (Approve was broken E2E)
-  - New Session form on dashboard (wires `POST /api/ara/work`)
-  - Notification bell with unread count badge (wires `GET /api/ara/notifications`)
-  - Dashboard API includes `session_id` in pending review sections
-- **Diff Viewer Fixes**
-  - `cmd_review_diff` shows unchanged files for already-promoted sessions
-  - PM sandbox → daemon sandbox fallthrough when PM sandbox is empty
-  - Recursive `rglob("*")` for nested sandbox directories
-  - Partial session ID matching for truncated UI IDs
-  - UI handles `unchanged` status with "(already promoted)" label
+- Automatic sandbox boot on Orion startup (CLI, Web UI, API modes)
+- Graceful degradation when Docker is unavailable (BYOK-only mode)
+- Sandbox status in `/api/health` endpoint and CLI banner
+- Signal handler cleanup for orphaned containers on crash/SIGINT
+- `/sandbox restart` command
+- `SandboxLifecycle` manager (`src/orion/security/sandbox_lifecycle.py`)
+- 20 unit tests + 5 integration tests for sandbox lifecycle
+- **ARA Web UI — Inline accordion expansion** for Skills and Roles lists (click to expand/collapse detail view directly beneath each item)
+- **Skills detail panel** — metadata grid (version, trust, AEGIS, source), tags, full SKILL.md content viewer with monospace rendering
+- **Skills SKILL.md editor** — Edit button switches to textarea for non-bundled skills; Save persists via API; bundled skills show "Read-only"
+- **`PUT /api/ara/skills/{name}`** API endpoint — updates skill description, instructions, or tags via `cmd_skill_update`
+- **Roles inline detail** — expanding a role shows scope/auth/source/description, assigned skills with Remove buttons, and "Add a skill" dropdown
+- **Roles inline edit form** — Edit button expands edit form (scope, auth method, description) with Save/Cancel directly inside the accordion
+
+### Changed
+- `/sandbox` commands now use shared lifecycle singleton (no duplicate orchestrator instances)
+- Skills and Roles lists now use accordion UI pattern (detail expands inline under each item, not as a separate panel below the list)
+- Skill list rows show ▶ arrow indicator that rotates on expand/collapse
+- Role list rows show ▶ arrow indicator that rotates on expand/collapse
+
+### Fixed
+- **Seed skills (debug-issue, deploy-to-staging, docker-setup) no longer display as "blocked"** — `_get_skill_library` now explicitly marks seed skills as `verified`, `bundled`, `aegis_approved: True` and fixes user copies that were incorrectly blocked by SkillGuard
+
+## [10.0.0] -- 2026-02-18
+
+### Major Milestone: Digital Agent Architecture -- Complete & Proven
+
+The full governed execution pipeline is now operational. Orion can autonomously generate code
+using local or cloud LLMs, with every operation governed by AEGIS, filtered through the egress
+proxy, and confined to Docker sandbox isolation.
+
+**Proven in production testing:** Task -> LLM (Ollama qwen2.5:7b) -> Builder -> Reviewer -> Governor -> Sandbox -> Workspace -> pytest 4/4 pass.
+
+### Added
+
+#### Phase 2: Digital Agent Architecture
+- **Egress Proxy** (`src/orion/security/egress/proxy.py`) -- HTTP forward proxy with CONNECT tunneling, 6-stage security pipeline, domain whitelist (additive model), JSONL audit logging
+- **Content Inspector** (`src/orion/security/egress/inspector.py`) -- 12 credential patterns (AWS, GitHub, OpenAI, Anthropic, Google, Slack, etc.)
+- **Rate Limiter** (`src/orion/security/egress/rate_limiter.py`) -- Sliding window per-domain + global RPM limits
+- **DNS Filter** (`src/orion/security/egress/dns_filter.py`) -- UDP DNS proxy, non-whitelisted domains get NXDOMAIN, upstream forwarding
+- **Approval Queue** (`src/orion/security/egress/approval_queue.py`) -- Host-side human gate for write operations, JSON persistence, configurable timeout
+- **Google OAuth Credentials** (`src/orion/security/egress/google_credentials.py`) -- Scope validation, blocked scopes (Drive/Gmail/Calendar/etc.), container gets access token only (no refresh token)
+- **Antigravity Headless Integration** (`src/orion/security/egress/antigravity.py`) -- Playwright browser automation for Antigravity (VS Code fork), state machine lifecycle
+- **AEGIS Invariant 7** -- Network access control (check_network_access), hardcoded blocked Google services, non-HTTPS warnings, write method awareness
+- **Web UI Network Dashboard** (`orion-web/src/components/NetworkDashboard.tsx`) -- Domain whitelist tab, audit log tab, security layers visualization
+- **Docker Compose** (`docker/docker-compose.yml`) -- Dual-network isolation (orion-internal: no internet, orion-egress: proxy only)
+
+#### Phase 3: Graduated Services
+- **SandboxOrchestrator** (`src/orion/security/orchestrator.py`) -- 6-step governed boot (AEGIS -> Docker -> Egress -> Approval -> DNS -> Container), reverse-order teardown, health monitoring, hot config reload
+- **Google Services Toggle** -- Per-service AEGIS whitelist with 9 Google services (Drive, Gmail, Calendar, YouTube, Photos, Docs, Sheets, Slides, People), risk levels, toggle API
+- **LLM Web Search Routing** -- 5 hardcoded search API domains (auto-allowed), configurable research domains (GET-only)
+- **Graduated Access E2E** -- Toggle -> config update -> orchestrator reload -> proxy/DNS reload -> container access changes
+
+#### Web UI & Wiring
+- `handleReview` now calls `POST /promote` after AEGIS gate passes
+- New Session form on dashboard (wires `POST /api/ara/work`)
+- Notification bell with unread count badge (wires `GET /api/ara/notifications`)
 - Rich diff viewer: GitHub-PR-style file tree + unified diffs in consent gates
 - Reject button with inline feedback textarea, wired to learning pipeline
 - `cmd_review_diff` CLI command + `GET /sessions/{id}/diff` API endpoint
 
+#### Testing Infrastructure
+- 261 Phase 2 unit tests + 36 E2E integration tests
+- 87 Phase 3 unit tests + 14 E2E integration tests
+- 26 operational validation tests (real Docker, real network traffic)
+- 17 E2E live tests (real Ollama, real code generation, real workspace output)
+- CI/CD pipeline updated with secret scanning and E2E jobs
+- 17 starter roles and 85 seed skills for ARA role profiles
+
+### Changed
+- Egress proxy upstream timeout: 30s -> 120s (supports local LLM inference)
+- Egress proxy httpx client: added `trust_env=False` to prevent circular proxy loop
+- AEGIS version: v6.0.0 -> v7.0.0 (added Invariant 7: Network Access Control)
+- LLM providers now use BYOK (API keys) exclusively -- no OAuth for LLM access
+- OpenAI and Google Gemini auth changed from `AuthMethod.OAUTH` to `AuthMethod.API_KEY`
+- CI test scope expanded from `tests/unit/ tests/ara/` to `tests/` (all tests)
+
+### Removed
+- OpenAI OAuth flow (port 1455 callback server, Codex client ID)
+- OAuth fallback from `call_provider()` -- LLM providers are BYOK only
+- `_is_oauth_credential()` function
+- `oauth_capable`/`oauth_ready` from auth-status API
+
 ### Fixed
+- `docker/Dockerfile.egress` -- Added missing builder stage for multi-stage build
+- Egress proxy circular loop when `HTTP_PROXY` env var is set
+- Egress proxy timeout too short for local LLM inference
 - Approve button only ran AEGIS gate but never promoted sandbox to workspace
 - Diff viewer returning 0 files for sessions already promoted
 - Session ID resolution for pending consent gate cards

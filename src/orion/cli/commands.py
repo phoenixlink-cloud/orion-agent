@@ -215,6 +215,13 @@ def handle_command(
     elif command == "/auth-switch":
         return _handle_ara_auth_switch(parts, console)
 
+    # =====================================================================
+    # Sandbox Commands (Phase 3 -- Docker Governed Sandbox)
+    # =====================================================================
+
+    elif command == "/sandbox":
+        return _handle_sandbox(parts, console)
+
     else:
         console.print_error(f"Unknown command: {command}")
         return {}
@@ -1315,6 +1322,102 @@ def _handle_ara_skill(parts, console):
 
     except Exception as e:
         console.print_error(f"ARA skill failed: {e}")
+    return {}
+
+
+def _handle_sandbox(parts, console):
+    """Handle /sandbox [start|stop|status|restart|reload] -- Governed Docker sandbox."""
+    sub = parts[1].lower() if len(parts) > 1 else "status"
+
+    try:
+        from orion.security.sandbox_lifecycle import get_sandbox_lifecycle
+
+        lifecycle = get_sandbox_lifecycle()
+
+        if sub == "start":
+            if lifecycle.is_available:
+                console.print_info("Sandbox is already running")
+                return {}
+            if lifecycle.is_booting:
+                console.print_info("Sandbox is currently booting...")
+                return {}
+            console.print_info("Starting governed sandbox (6-step boot)...")
+            ok = lifecycle.manual_start()
+            if ok:
+                console.print_success(
+                    f"Sandbox started successfully ({lifecycle.get_status().get('boot_time_seconds', '?')}s)"
+                )
+            else:
+                status = lifecycle.get_status()
+                console.print_error(f"Sandbox boot failed: {status.get('error', 'unknown')}")
+
+        elif sub == "stop":
+            if not lifecycle.is_available and not lifecycle.is_booting:
+                console.print_info("Sandbox is not running")
+                return {}
+            lifecycle.manual_stop()
+            console.print_success("Sandbox stopped (manual override -- will not auto-restart)")
+
+        elif sub == "restart":
+            console.print_info("Restarting sandbox...")
+            lifecycle.shutdown()
+            ok = lifecycle.manual_start()
+            if ok:
+                console.print_success("Sandbox restarted successfully")
+            else:
+                status = lifecycle.get_status()
+                console.print_error(f"Sandbox restart failed: {status.get('error', 'unknown')}")
+
+        elif sub == "status":
+            status = lifecycle.get_status()
+            console.print_info(f"Phase: {status.get('phase', 'unknown')}")
+            console.print_info(f"Available: {status.get('available', False)}")
+            if status.get("boot_time_seconds"):
+                console.print_info(f"Boot time: {status['boot_time_seconds']}s")
+            if status.get("manually_stopped"):
+                console.print_info("Manually stopped: yes (use /sandbox start to re-enable)")
+            console.print_info(
+                f"Egress proxy: {'running' if status.get('egress_proxy') else 'stopped'}"
+            )
+            console.print_info(
+                f"DNS filter: {'running' if status.get('dns_filter') else 'stopped'}"
+            )
+            console.print_info(
+                f"Approval queue: {'running' if status.get('approval_queue') else 'stopped'}"
+            )
+            if status.get("container_healthy") is not None:
+                console.print_info(
+                    f"Container: {'healthy' if status.get('container_healthy') else 'running' if status.get('container_running') else 'stopped'}"
+                )
+            if status.get("uptime_s", 0) > 0:
+                console.print_info(f"Uptime: {status['uptime_s']:.0f}s")
+            if status.get("error"):
+                console.print_error(f"Error: {status['error']}")
+
+        elif sub == "reload":
+            if not lifecycle.is_available:
+                console.print_info("Sandbox is not running")
+                return {}
+            # Delegate reload to the orchestrator via lifecycle
+            orch = lifecycle._orchestrator
+            if orch:
+                orch.reload_config()
+                console.print_success("Configuration reloaded")
+            else:
+                console.print_error("Orchestrator not available")
+
+        else:
+            console.print_info(
+                "Usage: /sandbox [start|stop|status|restart|reload]\n"
+                "  start   -- Launch governed Docker sandbox (6-step boot)\n"
+                "  stop    -- Graceful reverse shutdown (prevents auto-restart)\n"
+                "  status  -- Show current sandbox state\n"
+                "  restart -- Stop + start\n"
+                "  reload  -- Hot-reload egress/DNS config"
+            )
+
+    except Exception as e:
+        console.print_error(f"Sandbox command failed: {e}")
     return {}
 
 

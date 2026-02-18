@@ -316,6 +316,86 @@ All error responses follow this format:
 | 429 | Rate limited |
 | 500 | Internal server error |
 
+## ARA Skills Endpoints
+
+### GET /api/ara/skills
+
+List all available skills with metadata.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "skills": [
+      {
+        "name": "code-review",
+        "description": "Review code for quality...",
+        "version": "1.0.0",
+        "source": "bundled",
+        "trust_level": "verified",
+        "aegis_approved": true,
+        "tags": ["quality", "review"]
+      }
+    ]
+  }
+}
+```
+
+### GET /api/ara/skills/{skill_name}
+
+Get full skill detail including SKILL.md instructions.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "name": "code-review",
+    "description": "Review code for quality...",
+    "version": "1.0.0",
+    "source": "bundled",
+    "trust_level": "verified",
+    "aegis_approved": true,
+    "tags": ["quality", "review"],
+    "instructions": "## Code Review Procedure\n\n1. Read the diff..."
+  }
+}
+```
+
+### PUT /api/ara/skills/{skill_name}
+
+Update a skill's description, instructions, or tags. Bundled seed skills cannot be edited.
+
+**Request body:**
+```json
+{
+  "description": "Updated description",
+  "instructions": "## Updated Instructions\n\nNew content...",
+  "tags": ["quality", "review", "new-tag"]
+}
+```
+
+All fields are optional. Only provided fields are updated.
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "message": "Skill 'code-review' updated (changed: description, instructions)"
+}
+```
+
+**Response (bundled skill):**
+```json
+{
+  "success": false,
+  "message": "Skill 'code-review' is a bundled seed skill and cannot be edited."
+}
+```
+
+---
+
 ## Rate Limiting
 
 Default: 60 requests per minute per IP.

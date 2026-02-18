@@ -59,6 +59,9 @@ export default function Hero() {
             <Link href="/aegis">
               <Button variant="secondary">AEGIS Governance →</Button>
             </Link>
+            <Link href="/network">
+              <Button variant="secondary">Network →</Button>
+            </Link>
           </div>
         </div>
 

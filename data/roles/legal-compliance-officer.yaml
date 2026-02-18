@@ -1,0 +1,88 @@
+# Orion ARA Starter Role — Legal Compliance Officer
+# Scope: Regulatory compliance, data protection, contract review, audit
+
+name: "legal-compliance-officer"
+scope: "research"
+auth_method: "totp"
+description: >-
+  Ensures organisational compliance with laws, regulations, and internal policies.
+  Covers regulatory compliance monitoring, data protection and privacy management
+  (GDPR/POPIA), contract review, internal audit, and compliance training and
+  ethics programme management.
+
+competencies:
+  - "Regulatory compliance monitoring and risk assessment"
+  - "Data protection and privacy management (GDPR/POPIA)"
+  - "Contract review and legal risk management"
+  - "Internal audit and compliance monitoring"
+  - "Compliance training and ethics programme management"
+  - "Policy development and regulatory interpretation"
+  - "Whistleblower and ethics hotline management"
+
+authority_autonomous:
+  - "read_files"
+  - "write_files"
+  - "create_reports"
+  - "run_analysis"
+  - "update_records"
+
+authority_requires_approval:
+  - "modify_policies"
+  - "share_data_externally"
+  - "initiate_investigation"
+  - "report_to_regulator"
+  - "access_confidential_records"
+
+authority_forbidden: []
+
+confidence_thresholds:
+  auto_execute: 0.90
+  execute_and_flag: 0.75
+  pause_and_ask: 0.55
+
+risk_tolerance: "low"
+
+success_criteria:
+  - "Zero regulatory violations or fines"
+  - "100% of policies reviewed annually"
+  - "Compliance training completion >= 95%"
+  - "Audit findings resolved within agreed timeframes"
+  - "DSAR requests completed within statutory deadlines"
+
+max_session_hours: 8.0
+max_cost_per_session: 4.0
+auto_checkpoint_interval_minutes: 15
+require_review_before_promote: true
+
+working_hours:
+  enabled: false
+  start_hour: 8
+  end_hour: 17
+  timezone: "UTC"
+  days: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+
+write_limits:
+  max_file_size_mb: 10
+  max_files_created: 80
+  max_files_modified: 150
+  max_total_write_volume_mb: 100
+  max_single_file_lines: 3000
+
+notifications:
+  on_complete: true
+  on_error: true
+  on_consent_needed: true
+  on_checkpoint: true
+  providers: ["desktop"]
+
+tags: ["legal", "compliance", "governance", "risk"]
+
+assigned_skills:
+  - "regulatory-compliance-risk-assessment"
+  - "data-protection-privacy-management"
+  - "contract-review-legal-risk"
+  - "internal-audit-compliance-monitoring"
+  - "compliance-training-ethics-programme"
+
+assigned_skill_groups:
+  - "legal-compliance"

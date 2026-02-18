@@ -547,6 +547,12 @@ class SkillCreateRequest(BaseModel):
     tags: list[str] = []
 
 
+class SkillUpdateRequest(BaseModel):
+    description: str | None = None
+    instructions: str | None = None
+    tags: list[str] | None = None
+
+
 class SkillAssignRequest(BaseModel):
     skill_name: str
     role_name: str
@@ -606,6 +612,27 @@ async def create_skill(req: SkillCreateRequest):
         if result.success:
             return {"success": True, "message": result.message, "data": result.data}
         raise HTTPException(status_code=409, detail=result.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/skills/{skill_name}")
+async def update_skill(skill_name: str, req: SkillUpdateRequest):
+    """Update a skill's description, instructions, or tags."""
+    try:
+        from orion.ara.cli_commands import cmd_skill_update
+
+        result = cmd_skill_update(
+            skill_name,
+            description=req.description,
+            instructions=req.instructions,
+            tags=req.tags,
+        )
+        if result.success:
+            return {"success": True, "message": result.message, "data": result.data}
+        raise HTTPException(status_code=400, detail=result.message)
     except HTTPException:
         raise
     except Exception as e:

@@ -1,0 +1,13 @@
+{
+  "_comment": "Bundled OAuth defaults for platform integrations. LLM providers use API keys only (BYOK).",
+  "google": {
+    "client_id": "",
+    "setup_url": "https://console.cloud.google.com/apis/credentials",
+    "setup_instructions": "1. Go to Google Cloud Console → APIs & Services → Credentials\n2. Create OAuth 2.0 Client ID (type: Desktop app)\n3. Enable the Generative Language API\n4. Copy the client_id and paste it here or in ~/.orion/oauth_clients.json"
+  },
+  "microsoft": {
+    "client_id": "",
+    "setup_url": "https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps",
+    "setup_instructions": "1. Go to Azure Portal → App Registrations → New Registration\n2. Set redirect URI to: http://localhost:8001/api/oauth/callback (Web type)\n3. Under API permissions, add Azure OpenAI access\n4. Copy the Application (client) ID and paste it here or in ~/.orion/oauth_clients.json"
+  }
+}

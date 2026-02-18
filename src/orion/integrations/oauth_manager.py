@@ -15,16 +15,17 @@
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-OAuth Manager for Orion -- handles one-click authentication for all providers.
+OAuth Manager for Orion -- handles platform integration authentication.
 
-Architecture (based on research of Open WebUI, NextAuth.js, ToolJet):
-- Tier 1: PKCE OAuth (GitHub, Google, Microsoft, GitLab, Linear, Atlassian)
+All LLM providers use BYOK (API keys) -- no OAuth for LLM access.
+OAuth is used only for non-LLM platform integrations:
+- Tier 1: PKCE OAuth (Google Workspace, Microsoft, GitLab, Linear, Atlassian)
   -> User clicks "Connect" -> browser opens -> sign in -> done
-  -> GitHub also supports Device Flow (best for desktop/CLI apps)
 - Tier 2: Guided token setup (Slack, Discord, Notion, Telegram)
   -> Step-by-step wizard in UI -> user creates token -> pastes it
-- Tier 3: API key (OpenAI, Anthropic, etc.)
-  -> Standard key input
+
+Phase 2 will add Google Account LLM access via Docker/Antigravity
+as a separate, governed pathway (see src/orion/security/egress/).
 """
 
 import base64
@@ -47,8 +48,8 @@ SETTINGS_DIR = Path.home() / ".orion"
 # ---------------------------------------------------------------------------
 
 PROVIDERS: dict[str, dict[str, Any]] = {
-    # Only Google and Microsoft need OAuth -- all other platforms now use
-    # CLI tools (gh, glab) or bot tokens (Slack, Discord, Notion, etc.)
+    # NOTE: LLM providers (OpenAI, Anthropic, Google Gemini, etc.) use API keys
+    # only (BYOK). They are NOT listed here. This dict is for platform integrations.
     "google": {
         "name": "Google",
         "description": "Gemini AI, Google Workspace, Drive, YouTube",
@@ -131,18 +132,43 @@ def _save_client_configs(configs: dict[str, Any]):
     path.write_text(json.dumps(configs, indent=2))
 
 
+def _load_bundled_defaults() -> dict[str, Any]:
+    """Load bundled OAuth defaults shipped with Orion (data/oauth_defaults.json)."""
+    # Look relative to this file: src/orion/integrations/ -> ../../.. -> data/
+    bundled = Path(__file__).resolve().parent.parent.parent.parent / "data" / "oauth_defaults.json"
+    if bundled.exists():
+        try:
+            return json.loads(bundled.read_text())
+        except Exception:
+            return {}
+    return {}
+
+
 def get_client_id(provider: str) -> str | None:
-    """Get client_id for a provider from config or env."""
+    """Get client_id for a provider: env → user config → bundled defaults."""
     import os
 
-    # Check environment first
+    # 1. Environment variable
     env_key = f"ORION_{provider.upper()}_CLIENT_ID"
     env_val = os.environ.get(env_key)
     if env_val:
         return env_val
-    # Check stored config
+    # 2. User config (~/.orion/oauth_clients.json)
     configs = _load_client_configs()
-    return configs.get(provider, {}).get("client_id")
+    user_id = configs.get(provider, {}).get("client_id")
+    if user_id:
+        return user_id
+    # 3. Bundled defaults (data/oauth_defaults.json — shipped with Orion)
+    defaults = _load_bundled_defaults()
+    bundled_id = defaults.get(provider, {}).get("client_id")
+    if bundled_id:
+        return bundled_id
+    # 4. Public client_id from PROVIDERS config
+    provider_def = PROVIDERS.get(provider, {})
+    public_id = provider_def.get("public_client_id")
+    if public_id:
+        return public_id
+    return None
 
 
 def get_client_secret(provider: str) -> str | None:

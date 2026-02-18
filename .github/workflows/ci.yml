@@ -2,7 +2,7 @@ name: Orion CI/CD
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, "feature/*"]
     tags: ["v*"]
   pull_request:
     branches: [master, main]
@@ -95,14 +95,23 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest tests/unit/ tests/ara/ \
+          pytest tests/ \
             --cov=src/orion \
             --cov-report=xml \
             --cov-report=term-missing \
+            --junitxml=test-results.xml \
             -m "not slow and not integration and not e2e and not docker" \
             -k "not test_creates_session and not test_session_happy_path" \
             --tb=short \
             -q
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: test-results.xml
+          retention-days: 30
 
       - name: Upload coverage
         if: matrix.python-version == '3.11'
@@ -140,7 +149,87 @@ jobs:
           path: bandit-report.json
 
   # ---------------------------------------------------------------------------
-  # 5. FRONTEND — Build Next.js web UI
+  # 5. SECRET SCAN — Fail if real credentials are committed
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for leaked secrets
+        run: |
+          echo "=== Scanning for leaked secrets ==="
+          FOUND=0
+
+          # OpenAI keys (sk- prefix, 20+ chars)
+          if grep -rn 'sk-[a-zA-Z0-9]\{20,\}' src/ data/ docker/ orion-web/src/ \
+               --include='*.py' --include='*.ts' --include='*.tsx' \
+               --include='*.json' --include='*.yaml' --include='*.yml' \
+               --include='*.env*' --include='*.sh' 2>/dev/null | grep -v 'test' | grep -v 'example' | grep -v 'placeholder'; then
+            echo "::error::Potential OpenAI API key found!"
+            FOUND=1
+          fi
+
+          # AWS keys
+          if grep -rn 'AKIA[A-Z0-9]\{16\}' src/ data/ docker/ 2>/dev/null | grep -v 'test' | grep -v 'EXAMPLE'; then
+            echo "::error::Potential AWS access key found!"
+            FOUND=1
+          fi
+
+          # Google API keys
+          if grep -rn 'AIza[a-zA-Z0-9]\{30,\}' src/ data/ docker/ orion-web/src/ 2>/dev/null | grep -v 'test'; then
+            echo "::error::Potential Google API key found!"
+            FOUND=1
+          fi
+
+          # GitHub tokens
+          if grep -rn 'ghp_[a-zA-Z0-9]\{20,\}' src/ data/ docker/ 2>/dev/null | grep -v 'test'; then
+            echo "::error::Potential GitHub token found!"
+            FOUND=1
+          fi
+
+          if [ $FOUND -eq 1 ]; then
+            echo "::error::Secret scan FAILED — review matches above"
+            exit 1
+          fi
+          echo "✓ No leaked secrets found"
+
+  # ---------------------------------------------------------------------------
+  # 6. E2E — Phase 2 integration tests
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: E2E Integration Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,web,security]"
+
+      - name: Run Phase 2 E2E tests
+        run: |
+          pytest tests/test_phase2_e2e.py \
+            -v --tb=short \
+            --junitxml=e2e-results.xml
+
+      - name: Upload E2E results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: e2e-results.xml
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # 7. FRONTEND — Build Next.js web UI
   # ---------------------------------------------------------------------------
   frontend:
     name: Frontend Build
@@ -176,12 +265,12 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 6. DOCKER — Build and push container image
+  # 8. DOCKER — Build and push container image
   # ---------------------------------------------------------------------------
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [test, security, frontend]
+    needs: [test, security, secret-scan, e2e, frontend]
     if: github.event_name == 'push'
     permissions:
       contents: read
@@ -229,7 +318,7 @@ jobs:
           docker run --rm orion-agent:test --version
 
   # ---------------------------------------------------------------------------
-  # 7. RELEASE — Create GitHub release on version tags
+  # 9. RELEASE — Create GitHub release on version tags
   # ---------------------------------------------------------------------------
   release:
     name: Release
