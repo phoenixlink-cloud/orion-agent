@@ -5,6 +5,34 @@ All notable changes to Orion Agent will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Phase 2: Digital Agent Architecture** (8 modules, 36 E2E tests, 370+ unit tests)
+  - Egress proxy service with domain whitelist, content inspection (12 patterns), rate limiting
+  - DNS filter for container network isolation (NXDOMAIN for blocked domains)
+  - Approval queue for human-in-the-loop outbound write control
+  - Google OAuth credential management (encrypted, scope-enforced, blocked-scope rejection)
+  - Antigravity headless integration for subscription-based LLM access
+  - AEGIS Invariant 7: Network Access Control (hardcoded blocked Google services)
+  - Web UI Network Dashboard (Whitelist, Approvals, Audit Log tabs)
+  - Docker dual-network architecture (orion-internal + orion-egress)
+- 17 starter roles and 85 seed skills for ARA role profiles
+- CI/CD: secret scan job, E2E integration test job, pre-push validation script
+
+### Changed
+- LLM providers now use BYOK (API keys) exclusively — no OAuth for LLM access
+- OpenAI and Google Gemini auth changed from `AuthMethod.OAUTH` to `AuthMethod.API_KEY`
+- AEGIS version bumped to v7.0.0 (7 invariants)
+- CI test scope expanded from `tests/unit/ tests/ara/` to `tests/` (all tests)
+
+### Removed
+- OpenAI OAuth callback server (port 1455, Codex client ID `app_EMoamEEZ73f0CkXaXp7hrann`)
+- OpenAI from `oauth_manager.py` PROVIDERS dict
+- `_is_oauth_credential()` function from `providers.py`
+- OAuth token fallback from `_get_key()` in `providers.py`
+- `oauth_capable` / `oauth_ready` from models auth-status API endpoint
+
 ## [10.0.0] -- 2026-02-16
 
 ### Added

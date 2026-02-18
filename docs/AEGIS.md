@@ -22,9 +22,9 @@ AEGIS is designed as a **pure-function security gate**:
 - **No bypass** -- There is no "admin mode" or override
 - **Defense in depth** -- Multiple layers protect against different attack vectors
 
-## The Six Invariants
+## The Seven Invariants
 
-AEGIS enforces six fundamental security rules:
+AEGIS enforces seven fundamental security rules (v7.0.0):
 
 ### Invariant 1: Workspace Confinement
 
@@ -107,6 +107,33 @@ chmod 777          # Unsafe permissions
 | Read (GET) | Public APIs | Private/auth |
 | Write (POST/PUT/DELETE) | Never | Always |
 
+### Invariant 7: Network Access Control (Phase 2)
+
+**Outbound network requests are classified against a hardcoded domain whitelist.**
+
+This invariant works in concert with the Docker egress proxy to provide defence in depth:
+
+| Rule | Behaviour |
+|------|-----------|
+| Blocked Google service | **DENY** -- Drive, Gmail, Calendar, YouTube, Photos, People, Docs, Sheets, Slides |
+| Allowed LLM domain | **ALLOW** -- generativelanguage.googleapis.com, api.openai.com, api.anthropic.com |
+| Non-HTTPS protocol | **WARNING** -- logged but not blocked |
+| Write method (POST/PUT/DELETE) | **WARNING** -- flagged for approval queue |
+
+**Additive whitelist model:** The default config allows only hardcoded LLM provider domains. Users can add domains via the host-side config file, but cannot remove the hardcoded set. The container cannot modify the config.
+
+**Seven security layers:**
+
+| Layer | Component | Enforcement |
+|-------|-----------|-------------|
+| L1 | Egress Proxy | Domain whitelist + rate limiting |
+| L2 | DNS Filter | NXDOMAIN for blocked domains |
+| L3 | Content Inspector | Credential pattern detection (12 patterns) |
+| L4 | Approval Queue | Human gate for write operations |
+| L5 | AEGIS Invariant 7 | Hardcoded blocked Google services |
+| L6 | Docker Networks | `orion-internal` (no internet) + `orion-egress` (proxy only) |
+| L7 | Google Credentials | Scope-enforced OAuth (blocked: Drive, Gmail, Calendar, YouTube) |
+
 ## How AEGIS Works
 
 ### Validation Flow
@@ -126,6 +153,7 @@ chmod 777          # Unsafe permissions
 │  5. Check for dangerous patterns    │
 │  6. Assess risk level               │
 │  7. Check external access rules     │
+│  8. Check network access control    │
 │                                     │
 │  Any failure -> REJECT              │
 │  All pass -> APPROVE (or ASK)       │
@@ -137,7 +165,7 @@ chmod 777          # Unsafe permissions
 │   PASS      │
 │   FAIL      │
 │   ASK       │
-└─────────────┘
+└──────────────┘
 ```
 
 ### Integration with Agents
@@ -214,14 +242,13 @@ AEGIS is tested against known attack vectors:
 
 ## Limitations
 
-AEGIS is not a complete security solution:
+AEGIS is not a complete security solution on its own:
 
-- **Not a sandbox** -- AEGIS validates but doesn't isolate
 - **Not antivirus** -- Doesn't detect malware in code
-- **Not access control** -- Doesn't manage user permissions
 - **Not encryption** -- Doesn't protect data at rest
+- **Not a replacement for OS permissions** -- Doesn't manage user accounts
 
-AEGIS is one layer in a defense-in-depth strategy.
+AEGIS is one layer in a defense-in-depth strategy. Phase 2 adds Docker-based network isolation as a complementary layer.
 
 ## FAQ
 
@@ -254,8 +281,11 @@ AEGIS provides strong governance but should be combined with:
 
 ### Source Files
 
-- `src/orion/core/governance/aegis.py` -- Main AEGIS implementation
-- `tests/unit/test_governance.py` -- AEGIS test suite (46 tests)
+- `src/orion/core/governance/aegis.py` -- Main AEGIS implementation (v7.0.0)
+- `src/orion/security/egress/` -- Phase 2 network security modules
+- `tests/unit/test_governance.py` -- AEGIS core test suite (46 tests)
+- `tests/test_aegis_network_access.py` -- Invariant 7 tests (30 tests)
+- `tests/test_phase2_e2e.py` -- Cross-component E2E tests (36 tests)
 
 ### Key Functions
 ```python

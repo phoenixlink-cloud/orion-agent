@@ -6,7 +6,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1348%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1609%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Status: Stable](https://img.shields.io/badge/status-10.0.0-brightgreen.svg)](#)
 
@@ -16,12 +16,13 @@
 [Skills](#-skills-system) |
 [Web UI](#-web-ui) |
 [AEGIS Governance](#-aegis-governance) |
+[Network Security](#-network-security) |
 [Documentation](docs/README.md) |
 [Contributing](CONTRIBUTING.md)
 
 </div>
 
-> **v10.0.0** -- Orion Agent is under active development. Core features are functional and tested (1,348 passing tests). The Autonomous Role Architecture (ARA) is complete with 37 CLI commands, 106+ API endpoints, Skills system, and a full React Web UI. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+> **v10.0.0** -- Orion Agent is under active development. Core features are functional and tested (1,609+ passing tests). Phase 2 adds Docker-based network security with an egress proxy, DNS filter, approval queue, and AEGIS Invariant 7. The Autonomous Role Architecture (ARA) is complete with 37 CLI commands, 106+ API endpoints, Skills system, and a full React Web UI. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
 
 ---
 
@@ -33,7 +34,8 @@ Orion is an **AI coding assistant** that goes beyond simple code generation. It 
 - **Autonomous Role Architecture (ARA)** -- Background task execution with configurable roles, AEGIS-gated promotion, and daemon management
 - **Multi-Agent Deliberation** -- Three specialized agents deliberate on every task
 - **Persistent Memory** -- Learns and remembers across sessions, projects, and time
-- **AEGIS Governance** -- Hardened security gate that prevents unsafe operations
+- **AEGIS Governance** -- Hardened security gate that prevents unsafe operations (7 invariants)
+- **Network Security** -- Egress proxy, DNS filter, content inspection, and approval queue in Docker sandbox
 - **Slim Persona System** -- Tiered prompt engineering (50–120 tokens) matched to intent complexity
 
 Unlike single-shot AI tools, Orion develops understanding of your codebase, your patterns, and your preferences over time.
@@ -134,15 +136,31 @@ Orion remembers -- not just within a conversation, but across your entire develo
 
 ### AEGIS Governance
 
-AEGIS (Autonomous Execution Governance and Integrity System) is Orion's security core:
+AEGIS (Autonomous Execution Governance and Integrity System) is Orion's security core (v7.0.0, 7 invariants):
 
-- **Workspace Confinement** -- Cannot operate outside your project directory
-- **Mode Enforcement** -- Graduated permissions (safe -> pro -> project)
-- **Action Validation** -- Every file operation is checked before execution
-- **External Access Control** -- Network operations require explicit approval
-- **Shell Injection Prevention** -- Blocks dangerous command patterns
+- **Invariant 1: Workspace Confinement** -- Cannot operate outside your project directory
+- **Invariant 2: Mode Enforcement** -- Graduated permissions (safe -> pro -> project)
+- **Invariant 3: Action Validation** -- Every file operation is checked before execution
+- **Invariant 4: Risk Validation** -- Risk scoring with configurable thresholds
+- **Invariant 5: Command Execution** -- Shell injection prevention, dangerous pattern blocking
+- **Invariant 6: External Access Control** -- Network operations require explicit approval
+- **Invariant 7: Network Access Control** -- Hardcoded domain whitelist, blocked Google services, protocol enforcement
 
 [Learn more about AEGIS ->](docs/AEGIS.md)
+
+### Network Security
+
+Phase 2 introduces Docker-based network isolation with defence in depth:
+
+| Layer | Component | Purpose |
+|-------|-----------|----------|
+| **L1** | Egress Proxy | Domain whitelist with hardcoded LLM endpoints, rate limiting |
+| **L2** | DNS Filter | NXDOMAIN for non-whitelisted domains |
+| **L3** | Content Inspector | 12 credential patterns blocked in outbound payloads |
+| **L4** | Approval Queue | Human-in-the-loop gate for write operations |
+| **L5** | AEGIS Invariant 7 | Hardcoded blocked Google services (Drive, Gmail, Calendar, YouTube) |
+| **L6** | Docker Isolation | Dual-network architecture (orion-internal + orion-egress) |
+| **L7** | Google Credentials | Scope-enforced OAuth with blocked-scope rejection |
 
 ### Continuous Learning
 
@@ -166,9 +184,10 @@ Orion learns from every interaction:
 | Multi-agent deliberation | 3 specialized agents (Builder, Reviewer, Governor) |
 | Persistent memory | 3 tiers (session, project, institutional) |
 | Learns from feedback | Evolves based on your approval/rejection patterns |
-| Governance/safety gate | AEGIS -- hardened security invariants |
+| Governance/safety gate | AEGIS v7.0.0 -- 7 hardened security invariants |
+| Network firewall | Egress proxy + DNS filter + content inspection in Docker sandbox |
 | Edit validation | Pre-write confidence scoring + auto-recovery |
-| LLM providers | 11 providers including local Ollama |
+| LLM providers | 11 providers including local Ollama (BYOK) |
 | Self-hosted | Runs entirely on your machine |
 | Open source | AGPL-3.0 |
 
