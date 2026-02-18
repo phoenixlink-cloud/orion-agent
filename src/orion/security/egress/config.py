@@ -64,6 +64,26 @@ HARDCODED_LLM_DOMAINS: frozenset[str] = frozenset(
 )
 
 # ---------------------------------------------------------------------------
+# Search API domains -- auto-allowed for LLM web search (Phase 3.3).
+# These are the search engine API endpoints that LLMs use internally.
+# They are always allowed (like LLM domains) because search is a core
+# capability.  Subsequent page fetches go through normal filtering.
+# ---------------------------------------------------------------------------
+SEARCH_API_DOMAINS: frozenset[str] = frozenset(
+    {
+        # Google Custom Search / Programmable Search Engine
+        "customsearch.googleapis.com",
+        "www.googleapis.com",
+        # Bing Search API
+        "api.bing.microsoft.com",
+        # Brave Search API
+        "api.search.brave.com",
+        # SerpAPI (popular search wrapper)
+        "serpapi.com",
+    }
+)
+
+# ---------------------------------------------------------------------------
 # Google services that can be individually whitelisted by users (Phase 3).
 # Default state: ALL BLOCKED (AEGIS Invariant 7).  Users toggle services
 # on the host side; the container cannot modify this list.
@@ -180,6 +200,12 @@ class EgressConfig:
     # This list lives on the HOST and cannot be modified by Orion.
     allowed_google_services: list[str] = field(default_factory=list)
 
+    # Research domains -- GET-only access for LLM web browsing (Phase 3.3).
+    # When an LLM performs a web search, it may need to fetch pages from
+    # these domains.  They are auto-allowed for GET requests only.
+    # POST/PUT/DELETE are blocked.  Users add these on the host side.
+    research_domains: list[str] = field(default_factory=list)
+
     def get_all_allowed_domains(self) -> list[DomainRule]:
         """Return all allowed domains: hardcoded LLM + user whitelist."""
         # Build hardcoded rules (always allowed, write permitted for LLM)
@@ -194,7 +220,34 @@ class EgressConfig:
             )
             for d in sorted(HARDCODED_LLM_DOMAINS)
         ]
-        return hardcoded_rules + list(self.whitelist)
+
+        # Search API domains (auto-allowed, read+write for search queries)
+        search_rules = [
+            DomainRule(
+                domain=d,
+                allow_write=True,  # Search APIs use POST for queries
+                protocols=["https"],
+                rate_limit_rpm=300,
+                added_by="system",
+                description="Search API endpoint (auto-allowed)",
+            )
+            for d in sorted(SEARCH_API_DOMAINS)
+        ]
+
+        # Research domains (GET-only for web browsing)
+        research_rules = [
+            DomainRule(
+                domain=d,
+                allow_write=False,  # GET-only -- no POST/PUT/DELETE
+                protocols=["https"],
+                rate_limit_rpm=60,
+                added_by="user",
+                description="Research domain (GET-only browsing)",
+            )
+            for d in self.research_domains
+        ]
+
+        return hardcoded_rules + search_rules + research_rules + list(self.whitelist)
 
     def is_domain_allowed(self, hostname: str) -> DomainRule | None:
         """Check if a hostname is allowed. Returns the matching rule or None."""
@@ -268,6 +321,7 @@ def save_config(config: EgressConfig, path: Path | str | None = None) -> None:
             for rule in config.whitelist
         ],
         "allowed_google_services": config.allowed_google_services,
+        "research_domains": config.research_domains,
     }
     config_path.write_text(
         yaml.dump(data, default_flow_style=False, sort_keys=False), encoding="utf-8"
@@ -307,6 +361,12 @@ def _parse_config(raw: dict) -> EgressConfig:
     # Validate entries against known services
     allowed_google = [s for s in allowed_google if isinstance(s, str) and s in GOOGLE_SERVICES]
 
+    # Parse research domains (Phase 3.3)
+    research = raw.get("research_domains", [])
+    if not isinstance(research, list):
+        research = []
+    research = [d for d in research if isinstance(d, str) and d.strip()]
+
     return EgressConfig(
         whitelist=whitelist,
         global_rate_limit_rpm=raw.get("global_rate_limit_rpm", 300),
@@ -318,4 +378,5 @@ def _parse_config(raw: dict) -> EgressConfig:
         audit_log_path=raw.get("audit_log_path", str(_ORION_HOME / "egress_audit.log")),
         enforce=raw.get("enforce", True),
         allowed_google_services=allowed_google,
+        research_domains=research,
     )

@@ -60,13 +60,17 @@ class TestEgressProxyIntegration:
 
     def test_hardcoded_domains_cannot_be_removed(self):
         """Even if user whitelist is empty, hardcoded domains remain."""
-        from orion.security.egress.config import HARDCODED_LLM_DOMAINS, EgressConfig
+        from orion.security.egress.config import (
+            HARDCODED_LLM_DOMAINS,
+            SEARCH_API_DOMAINS,
+            EgressConfig,
+        )
 
         config = EgressConfig(whitelist=[])
         all_rules = config.get_all_allowed_domains()
         system_domains = {r.domain for r in all_rules if r.added_by == "system"}
 
-        assert system_domains == set(HARDCODED_LLM_DOMAINS)
+        assert system_domains == set(HARDCODED_LLM_DOMAINS) | set(SEARCH_API_DOMAINS)
 
     def test_user_whitelist_additive(self):
         """User whitelist adds to (doesn't replace) hardcoded domains."""

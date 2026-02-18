@@ -251,6 +251,60 @@ async def toggle_google_service(domain: str, request: GoogleServiceToggleRequest
 
 
 # ---------------------------------------------------------------------------
+# Research Domains endpoints (Phase 3.3 — LLM web search routing)
+# ---------------------------------------------------------------------------
+
+
+class ResearchDomainRequest(BaseModel):
+    domain: str
+    description: str = ""
+
+
+@router.get("/research-domains")
+async def get_research_domains() -> dict:
+    """List research domains (GET-only browsing access for LLM search)."""
+    config = load_config()
+    return {
+        "domains": config.research_domains,
+        "count": len(config.research_domains),
+    }
+
+
+@router.post("/research-domains")
+async def add_research_domain(request: ResearchDomainRequest) -> dict:
+    """Add a research domain (GET-only access for web browsing)."""
+    domain = request.domain.strip().lower()
+    if not domain:
+        raise HTTPException(status_code=400, detail="Domain cannot be empty")
+
+    config = load_config()
+    if domain in config.research_domains:
+        raise HTTPException(status_code=409, detail=f"'{domain}' already in research domains")
+
+    config.research_domains.append(domain)
+    save_config(config)
+
+    logger.info("Added research domain: %s", domain)
+    return {"status": "added", "domain": domain}
+
+
+@router.delete("/research-domains/{domain}")
+async def remove_research_domain(domain: str) -> dict:
+    """Remove a research domain."""
+    config = load_config()
+    domain_lower = domain.lower()
+
+    if domain_lower not in [d.lower() for d in config.research_domains]:
+        raise HTTPException(status_code=404, detail=f"'{domain}' not in research domains")
+
+    config.research_domains = [d for d in config.research_domains if d.lower() != domain_lower]
+    save_config(config)
+
+    logger.info("Removed research domain: %s", domain)
+    return {"status": "removed", "domain": domain}
+
+
+# ---------------------------------------------------------------------------
 # Sandbox Orchestrator endpoints (Phase 3)
 # ---------------------------------------------------------------------------
 
