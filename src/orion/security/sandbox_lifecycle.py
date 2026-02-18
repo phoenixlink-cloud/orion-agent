@@ -334,7 +334,9 @@ class SandboxLifecycle:
                 timeout=10,
             )
             if result.returncode != 0:
-                logger.info("Docker daemon not running (docker info returned %d)", result.returncode)
+                logger.info(
+                    "Docker daemon not running (docker info returned %d)", result.returncode
+                )
                 return False
             return True
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:

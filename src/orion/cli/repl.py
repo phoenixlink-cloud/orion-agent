@@ -407,9 +407,7 @@ def start_repl():
         from orion.security.sandbox_lifecycle import get_sandbox_lifecycle
 
         sandbox_lifecycle = get_sandbox_lifecycle()
-        sandbox_lifecycle.set_status_callback(
-            lambda msg: console.print_info(msg)
-        )
+        sandbox_lifecycle.set_status_callback(lambda msg: console.print_info(msg))
         console.print_info("Initializing governed environment...")
         sandbox_lifecycle.boot(background=True)
     except Exception:
