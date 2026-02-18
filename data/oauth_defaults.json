@@ -1,0 +1,18 @@
+{
+  "_comment": "Bundled OAuth client_ids for one-click sign-in. PKCE client_ids are NOT secrets — they are safe to ship in code. The project maintainer registers OAuth apps once at each provider's developer console, then all Orion users get seamless sign-in.",
+  "openai": {
+    "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+    "setup_url": "",
+    "setup_instructions": "No setup needed — uses OpenAI's public Codex client. Just click Sign in."
+  },
+  "google": {
+    "client_id": "",
+    "setup_url": "https://console.cloud.google.com/apis/credentials",
+    "setup_instructions": "1. Go to Google Cloud Console → APIs & Services → Credentials\n2. Create OAuth 2.0 Client ID (type: Desktop app)\n3. Enable the Generative Language API\n4. Copy the client_id and paste it here or in ~/.orion/oauth_clients.json"
+  },
+  "microsoft": {
+    "client_id": "",
+    "setup_url": "https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps",
+    "setup_instructions": "1. Go to Azure Portal → App Registrations → New Registration\n2. Set redirect URI to: http://localhost:8001/api/oauth/callback (Web type)\n3. Under API permissions, add Azure OpenAI access\n4. Copy the Application (client) ID and paste it here or in ~/.orion/oauth_clients.json"
+  }
+}

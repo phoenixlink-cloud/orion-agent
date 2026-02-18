@@ -22,9 +22,14 @@ import json
 import logging
 import os
 import secrets
+import http.server
+import socketserver
 import string
+import threading
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, parse_qs
+
+log = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
@@ -177,6 +182,20 @@ async def get_key_store_status():
 # =============================================================================
 
 OAUTH_PLATFORMS = {
+    "openai": {
+        "name": "OpenAI",
+        "description": "GPT-4o, o3, o4-mini — sign in with your OpenAI account",
+        "scopes": ["openid", "profile", "email", "offline_access"],
+        "free_tier": "ChatGPT Plus/Pro subscription",
+        "auth_url": "https://auth.openai.com/oauth/authorize",
+        "token_url": "https://auth.openai.com/oauth/token",
+        "revoke_url": None,
+        "supports_pkce": True,
+        "extra_params": {
+            "id_token_add_organizations": "true",
+            "codex_cli_simplified_flow": "true",
+        },
+    },
     "google": {
         "name": "Google",
         "description": "Access Gemini AI, Google Workspace, YouTube",
@@ -274,6 +293,143 @@ OAUTH_PLATFORMS = {
 # In-memory PKCE state storage (short-lived, per-session)
 _oauth_pending: dict[str, dict[str, str]] = {}
 
+# Port that OpenAI's public Codex client_id accepts for redirect_uri.
+# Port 1455 is the Codex CLI default. Our backend port (8001) gets rejected.
+_OPENAI_CALLBACK_PORT = 1455
+
+
+def _start_openai_callback_server(
+    pending_state: dict[str, dict[str, str]],
+    port: int = _OPENAI_CALLBACK_PORT,
+):
+    """
+    Start a temporary HTTP server on port 1455 for OpenAI OAuth callbacks.
+
+    OpenAI's public Codex client_id only accepts redirect_uri on port 1455,
+    not on our backend port (8001). This server handles the entire callback:
+    receives the code, exchanges it for tokens, stores them, returns success HTML.
+    Shuts down after handling one request.
+    """
+
+    class CallbackHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            parsed = urlparse(self.path)
+            if parsed.path != "/auth/callback":
+                self.send_response(404)
+                self.end_headers()
+                return
+
+            qs = parse_qs(parsed.query)
+            code = qs.get("code", [None])[0]
+            state_val = qs.get("state", [None])[0]
+            error = qs.get("error", [None])[0]
+
+            if error:
+                self._send_html(400, f"<h2>OAuth Error: {error}</h2>")
+                return
+
+            if not code or not state_val:
+                self._send_html(400, "<h2>Missing code or state</h2>")
+                return
+
+            # Look up pending state
+            pending = pending_state.pop(state_val, None)
+            if not pending:
+                self._send_html(400, "<h2>Invalid or expired state</h2>")
+                return
+
+            provider = pending["provider"]
+            code_verifier = pending["code_verifier"]
+            redirect_uri = pending["redirect_uri"]
+
+            # Exchange code for tokens
+            try:
+                import httpx
+
+                token_data = {
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "client_id": pending["client_id"],
+                    "code_verifier": code_verifier,
+                }
+                with httpx.Client(timeout=15.0) as client:
+                    resp = client.post(
+                        "https://auth.openai.com/oauth/token",
+                        data=token_data,
+                    )
+                    if resp.status_code != 200:
+                        log.error("Token exchange failed: %d %s", resp.status_code, resp.text[:300])
+                        self._send_html(400, f"<h2>Token exchange failed ({resp.status_code})</h2>")
+                        return
+                    tokens = resp.json()
+            except Exception as e:
+                log.error("Token exchange error: %s", e)
+                self._send_html(500, f"<h2>Token exchange error</h2><p>{e}</p>")
+                return
+
+            # Store tokens
+            access_token = tokens.get("access_token")
+            refresh_token = tokens.get("refresh_token")
+            expires_in = tokens.get("expires_in", 3600)
+
+            try:
+                oauth_state = _load_oauth_state()
+                oauth_state[provider] = {
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "token_type": tokens.get("token_type", "Bearer"),
+                    "expires_at": time.time() + expires_in if expires_in else 0,
+                    "scope": tokens.get("scope", ""),
+                }
+                _save_oauth_state(oauth_state)
+
+                store = _get_secure_store()
+                if store and access_token:
+                    store.set_key(f"oauth_{provider}_access_token", access_token)
+                    if refresh_token:
+                        store.set_key(f"oauth_{provider}_refresh_token", refresh_token)
+            except Exception as e:
+                log.error("Token storage error: %s", e)
+
+            # Return success HTML that signals the parent window
+            html = (
+                "<html><head><title>Orion -- OAuth Success</title></head>"
+                '<body style="font-family:system-ui;text-align:center;padding:40px;">'
+                '<h2 style="color:#22c55e;">&#10003; OpenAI Connected</h2>'
+                "<p>You can close this window.</p>"
+                "<script>"
+                "if(window.opener){"
+                f"window.opener.postMessage({{type:'oauth_success',provider:'{provider}'}},'*');"
+                "}"
+                "setTimeout(function(){window.close()},2000);"
+                "</script></body></html>"
+            )
+            self._send_html(200, html)
+
+        def _send_html(self, status, body):
+            self.send_response(status)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(body.encode("utf-8"))
+
+        def log_message(self, fmt, *args):
+            pass
+
+    def _run():
+        try:
+            socketserver.TCPServer.allow_reuse_address = True
+            with socketserver.TCPServer(("", port), CallbackHandler) as httpd:
+                log.info("OpenAI OAuth callback server listening on port %d", port)
+                httpd.handle_request()
+        except OSError as e:
+            log.error("Cannot start OAuth callback server on port %d: %s", port, e)
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    time.sleep(0.15)
+    return port
+
 
 def _generate_pkce_pair() -> tuple:
     """Generate PKCE code_verifier + code_challenge (S256)."""
@@ -358,6 +514,83 @@ async def configure_oauth(request: OAuthConfigureRequest):
         )
 
 
+@router.get("/api/oauth/setup-info/{provider}")
+async def get_oauth_setup_info(provider: str):
+    """
+    Get setup instructions for registering an OAuth app with a provider.
+
+    Returns whether the provider is already configured, the setup URL,
+    step-by-step instructions, and the required redirect URI.
+    """
+    if provider not in OAUTH_PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {provider}")
+
+    # Check if already configured
+    from orion.integrations.oauth_manager import get_client_id
+
+    client_id = get_client_id(provider)
+    is_configured = bool(client_id)
+
+    # Load setup instructions from bundled defaults
+    from orion.integrations.oauth_manager import _load_bundled_defaults
+
+    defaults = _load_bundled_defaults()
+    provider_defaults = defaults.get(provider, {})
+
+    platform = OAUTH_PLATFORMS[provider]
+
+    return {
+        "provider": provider,
+        "name": platform["name"],
+        "configured": is_configured,
+        "redirect_uri": "http://localhost:8001/api/oauth/callback",
+        "setup_url": provider_defaults.get("setup_url", ""),
+        "setup_instructions": provider_defaults.get("setup_instructions", ""),
+        "supports_pkce": platform.get("supports_pkce", False),
+        "needs_secret": not platform.get("supports_pkce", False),
+    }
+
+
+@router.post("/api/oauth/quick-setup")
+async def oauth_quick_setup(request: OAuthConfigureRequest):
+    """
+    One-time OAuth app registration — saves client_id to config file.
+
+    This is the fast path: saves to ~/.orion/oauth_clients.json so the
+    sign-in flow works immediately. No SecureStore required.
+    """
+    if request.provider not in OAUTH_PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"Unknown OAuth provider: {request.provider}")
+
+    if not request.client_id or len(request.client_id) < 5:
+        raise HTTPException(status_code=400, detail="client_id is required (minimum 5 characters)")
+
+    from orion.integrations.oauth_manager import _load_client_configs, _save_client_configs
+
+    configs = _load_client_configs()
+    configs[request.provider] = {"client_id": request.client_id}
+    if request.client_secret:
+        configs[request.provider]["client_secret"] = request.client_secret
+    _save_client_configs(configs)
+
+    # Also save to SecureStore if available (belt and suspenders)
+    store = _get_secure_store()
+    if store:
+        try:
+            store.set_key(f"oauth_{request.provider}_client_id", request.client_id)
+            if request.client_secret:
+                store.set_key(f"oauth_{request.provider}_client_secret", request.client_secret)
+        except Exception:
+            pass  # Config file save is sufficient
+
+    return {
+        "status": "success",
+        "provider": request.provider,
+        "message": f"OAuth app registered for {OAUTH_PLATFORMS[request.provider]['name']}. "
+        "You can now use Sign in.",
+    }
+
+
 @router.post("/api/oauth/login")
 async def oauth_login(request: OAuthLoginRequest):
     """
@@ -372,7 +605,7 @@ async def oauth_login(request: OAuthLoginRequest):
     platform = OAUTH_PLATFORMS[request.provider]
     store = _get_secure_store()
 
-    # Retrieve client_id from secure store or legacy
+    # Retrieve client_id: SecureStore → legacy → oauth_manager (config file + env + bundled)
     client_id = None
     if store:
         client_id = store.get_key(f"oauth_{request.provider}_client_id")
@@ -385,24 +618,45 @@ async def oauth_login(request: OAuthLoginRequest):
             except Exception:
                 pass
     if not client_id:
+        try:
+            from orion.integrations.oauth_manager import get_client_id
+
+            client_id = get_client_id(request.provider)
+        except Exception:
+            pass
+    if not client_id:
         raise HTTPException(
             status_code=400,
-            detail="OAuth not configured. Set client_id first via /api/oauth/configure.",
+            detail=f"OAuth app not registered for {request.provider}. "
+            "One-time setup required: register an OAuth app and save the client_id.",
         )
 
     # Generate PKCE pair and state token
     code_verifier, code_challenge = _generate_pkce_pair()
     state_token = secrets.token_urlsafe(32)
 
+    # Use provided redirect_uri or derive from provider requirements.
+    # OpenAI's public Codex client_id only accepts redirect_uri on port 1455
+    # (confirmed: port 1455 works, port 8001 gets unknown_error).
+    if request.redirect_uri:
+        redirect_uri = request.redirect_uri
+    elif request.provider == "openai":
+        redirect_uri = f"http://localhost:{_OPENAI_CALLBACK_PORT}/auth/callback"
+    else:
+        redirect_uri = "http://localhost:8001/api/oauth/callback"
+
     # Store pending auth (short-lived)
     _oauth_pending[state_token] = {
         "provider": request.provider,
         "code_verifier": code_verifier,
+        "redirect_uri": redirect_uri,
+        "client_id": client_id,
         "created_at": str(time.time()),
     }
 
-    # Use provided redirect_uri or default to our callback
-    redirect_uri = request.redirect_uri or "http://localhost:8001/api/oauth/callback"
+    # For OpenAI, start a self-contained callback server on port 1455
+    if request.provider == "openai" and not request.redirect_uri:
+        _start_openai_callback_server(_oauth_pending)
 
     # Build authorization URL
     params = {
@@ -429,6 +683,11 @@ async def oauth_login(request: OAuthLoginRequest):
     # Notion uses owner=user
     if platform.get("owner"):
         params["owner"] = platform["owner"]
+
+    # Provider-specific extra params (e.g. OpenAI codex_cli_simplified_flow)
+    extra = platform.get("extra_params", {})
+    if extra:
+        params.update(extra)
 
     auth_url = f"{platform['auth_url']}?{urlencode(params)}"
     return {
@@ -465,7 +724,7 @@ async def oauth_callback(
     platform = OAUTH_PLATFORMS[provider]
     store = _get_secure_store()
 
-    # Retrieve client credentials
+    # Retrieve client credentials: SecureStore → legacy → oauth_manager
     client_id = store.get_key(f"oauth_{provider}_client_id") if store else None
     client_secret = store.get_key(f"oauth_{provider}_client_secret") if store else None
 
@@ -481,6 +740,17 @@ async def oauth_callback(
             except Exception:
                 pass
 
+    # Fallback to oauth_manager (config file + env + bundled defaults)
+    if not client_id:
+        try:
+            from orion.integrations.oauth_manager import get_client_id, get_client_secret
+
+            client_id = get_client_id(provider)
+            if not client_secret:
+                client_secret = get_client_secret(provider)
+        except Exception:
+            pass
+
     if not client_id:
         return HTMLResponse(
             "<html><body><h2>Error: OAuth client_id not found.</h2></body></html>",
@@ -493,7 +763,7 @@ async def oauth_callback(
     token_data = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": "http://localhost:8001/api/oauth/callback",
+        "redirect_uri": pending["redirect_uri"],
         "client_id": client_id,
     }
     if client_secret:
@@ -580,6 +850,20 @@ async def oauth_callback(
   </script>
 </body></html>"""
     )
+
+
+@router.get("/auth/callback")
+async def oauth_callback_openai(
+    code: str = Query(...),
+    state: str = Query(...),
+):
+    """
+    OpenAI-compatible OAuth callback at /auth/callback.
+
+    OpenAI's public Codex client_id requires this exact path.
+    Delegates to the main oauth_callback handler.
+    """
+    return await oauth_callback(code=code, state=state)
 
 
 @router.post("/api/oauth/revoke")

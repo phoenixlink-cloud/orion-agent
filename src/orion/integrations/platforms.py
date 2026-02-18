@@ -155,20 +155,21 @@ def _build_platforms() -> dict[str, PlatformDef]:
             id="openai",
             name="OpenAI",
             category=PlatformCategory.AI_MODELS,
-            description="GPT-4o, GPT-4, o1 -- powerful reasoning and code generation",
+            description="GPT-4o, o3, Codex, DALL-E, Whisper, TTS -- one sign-in covers all OpenAI products",
             icon="🟢",
-            auth_method=AuthMethod.API_KEY,
+            auth_method=AuthMethod.OAUTH,
             env_var="OPENAI_API_KEY",
+            oauth_provider="openai",
             package_name="openai",
             setup_url="https://platform.openai.com/api-keys",
-            setup_instructions="Create an API key at platform.openai.com -> API Keys",
-            cost_info="Pay-per-use, ~$2.50/M input tokens for GPT-4o",
+            setup_instructions="Sign in with your ChatGPT Plus/Pro account, or use a Platform API key",
+            cost_info="ChatGPT Plus/Pro subscription, or pay-per-use API",
             capabilities=[
                 PlatformCapability(
-                    "chat", "Advanced reasoning with GPT-4o", "analyze this architecture"
+                    "chat", "Advanced reasoning with GPT-4o, o3", "analyze this architecture"
                 ),
                 PlatformCapability(
-                    "code_generation", "Generate code with GPT-4o", "implement a REST API"
+                    "code_generation", "Generate code with Codex", "implement a REST API"
                 ),
                 PlatformCapability(
                     "image_generation", "Generate images with DALL-E", "create a logo for my app"
@@ -183,6 +184,10 @@ def _build_platforms() -> dict[str, PlatformDef]:
         )
     )
 
+    # NOTE: Anthropic actively blocks third-party tools from using Claude Code
+    # OAuth tokens and BANS accounts that do this (as of 2025). Do NOT add OAuth
+    # for Anthropic. API key is the only supported method for third-party tools.
+    # See: github.com/anomalyco/opencode/issues/6930
     _add(
         PlatformDef(
             id="anthropic",

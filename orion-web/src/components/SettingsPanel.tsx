@@ -665,6 +665,18 @@ export default function SettingsPanel() {
   const [oauthStatus, setOauthStatus] = useState<Record<string, any>>(DEFAULT_OAUTH)
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
 
+  // Provider auth status (v7.0.0 — OAuth sign-in for AI providers)
+  const [providerAuthStatus, setProviderAuthStatus] = useState<Record<string, any>>({})
+  const [providerKeyInput, setProviderKeyInput] = useState<Record<string, string>>({})
+  const [providerKeyExpanded, setProviderKeyExpanded] = useState<string | null>(null)
+  const [providerMessage, setProviderMessage] = useState<Record<string, string>>({})
+  // Inline OAuth setup wizard state
+  const [providerSetupMode, setProviderSetupMode] = useState<string | null>(null)
+  const [providerSetupInfo, setProviderSetupInfo] = useState<Record<string, any>>({})
+  const [providerSetupClientId, setProviderSetupClientId] = useState<string>('')
+  const [providerSetupClientSecret, setProviderSetupClientSecret] = useState<string>('')
+  const [providerSetupSaving, setProviderSetupSaving] = useState(false)
+
   // Connected Services (v6.4.0) — All platforms
   const [platformData, setPlatformData] = useState<any>(null)
   const [oauthProviders, setOauthProviders] = useState<Record<string, any>>({})
@@ -698,6 +710,13 @@ export default function SettingsPanel() {
       .catch(() => {})
   }
 
+  const loadProviderAuthStatus = () => {
+    fetch(`${API_BASE}/api/models/providers/auth-status`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setProviderAuthStatus(data) })
+      .catch(() => {})
+  }
+
   // Listen for OAuth popup success
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -705,7 +724,10 @@ export default function SettingsPanel() {
         loadOAuthStatus()
         loadPlatforms()
         loadOAuthProviders()
+        loadProviderAuthStatus()
         const prov = event.data.provider
+        setProviderMessage(prev => ({ ...prev, [prov]: `✓ Signed in to ${prov}` }))
+        setTimeout(() => setProviderMessage(prev => { const n = { ...prev }; delete n[prov]; return n }), 5000)
         setPlatformMessage(prev => ({ ...prev, [prov]: `✓ ${prov} connected successfully!` }))
         setTimeout(() => setPlatformMessage(prev => { const n = { ...prev }; delete n[prov]; return n }), 5000)
       }
@@ -724,6 +746,7 @@ export default function SettingsPanel() {
     if (!isConnected) return
     loadPlatforms()
     loadOAuthProviders()
+    loadProviderAuthStatus()
     // Load general settings
     fetch(`${API_BASE}/api/settings`)
       .then(r => r.ok ? r.json() : null)
@@ -904,12 +927,144 @@ export default function SettingsPanel() {
         body: JSON.stringify({ provider }),
       })
       if (res.ok) {
-        loadOAuthStatus()
+        const data = await res.json()
+        if (data.status === 'redirect' && data.auth_url) {
+          const popup = window.open(data.auth_url, `orion_oauth_${provider}`, 'width=600,height=700,menubar=no,toolbar=no')
+          if (!popup) {
+            setProviderMessage(prev => ({ ...prev, [provider]: 'Popup blocked — please allow popups for this site.' }))
+          }
+        } else {
+          loadOAuthStatus()
+          loadProviderAuthStatus()
+        }
       }
     } catch (err) {
       console.error('OAuth login failed:', err)
     } finally {
       setOauthLoading(null)
+    }
+  }
+
+  // AI Provider sign-in handler — opens browser OAuth popup for OAuth-capable providers
+  const handleProviderSignIn = async (providerKey: string) => {
+    if (!isConnected) return
+    setOauthLoading(providerKey)
+    setProviderMessage(prev => ({ ...prev, [providerKey]: '' }))
+    try {
+      const res = await fetch(`${API_BASE}/api/oauth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: providerKey }),
+      })
+      const data = await res.json()
+      if (data.status === 'redirect' && data.auth_url) {
+        const popup = window.open(data.auth_url, `orion_oauth_${providerKey}`, 'width=600,height=700,menubar=no,toolbar=no')
+        if (!popup) {
+          setProviderMessage(prev => ({ ...prev, [providerKey]: 'Popup blocked — please allow popups for this site.' }))
+        }
+      } else if (data.detail?.toLowerCase().includes('not registered') || data.detail?.toLowerCase().includes('not configured') || data.detail?.toLowerCase().includes('client_id')) {
+        // OAuth app not set up yet — open the inline setup wizard
+        openSetupWizard(providerKey)
+      } else if (data.detail) {
+        setProviderMessage(prev => ({ ...prev, [providerKey]: data.detail }))
+      }
+    } catch (err) {
+      setProviderMessage(prev => ({ ...prev, [providerKey]: 'Sign-in failed. Try again or use an API key.' }))
+    } finally {
+      setOauthLoading(null)
+    }
+  }
+
+  // Open inline setup wizard — fetches setup info from backend
+  const openSetupWizard = async (providerKey: string) => {
+    setProviderSetupMode(providerKey)
+    setProviderSetupClientId('')
+    setProviderSetupClientSecret('')
+    setProviderKeyExpanded(null) // close API key input if open
+    try {
+      const res = await fetch(`${API_BASE}/api/oauth/setup-info/${providerKey}`)
+      if (res.ok) {
+        const info = await res.json()
+        setProviderSetupInfo(prev => ({ ...prev, [providerKey]: info }))
+      }
+    } catch { /* ignore — wizard still works with basic UI */ }
+  }
+
+  // Save client_id from setup wizard, then auto-trigger sign-in
+  const handleSetupWizardSave = async (providerKey: string) => {
+    if (!providerSetupClientId || providerSetupClientId.length < 5) {
+      setProviderMessage(prev => ({ ...prev, [providerKey]: 'Client ID is too short.' }))
+      return
+    }
+    setProviderSetupSaving(true)
+    try {
+      const body: any = { provider: providerKey, client_id: providerSetupClientId }
+      if (providerSetupClientSecret) body.client_secret = providerSetupClientSecret
+      const res = await fetch(`${API_BASE}/api/oauth/quick-setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        setProviderSetupMode(null)
+        setProviderSetupClientId('')
+        setProviderSetupClientSecret('')
+        setProviderMessage(prev => ({ ...prev, [providerKey]: '✓ OAuth app registered! Opening sign-in...' }))
+        setTimeout(() => setProviderMessage(prev => { const n = { ...prev }; delete n[providerKey]; return n }), 3000)
+        // Auto-trigger sign-in now that client_id is saved
+        setTimeout(() => handleProviderSignIn(providerKey), 500)
+      } else {
+        const err = await res.json()
+        setProviderMessage(prev => ({ ...prev, [providerKey]: err.detail || 'Failed to save. Check the Client ID and try again.' }))
+      }
+    } catch {
+      setProviderMessage(prev => ({ ...prev, [providerKey]: 'Failed to save. Check your connection.' }))
+    } finally {
+      setProviderSetupSaving(false)
+    }
+  }
+
+  // AI Provider inline API key save
+  const handleProviderKeySave = async (providerKey: string) => {
+    const key = providerKeyInput[providerKey]
+    if (!key || key.length < 8) return
+    try {
+      const res = await fetch(`${API_BASE}/api/keys/set`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: providerKey, key }),
+      })
+      if (res.ok) {
+        setProviderKeyInput(prev => ({ ...prev, [providerKey]: '' }))
+        setProviderKeyExpanded(null)
+        setProviderMessage(prev => ({ ...prev, [providerKey]: '✓ API key saved' }))
+        loadProviderAuthStatus()
+        setTimeout(() => setProviderMessage(prev => { const n = { ...prev }; delete n[providerKey]; return n }), 3000)
+      } else {
+        const err = await res.json()
+        setProviderMessage(prev => ({ ...prev, [providerKey]: err.detail || 'Failed to save key' }))
+      }
+    } catch {
+      setProviderMessage(prev => ({ ...prev, [providerKey]: 'Failed to save key' }))
+    }
+  }
+
+  // AI Provider disconnect
+  const handleProviderDisconnect = async (providerKey: string) => {
+    try {
+      // Remove API key
+      await fetch(`${API_BASE}/api/keys/${providerKey}`, { method: 'DELETE' })
+      // Revoke OAuth if any
+      await fetch(`${API_BASE}/api/oauth/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: providerKey }),
+      })
+      loadProviderAuthStatus()
+      setProviderMessage(prev => ({ ...prev, [providerKey]: 'Disconnected' }))
+      setTimeout(() => setProviderMessage(prev => { const n = { ...prev }; delete n[providerKey]; return n }), 3000)
+    } catch {
+      setProviderMessage(prev => ({ ...prev, [providerKey]: 'Failed to disconnect' }))
     }
   }
 
@@ -1224,39 +1379,194 @@ export default function SettingsPanel() {
         />
       </CollapsibleSection>
 
-      {/* LLM Provider Enable/Disable (v5.1.0) */}
-      <CollapsibleSection title="AI Providers" description="Choose which AI services are available. Disable any you don't use to keep things simple.">
+      {/* LLM Provider Enable/Disable (v5.1.0 → v7.0.0 with OAuth sign-in) */}
+      <CollapsibleSection title="AI Providers" description="Sign in to your AI provider accounts or set API keys. OAuth-capable providers open a browser login.">
         <div style={{ padding: '12px 16px', background: 'rgba(34, 211, 238, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.2)' }}>
           <div style={{ fontSize: 13, color: 'var(--glow)' }}>
-            Toggle providers on/off. Disabled providers won't appear in Builder/Reviewer dropdowns. All providers are enabled by default.
+            Sign in with your existing account to use your subscription, or enter an API key. Local providers like Ollama need no authentication.
           </div>
         </div>
-        {Object.entries(providers).map(([key, info]: [string, any]) => (
-          <div key={key} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '10px 16px', background: 'rgba(0,0,0,0.15)', borderRadius: 'var(--r-sm)',
-            marginBottom: 6, border: `1px solid ${info.enabled !== false ? 'rgba(34,211,238,0.15)' : 'var(--line)'}`,
-            opacity: info.enabled !== false ? 1 : 0.5,
-          }}>
-            <div>
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{info.name || key}</span>
-              <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>
-                {(info.models || []).length} models · {info.cost || '?'}
-              </span>
+        {Object.entries(providers).map(([key, info]: [string, any]) => {
+          const auth = providerAuthStatus[key] || {}
+          const authType = auth.auth_type || (key === 'ollama' ? 'local' : 'api_key')
+          const isConnected = auth.connected || false
+          const source = auth.source || 'none'
+          const oauthReady = auth.oauth_ready || false  // true = client_id available, one-click sign-in
+          const isExpanded = providerKeyExpanded === key
+          const msg = providerMessage[key]
+          const isLoading = oauthLoading === key
+
+          return (
+            <div key={key} style={{ marginBottom: 8 }}>
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '12px 16px', background: 'rgba(0,0,0,0.15)',
+                borderRadius: (isExpanded || providerSetupMode === key) ? 'var(--r-sm) var(--r-sm) 0 0' : 'var(--r-sm)',
+                border: `1px solid ${isConnected ? 'rgba(34,211,238,0.2)' : providerSetupMode === key ? 'rgba(34,211,238,0.2)' : 'var(--line)'}`,
+                borderBottom: (isExpanded || providerSetupMode === key) ? '1px solid var(--line)' : undefined,
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{info.name || key}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      {(info.models || []).length} models · {info.cost || '?'}
+                    </span>
+                  </div>
+                  {isConnected && (
+                    <div style={{ fontSize: 11, marginTop: 2, color: 'rgba(34, 211, 238, 0.7)' }}>
+                      {source === 'oauth' ? '✓ Signed in' : source === 'local' ? '✓ Local' : source === 'env' ? '✓ Environment variable' : '✓ API key configured'}
+                    </div>
+                  )}
+                  {msg && <div style={{ fontSize: 11, marginTop: 2, color: msg.startsWith('✓') ? 'rgba(34, 211, 238, 0.8)' : '#f59e0b' }}>{msg}</div>}
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {/* Connected: show Disconnect */}
+                  {isConnected && key !== 'ollama' && (
+                    <button onClick={() => handleProviderDisconnect(key)} style={{
+                      padding: '4px 10px', fontSize: 11, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                      background: 'rgba(255,255,255,0.03)', color: 'var(--muted)', border: '1px solid var(--line)',
+                    }}>Disconnect</button>
+                  )}
+                  {/* Not connected: show Sign in (OAuth) or Set API Key */}
+                  {!isConnected && authType === 'oauth' && (
+                    <>
+                      <button onClick={() => handleProviderSignIn(key)} disabled={isLoading} style={{
+                        padding: '5px 14px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                        background: 'rgba(34,211,238,0.15)', color: 'var(--glow)', border: '1px solid rgba(34,211,238,0.3)',
+                        opacity: isLoading ? 0.6 : 1,
+                      }}>{isLoading ? 'Opening...' : `Sign in`}</button>
+                      <button onClick={() => setProviderKeyExpanded(isExpanded ? null : key)} style={{
+                        padding: '4px 10px', fontSize: 11, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.03)', color: 'var(--muted)', border: '1px solid var(--line)',
+                      }}>API Key</button>
+                    </>
+                  )}
+                  {!isConnected && authType === 'api_key' && (
+                    <button onClick={() => setProviderKeyExpanded(isExpanded ? null : key)} style={{
+                      padding: '5px 14px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                      background: 'rgba(34,211,238,0.15)', color: 'var(--glow)', border: '1px solid rgba(34,211,238,0.3)',
+                    }}>Set API Key</button>
+                  )}
+                  {authType === 'local' && (
+                    <span style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, color: 'rgba(34, 211, 238, 0.7)' }}>Local</span>
+                  )}
+                </div>
+              </div>
+              {/* Inline API key input (expanded) */}
+              {isExpanded && providerSetupMode !== key && (
+                <div style={{
+                  padding: '10px 16px', background: 'rgba(0,0,0,0.1)', borderRadius: '0 0 var(--r-sm) var(--r-sm)',
+                  border: '1px solid var(--line)', borderTop: 'none',
+                  display: 'flex', gap: 8, alignItems: 'center',
+                }}>
+                  <input
+                    type="password"
+                    placeholder={`Paste ${(info.name || key)} API key...`}
+                    value={providerKeyInput[key] || ''}
+                    onChange={e => setProviderKeyInput(prev => ({ ...prev, [key]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && handleProviderKeySave(key)}
+                    style={{
+                      flex: 1, padding: '6px 10px', fontSize: 13, background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', color: 'var(--text)',
+                      outline: 'none', fontFamily: 'monospace',
+                    }}
+                  />
+                  <button onClick={() => handleProviderKeySave(key)} style={{
+                    padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                    background: 'rgba(34,211,238,0.15)', color: 'var(--glow)', border: '1px solid rgba(34,211,238,0.3)',
+                  }}>Save</button>
+                  <button onClick={() => setProviderKeyExpanded(null)} style={{
+                    padding: '6px 10px', fontSize: 12, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                    background: 'transparent', color: 'var(--muted)', border: '1px solid var(--line)',
+                  }}>Cancel</button>
+                </div>
+              )}
+              {/* Inline OAuth setup wizard (first-time registration) */}
+              {providerSetupMode === key && (() => {
+                const setupInfo = providerSetupInfo[key] || {}
+                return (
+                  <div style={{
+                    padding: '16px', background: 'rgba(34, 211, 238, 0.06)', borderRadius: '0 0 var(--r-sm) var(--r-sm)',
+                    border: '1px solid rgba(34, 211, 238, 0.2)', borderTop: 'none',
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--glow)', marginBottom: 10 }}>
+                      One-time setup — Register an OAuth app
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text)', marginBottom: 12, lineHeight: 1.5 }}>
+                      {setupInfo.setup_instructions ? (
+                        setupInfo.setup_instructions.split('\n').map((line: string, i: number) => (
+                          <div key={i} style={{ marginBottom: 2 }}>{line}</div>
+                        ))
+                      ) : (
+                        <div>Register an OAuth application at your provider's developer console, then paste the Client ID below.</div>
+                      )}
+                    </div>
+                    {setupInfo.redirect_uri && (
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 'var(--r-sm)', fontFamily: 'monospace' }}>
+                        Redirect URI: <span style={{ color: 'var(--text)', userSelect: 'all', cursor: 'pointer' }} onClick={() => navigator.clipboard?.writeText(setupInfo.redirect_uri)} title="Click to copy">{setupInfo.redirect_uri}</span>
+                      </div>
+                    )}
+                    {setupInfo.setup_url && (
+                      <div style={{ marginBottom: 12 }}>
+                        <a href={setupInfo.setup_url} target="_blank" rel="noopener noreferrer" style={{
+                          fontSize: 12, color: 'var(--glow)', textDecoration: 'underline',
+                        }}>Open {info.name || key} developer console →</a>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                      <input
+                        type="text"
+                        placeholder="Paste Client ID..."
+                        value={providerSetupClientId}
+                        onChange={e => setProviderSetupClientId(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSetupWizardSave(key)}
+                        style={{
+                          flex: 1, padding: '7px 10px', fontSize: 13, background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', color: 'var(--text)',
+                          outline: 'none', fontFamily: 'monospace',
+                        }}
+                      />
+                    </div>
+                    {setupInfo.needs_secret && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                        <input
+                          type="password"
+                          placeholder="Client Secret (if required)..."
+                          value={providerSetupClientSecret}
+                          onChange={e => setProviderSetupClientSecret(e.target.value)}
+                          style={{
+                            flex: 1, padding: '7px 10px', fontSize: 13, background: 'rgba(0,0,0,0.3)',
+                            border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', color: 'var(--text)',
+                            outline: 'none', fontFamily: 'monospace',
+                          }}
+                        />
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => handleSetupWizardSave(key)}
+                        disabled={providerSetupSaving || !providerSetupClientId}
+                        style={{
+                          padding: '7px 18px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                          background: 'rgba(34,211,238,0.15)', color: 'var(--glow)', border: '1px solid rgba(34,211,238,0.3)',
+                          opacity: (providerSetupSaving || !providerSetupClientId) ? 0.5 : 1,
+                        }}
+                      >{providerSetupSaving ? 'Saving...' : 'Save & Sign in'}</button>
+                      <button onClick={() => { setProviderSetupMode(null); setProviderSetupClientId(''); setProviderSetupClientSecret('') }} style={{
+                        padding: '7px 12px', fontSize: 12, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                        background: 'transparent', color: 'var(--muted)', border: '1px solid var(--line)',
+                      }}>Cancel</button>
+                      <button onClick={() => { setProviderSetupMode(null); setProviderKeyExpanded(key) }} style={{
+                        padding: '7px 12px', fontSize: 12, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+                        background: 'transparent', color: 'var(--muted)', border: '1px solid var(--line)',
+                      }}>Use API Key instead</button>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
-            <button
-              onClick={() => handleToggleProvider(key, info.enabled === false)}
-              style={{
-                padding: '4px 14px', fontSize: 12, fontWeight: 600, borderRadius: 'var(--r-sm)', cursor: 'pointer',
-                background: info.enabled !== false ? 'rgba(34,211,238,0.15)' : 'rgba(255,255,255,0.05)',
-                color: info.enabled !== false ? 'var(--glow)' : 'var(--muted)',
-                border: info.enabled !== false ? '1px solid rgba(34,211,238,0.3)' : '1px solid var(--line)',
-              }}
-            >
-              {info.enabled !== false ? 'Enabled' : 'Disabled'}
-            </button>
-          </div>
-        ))}
+          )
+        })}
       </CollapsibleSection>
 
       {/* Connected Services (v6.4.0) — One-Click OAuth */}

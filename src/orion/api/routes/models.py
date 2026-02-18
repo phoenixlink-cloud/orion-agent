@@ -168,3 +168,91 @@ async def toggle_provider(request: ProviderToggleRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/models/providers/auth-status")
+async def get_provider_auth_status():
+    """
+    Get authentication status for each AI provider.
+
+    Returns per-provider: auth_type (oauth/api_key/local), connected bool, source string.
+    The frontend uses this to decide whether to show 'Sign in' or 'Set API Key'.
+    """
+    import os
+
+    from orion.core.llm.config import PROVIDERS
+
+    store = None
+    try:
+        from orion.security.store import get_secure_store
+
+        store = get_secure_store()
+    except Exception:
+        pass
+
+    # Providers that support OAuth sign-in for AI model access.
+    # A provider is oauth-capable if it has a public_client_id shipped with Orion
+    # (zero-setup, like OpenAI) OR if the user can register a client_id via the
+    # setup wizard (like Google, Microsoft).
+    oauth_capable = {"openai", "google", "microsoft"}
+
+    # Check which providers have a client_id already available (truly one-click)
+    oauth_ready = set()
+    try:
+        from orion.integrations.oauth_manager import get_client_id
+
+        for p in oauth_capable:
+            if get_client_id(p):
+                oauth_ready.add(p)
+    except Exception:
+        pass
+
+    result = {}
+    for pid, pinfo in PROVIDERS.items():
+        auth_type = "local" if pid == "ollama" else (
+            "oauth" if pid in oauth_capable else "api_key"
+        )
+
+        # Check all credential sources in priority order
+        source = "none"
+        connected = False
+
+        # 1. SecureStore API key
+        if store and store.is_available:
+            try:
+                if store.get_key(pid):
+                    source = "api_key"
+                    connected = True
+            except Exception:
+                pass
+
+        # 2. Environment variable
+        if not connected:
+            env_key = os.environ.get(f"{pid.upper()}_API_KEY")
+            if env_key:
+                source = "env"
+                connected = True
+
+        # 3. OAuth access token
+        if not connected and store and store.is_available:
+            try:
+                if store.get_key(f"oauth_{pid}_access_token"):
+                    source = "oauth"
+                    connected = True
+            except Exception:
+                pass
+
+        # 4. Local providers are always connected
+        if pid == "ollama":
+            source = "local"
+            connected = True
+
+        result[pid] = {
+            "auth_type": auth_type,
+            "connected": connected,
+            "source": source,
+            "name": pinfo.get("name", pid),
+            "oauth_ready": pid in oauth_ready,
+        }
+
+    return result
