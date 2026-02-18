@@ -267,7 +267,7 @@ Reverted last change:
 
 ## Web UI
 
-The Web UI provides the same functionality as the CLI in a browser-based interface.
+The Web UI provides the same functionality as the CLI in a browser-based interface, plus visual management of ARA roles and skills.
 
 ### Starting the Web UI
 
@@ -282,15 +282,54 @@ cd orion-web
 npm run dev
 ```
 
-3. Open `http://localhost:3001` in your browser
+3. Open `http://localhost:3000` in your browser
 
 ### Web UI Features
 
-- Chat-based interface
+- Chat-based interface with WebSocket streaming
 - Real-time streaming responses
-- Settings panel
+- Settings panel with API key and model configuration
 - Mode switching
 - Workspace selection
+
+### Managing Roles (ARA Dashboard → Roles)
+
+The Roles tab displays all configured roles in an accordion list. Each role row shows its name, scope, auth method, and source.
+
+**Viewing a role:** Click any role row to expand its detail panel inline. The expanded view shows:
+- **Metadata grid** — Scope, Auth Method, Source
+- **Description** — Full role description text
+- **Assigned Skills** — List of skills assigned to this role, each with a Remove button
+- **Add a skill** — Dropdown to assign any unassigned skill directly
+
+**Editing a role:** Click the **Edit** button on a role row. The expanded panel switches to an edit form with:
+- Scope selector (coding, research, devops, full)
+- Auth method selector (pin, totp)
+- Description textarea
+- **Save Changes** / **Cancel** buttons
+
+**Creating a role:** Click **+ Create Role** at the top to open the creation form.
+
+**Collapsing:** Click the same role row again to collapse its detail panel.
+
+### Managing Skills (ARA Dashboard → Skills)
+
+The Skills tab displays all available skills in an accordion list. Each skill row shows its name, description snippet, tags, trust level, and source.
+
+**Viewing a skill:** Click any skill row to expand its detail panel inline. The expanded view shows:
+- **Action buttons** — Re-scan, Delete (non-bundled only)
+- **Metadata grid** — Version, Trust Level, AEGIS Approved status, Source
+- **Tags** — All tags displayed as chips
+- **SKILL.md Content** — Full skill instructions rendered in a monospace code block (scrollable, max 350px height)
+- **Assign to Role** — Dropdown to assign this skill to any role
+
+**Editing a skill's instructions:** For non-bundled (custom) skills, click the **Edit** button next to "SKILL.md Content". This switches the content block to a textarea where you can modify the skill's instructions. Click **Save** to persist changes via the API, or **Cancel** to discard.
+
+> **Note:** Bundled skills (shipped with Orion) are read-only and cannot be edited. The Edit button will show "Read-only (bundled)" for these skills.
+
+**Creating a skill:** Click **+ Create Skill** at the top to open the creation form with name, description, and tags fields.
+
+**Collapsing:** Click the same skill row again to collapse its detail panel.
 
 ## Tips and Best Practices
 

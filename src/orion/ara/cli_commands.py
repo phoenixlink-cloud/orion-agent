@@ -1713,8 +1713,10 @@ def _get_skill_library(skills_dir: Path | None = None):
     if SEED_SKILLS_DIR.exists():
         from orion.ara.skill import load_skill as _load_skill
 
+        seed_names: set[str] = set()
         for item in sorted(SEED_SKILLS_DIR.iterdir()):
             if item.is_dir() and (item / "SKILL.md").exists():
+                seed_names.add(item.name)
                 if lib.get_skill(item.name) is None:
                     try:
                         skill, _ = _load_skill(item)
@@ -1726,6 +1728,15 @@ def _get_skill_library(skills_dir: Path | None = None):
                         lib._skills[skill.name] = skill
                     except Exception:
                         pass
+
+        # Fix user copies of seed skills that were blocked by SkillGuard
+        # (imported previously via import_skill which copies to ~/.orion/skills/)
+        for name in seed_names:
+            existing = lib.get_skill(name)
+            if existing and not existing.aegis_approved:
+                existing.source = "bundled"
+                existing.trust_level = "verified"
+                existing.aegis_approved = True
 
     # Cache only when using default dir
     if skills_dir is None:
@@ -1846,6 +1857,55 @@ def cmd_skill_create(
             "scan_findings": len(scan.findings),
             "directory": str(skill.directory),
         },
+    )
+
+
+def cmd_skill_update(
+    skill_name: str,
+    description: str | None = None,
+    instructions: str | None = None,
+    tags: list[str] | None = None,
+    skills_dir: Path | None = None,
+) -> CommandResult:
+    """Update a skill's description, instructions, or tags and save to disk."""
+    from orion.ara.skill import save_skill_md
+
+    lib, _ = _get_skill_library(skills_dir)
+    skill = lib.get_skill(skill_name)
+    if skill is None:
+        return CommandResult(success=False, message=f"Skill '{skill_name}' not found.")
+
+    if skill.source == "bundled" and skill.directory and "seed" in str(skill.directory):
+        return CommandResult(
+            success=False,
+            message=f"Skill '{skill_name}' is a bundled seed skill and cannot be edited. "
+            "Import it first to create an editable copy.",
+        )
+
+    changed = []
+    if description is not None:
+        skill.description = description
+        changed.append("description")
+    if instructions is not None:
+        skill.instructions = instructions
+        changed.append("instructions")
+    if tags is not None:
+        skill.tags = tags
+        changed.append("tags")
+
+    if not changed:
+        return CommandResult(success=False, message="Nothing to update.")
+
+    try:
+        save_skill_md(skill)
+        skill.content_hash = skill.compute_disk_hash()
+    except Exception as e:
+        return CommandResult(success=False, message=f"Failed to save: {e}")
+
+    return CommandResult(
+        success=True,
+        message=f"Skill '{skill_name}' updated ({', '.join(changed)}).",
+        data=skill.to_dict(),
     )
 
 

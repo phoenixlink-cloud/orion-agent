@@ -15,9 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/sandbox restart` command
 - `SandboxLifecycle` manager (`src/orion/security/sandbox_lifecycle.py`)
 - 20 unit tests + 5 integration tests for sandbox lifecycle
+- **ARA Web UI — Inline accordion expansion** for Skills and Roles lists (click to expand/collapse detail view directly beneath each item)
+- **Skills detail panel** — metadata grid (version, trust, AEGIS, source), tags, full SKILL.md content viewer with monospace rendering
+- **Skills SKILL.md editor** — Edit button switches to textarea for non-bundled skills; Save persists via API; bundled skills show "Read-only"
+- **`PUT /api/ara/skills/{name}`** API endpoint — updates skill description, instructions, or tags via `cmd_skill_update`
+- **Roles inline detail** — expanding a role shows scope/auth/source/description, assigned skills with Remove buttons, and "Add a skill" dropdown
+- **Roles inline edit form** — Edit button expands edit form (scope, auth method, description) with Save/Cancel directly inside the accordion
 
 ### Changed
 - `/sandbox` commands now use shared lifecycle singleton (no duplicate orchestrator instances)
+- Skills and Roles lists now use accordion UI pattern (detail expands inline under each item, not as a separate panel below the list)
+- Skill list rows show ▶ arrow indicator that rotates on expand/collapse
+- Role list rows show ▶ arrow indicator that rotates on expand/collapse
+
+### Fixed
+- **Seed skills (debug-issue, deploy-to-staging, docker-setup) no longer display as "blocked"** — `_get_skill_library` now explicitly marks seed skills as `verified`, `bundled`, `aegis_approved: True` and fixes user copies that were incorrectly blocked by SkillGuard
 
 ## [10.0.0] -- 2026-02-18
 
