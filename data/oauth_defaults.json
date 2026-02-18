@@ -1,10 +1,5 @@
 {
-  "_comment": "Bundled OAuth client_ids for one-click sign-in. PKCE client_ids are NOT secrets — they are safe to ship in code. The project maintainer registers OAuth apps once at each provider's developer console, then all Orion users get seamless sign-in.",
-  "openai": {
-    "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
-    "setup_url": "",
-    "setup_instructions": "No setup needed — uses OpenAI's public Codex client. Just click Sign in."
-  },
+  "_comment": "Bundled OAuth defaults for platform integrations. LLM providers use API keys only (BYOK).",
   "google": {
     "client_id": "",
     "setup_url": "https://console.cloud.google.com/apis/credentials",

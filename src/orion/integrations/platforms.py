@@ -155,14 +155,13 @@ def _build_platforms() -> dict[str, PlatformDef]:
             id="openai",
             name="OpenAI",
             category=PlatformCategory.AI_MODELS,
-            description="GPT-4o, o3, Codex, DALL-E, Whisper, TTS -- one sign-in covers all OpenAI products",
+            description="GPT-4o, o3, Codex, DALL-E, Whisper, TTS -- API key from platform.openai.com",
             icon="🟢",
-            auth_method=AuthMethod.OAUTH,
+            auth_method=AuthMethod.API_KEY,
             env_var="OPENAI_API_KEY",
-            oauth_provider="openai",
             package_name="openai",
             setup_url="https://platform.openai.com/api-keys",
-            setup_instructions="Sign in with your ChatGPT Plus/Pro account, or use a Platform API key",
+            setup_instructions="Create an API key at platform.openai.com/api-keys",
             cost_info="ChatGPT Plus/Pro subscription, or pay-per-use API",
             capabilities=[
                 PlatformCapability(
@@ -222,12 +221,11 @@ def _build_platforms() -> dict[str, PlatformDef]:
             category=PlatformCategory.AI_MODELS,
             description="Gemini 2.5 Pro & Flash -- free tier with 1500 req/day",
             icon="🔵",
-            auth_method=AuthMethod.OAUTH,
+            auth_method=AuthMethod.API_KEY,
             env_var="GOOGLE_API_KEY",
-            oauth_provider="google",
             package_name="google.generativeai",
             setup_url="https://aistudio.google.com/apikey",
-            setup_instructions="Get a free API key at Google AI Studio, or connect your Google account for OAuth",
+            setup_instructions="Get a free API key at Google AI Studio (aistudio.google.com/apikey)",
             free_tier="1,500 requests/day free",
             capabilities=[
                 PlatformCapability("chat", "Chat with Gemini models", "summarize this codebase"),
@@ -236,11 +234,11 @@ def _build_platforms() -> dict[str, PlatformDef]:
                 ),
                 PlatformCapability(
                     "google_drive",
-                    "Access Google Drive files (OAuth)",
+                    "Access Google Drive files (Phase 2)",
                     "read my design doc from Drive",
                 ),
                 PlatformCapability(
-                    "google_docs", "Read/write Google Docs (OAuth)", "update the project spec"
+                    "google_docs", "Read/write Google Docs (Phase 2)", "update the project spec"
                 ),
             ],
         )

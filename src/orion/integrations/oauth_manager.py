@@ -15,16 +15,17 @@
 #
 # Contributions require a signed CLA. See COPYRIGHT.md and CLA.md.
 """
-OAuth Manager for Orion -- handles one-click authentication for all providers.
+OAuth Manager for Orion -- handles platform integration authentication.
 
-Architecture (based on research of Open WebUI, NextAuth.js, ToolJet):
-- Tier 1: PKCE OAuth (GitHub, Google, Microsoft, GitLab, Linear, Atlassian)
+All LLM providers use BYOK (API keys) -- no OAuth for LLM access.
+OAuth is used only for non-LLM platform integrations:
+- Tier 1: PKCE OAuth (Google Workspace, Microsoft, GitLab, Linear, Atlassian)
   -> User clicks "Connect" -> browser opens -> sign in -> done
-  -> GitHub also supports Device Flow (best for desktop/CLI apps)
 - Tier 2: Guided token setup (Slack, Discord, Notion, Telegram)
   -> Step-by-step wizard in UI -> user creates token -> pastes it
-- Tier 3: API key (OpenAI, Anthropic, etc.)
-  -> Standard key input
+
+Phase 2 will add Google Account LLM access via Docker/Antigravity
+as a separate, governed pathway (see src/orion/security/egress/).
 """
 
 import base64
@@ -47,20 +48,8 @@ SETTINGS_DIR = Path.home() / ".orion"
 # ---------------------------------------------------------------------------
 
 PROVIDERS: dict[str, dict[str, Any]] = {
-    # AI providers that support OAuth for API access
-    "openai": {
-        "name": "OpenAI",
-        "description": "GPT-4o, o3, o4-mini — use your ChatGPT Plus/Pro account",
-        "auth_type": "pkce",
-        "auth_url": "https://auth.openai.com/oauth/authorize",
-        "token_url": "https://auth.openai.com/oauth/token",
-        "revoke_url": None,
-        "userinfo_url": None,
-        "scopes": ["openid", "profile", "email", "offline_access"],
-        "supports_pkce": True,
-        "icon": "🟢",
-        "public_client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
-    },
+    # NOTE: LLM providers (OpenAI, Anthropic, Google Gemini, etc.) use API keys
+    # only (BYOK). They are NOT listed here. This dict is for platform integrations.
     "google": {
         "name": "Google",
         "description": "Gemini AI, Google Workspace, Drive, YouTube",

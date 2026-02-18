@@ -85,8 +85,7 @@ OLLAMA_TIMEOUT = 300
 
 
 def _get_key(provider: str) -> str | None:
-    """Retrieve credential: SecureStore API key -> env var -> OAuth token."""
-    store = None
+    """Retrieve credential: SecureStore API key -> env var."""
     # Try SecureStore first
     try:
         from orion.security.store import SecureStore
@@ -105,41 +104,7 @@ def _get_key(provider: str) -> str | None:
     if env_key:
         return env_key
 
-    # Fallback: OAuth access token (from browser sign-in)
-    if store:
-        try:
-            oauth_key = store.get_key(f"oauth_{provider}_access_token")
-            if oauth_key:
-                return oauth_key
-        except Exception:
-            pass
-
     return None
-
-
-def _is_oauth_credential(provider: str) -> bool:
-    """Check if the active credential for this provider came from OAuth (not API key)."""
-    try:
-        from orion.security.store import SecureStore
-
-        store = SecureStore()
-        if store.get_key(provider):
-            return False  # Has API key in store — takes priority
-    except Exception:
-        pass
-
-    import os
-
-    if os.environ.get(f"{provider.upper()}_API_KEY"):
-        return False  # Has env var — takes priority
-
-    try:
-        from orion.security.store import SecureStore
-
-        store = SecureStore()
-        return bool(store.get_key(f"oauth_{provider}_access_token"))
-    except Exception:
-        return False
 
 
 def _error_json(message: str) -> str:
@@ -362,16 +327,11 @@ async def _call_google(
     api_key: str,
     max_tokens: int = 8000,
     temperature: float = 0.3,
-    use_bearer: bool = False,
 ) -> str:
-    """Call Google Gemini API via REST. Supports API key (?key=) or OAuth Bearer token."""
+    """Call Google Gemini API via REST (API key auth)."""
     base = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     headers: dict[str, str] = {"Content-Type": "application/json"}
-    if use_bearer:
-        url = base
-        headers["Authorization"] = f"Bearer {api_key}"
-    else:
-        url = f"{base}?key={api_key}"
+    url = f"{base}?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
         "generationConfig": {"maxOutputTokens": max_tokens, "temperature": temperature},
@@ -556,15 +516,13 @@ async def call_provider(
         api_key = _get_key("google")
         if not api_key:
             return _error_json(
-                "Google not configured. Sign in via Settings → AI Providers, "
-                "or use /key set google <key>."
+                "Google API key not configured. Get a free key at "
+                "https://aistudio.google.com/apikey or use /key set google <key>."
             )
-        use_bearer = _is_oauth_credential("google")
 
         async def _do():
             return await _call_google(
                 model, system_prompt, user_prompt, api_key, max_tokens, temperature,
-                use_bearer=use_bearer,
             )
 
         return await retry_api_call(_do, component=component)
