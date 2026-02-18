@@ -105,12 +105,32 @@ async def _on_startup():
     if log:
         log.server_start(host="0.0.0.0", port=8001, version=__version__, project_root=_PROJECT_ROOT)
 
+    # Boot governed sandbox in background (non-blocking)
+    try:
+        from orion.security.sandbox_lifecycle import get_sandbox_lifecycle
+
+        lifecycle = get_sandbox_lifecycle()
+        lifecycle.boot(background=True)
+        logger.info("Sandbox lifecycle: boot initiated (background)")
+    except Exception as exc:
+        logger.warning("Sandbox lifecycle not available: %s", exc)
+
 
 @app.on_event("shutdown")
 async def _on_shutdown():
     log = _get_orion_log()
     if log:
         log.server_stop()
+
+    # Shutdown governed sandbox
+    try:
+        from orion.security.sandbox_lifecycle import get_sandbox_lifecycle
+
+        lifecycle = get_sandbox_lifecycle()
+        lifecycle.shutdown()
+        logger.info("Sandbox lifecycle: shutdown complete")
+    except Exception as exc:
+        logger.warning("Sandbox lifecycle shutdown error: %s", exc)
 
 
 # =============================================================================
