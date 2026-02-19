@@ -48,10 +48,13 @@ def sessions_dir(tmp_path: Path) -> Path:
 
 
 class TestCmdWork:
-    def test_creates_session(self, roles_dir: Path, control: DaemonControl):
+    def test_creates_session(self, roles_dir: Path, control: DaemonControl, tmp_path: Path):
+        ws = tmp_path / "workspace"
+        ws.mkdir()
         result = cmd_work(
             role_name="test-coder",
             goal="Add logging",
+            workspace_path=str(ws),
             roles_dir=roles_dir,
             control=control,
         )
