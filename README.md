@@ -126,8 +126,8 @@ A full-featured React (Next.js) dashboard for managing ARA sessions:
 | **Dashboard** | Stats grid, status hero, activity feed, task queue, progress ring |
 | **Consent Gates** | Approve/reject with GitHub-PR-style diff viewer (file tree + unified diffs) |
 | **New Session** | Start work sessions from the UI with role selection and goal input |
-| **Job Roles** | Create, edit, delete roles with scope/auth/description |
-| **Skills** | Browse, create, delete skills; assign/unassign to roles; security scan |
+| **Job Roles** | Inline accordion expansion -- click to view/edit scope, auth, description; assign/remove skills directly |
+| **Skills** | Inline accordion expansion -- click to view metadata, SKILL.md content, edit instructions, assign to roles; bundled skills read-only |
 | **Chat** | WebSocket chat sidebar connected to Orion's full NLA pipeline |
 | **Settings** | ARA settings, API keys, workspace configuration |
 | **Notifications** | Real-time notification badge with unread count |

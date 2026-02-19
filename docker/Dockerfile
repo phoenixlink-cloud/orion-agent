@@ -11,6 +11,7 @@ FROM python:3.11-slim AS builder
 WORKDIR /build
 COPY pyproject.toml README.md ./
 COPY src/ src/
+COPY data/ data/
 
 # Create a dummy LICENSE if it doesn't exist (for builds without it)
 RUN touch LICENSE

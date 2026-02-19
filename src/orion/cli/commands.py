@@ -216,6 +216,13 @@ def handle_command(
         return _handle_ara_auth_switch(parts, console)
 
     # =====================================================================
+    # Google Account Commands
+    # =====================================================================
+
+    elif command == "/google":
+        return _handle_google(parts, console)
+
+    # =====================================================================
     # Sandbox Commands (Phase 3 -- Docker Governed Sandbox)
     # =====================================================================
 
@@ -1322,6 +1329,128 @@ def _handle_ara_skill(parts, console):
 
     except Exception as e:
         console.print_error(f"ARA skill failed: {e}")
+    return {}
+
+
+def _handle_google(parts, console):
+    """Handle /google [login|status|disconnect] -- Google Account for sandbox LLM access."""
+    sub = parts[1].lower() if len(parts) > 1 else "status"
+
+    try:
+        from orion.security.egress.google_credentials import (
+            ALLOWED_SCOPES,
+            BLOCKED_SCOPES,
+            GoogleCredentialManager,
+        )
+
+        manager = GoogleCredentialManager()
+
+        if sub == "login":
+            import webbrowser
+
+            # Check if client_id is configured
+            client_id = None
+            import os
+
+            client_id = os.environ.get("ORION_GOOGLE_CLIENT_ID")
+            if not client_id:
+                try:
+                    from orion.integrations.oauth_manager import get_client_id
+
+                    client_id = get_client_id("google")
+                except Exception:
+                    pass
+
+            if not client_id:
+                console.print_error(
+                    "Google OAuth client_id not configured.\n"
+                    "Set ORION_GOOGLE_CLIENT_ID environment variable, or register\n"
+                    "a Google Cloud OAuth app and save the client_id via:\n"
+                    "  POST /api/oauth/quick-setup  (provider: google)\n"
+                    "See docs/GOOGLE_SETUP.md for setup instructions."
+                )
+                return {}
+
+            # Start the API server flow
+            console.print_info("Opening Google sign-in in your browser...")
+            console.print_info(f"Scopes requested: {len(ALLOWED_SCOPES)} (LLM access only)")
+            console.print_info(
+                f"Blocked services: {len(BLOCKED_SCOPES)} (Drive, Gmail, Calendar, YouTube, ...)"
+            )
+            console.print_info(
+                "Orion will NEVER see your Google password -- standard OAuth browser redirect."
+            )
+
+            # Build a simple connect URL that hits the API endpoint
+            connect_url = "http://localhost:8001/api/google/connect"
+            console.print_info(f"\nIf the browser doesn't open, visit:\n  {connect_url}")
+
+            # Try to trigger the flow via the API
+            try:
+                import httpx
+
+                with httpx.Client(timeout=5.0) as client:
+                    resp = client.post(connect_url)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        auth_url = data.get("auth_url", "")
+                        if auth_url:
+                            webbrowser.open(auth_url)
+                            console.print_success(
+                                "Browser opened. Complete sign-in with Google, then return here."
+                            )
+                        else:
+                            console.print_error("No auth_url in response")
+                    else:
+                        console.print_error(f"API error: {resp.status_code} {resp.text[:200]}")
+            except Exception as e:
+                console.print_error(
+                    f"Could not reach API server at localhost:8001: {e}\n"
+                    "Make sure the API server is running "
+                    "(uvicorn orion.api.server:app --port 8001)"
+                )
+
+        elif sub == "status":
+            status = manager.get_status()
+            if status.get("configured"):
+                console.print_success("Google Account: Connected")
+                console.print_info(f"  Email: {status.get('email', 'unknown')}")
+                console.print_info(f"  Token expired: {status.get('is_expired', True)}")
+                console.print_info(f"  Has refresh token: {status.get('has_refresh_token', False)}")
+                console.print_info(f"  Scopes: {status.get('scope', 'none')}")
+                if status.get("has_blocked_scopes"):
+                    console.print_error(
+                        f"  BLOCKED SCOPES DETECTED: {status.get('blocked_scopes')}"
+                    )
+                if status.get("refresh_count", 0) > 0:
+                    console.print_info(f"  Token refreshes: {status['refresh_count']}")
+            else:
+                console.print_info("Google Account: Not connected")
+                console.print_info("  Use /google login to connect a Google account")
+                console.print_info(
+                    "  This enables governed access to Google LLM services (Gemini, Vertex AI)"
+                )
+
+        elif sub == "disconnect":
+            if not manager.has_credentials:
+                console.print_info("No Google account connected")
+                return {}
+            creds = manager.get_credentials(auto_refresh=False)
+            email = creds.email if creds else "unknown"
+            manager.clear()
+            console.print_success(f"Google account disconnected ({email})")
+            console.print_info("All stored credentials have been cleared")
+
+        else:
+            console.print_info(
+                "Usage: /google [login|status|disconnect]\n"
+                "  login      -- Open browser for Google sign-in (LLM-only scopes)\n"
+                "  status     -- Show connected Google account status\n"
+                "  disconnect -- Revoke access and clear stored credentials"
+            )
+
+    except Exception as e:
+        console.print_error(f"Google command failed: {e}")
     return {}
 
 

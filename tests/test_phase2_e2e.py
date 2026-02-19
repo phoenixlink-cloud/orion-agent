@@ -635,8 +635,9 @@ class TestCrossComponentIntegration:
         from orion.security.egress.inspector import ContentInspector
 
         inspector = ContentInspector()
-        # Google API key pattern
-        body = '{"key": "AIzaSyA1234567890abcdefghijklmnopqrstuv"}'
+        # Construct at runtime to avoid GitHub secret scanning false positives
+        fake_key = "AIza" + "XXXX_THIS-IS-A-FAKE-TEST-KEY_123456"
+        body = '{"key": "' + fake_key + '"}'
         result = inspector.inspect(body, "random-server.com", "POST")
 
         assert result.blocked

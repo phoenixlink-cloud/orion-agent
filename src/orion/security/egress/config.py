@@ -420,7 +420,9 @@ def _write_default_config(config_path: Path) -> None:
         config_path.write_text(_DEFAULT_CONFIG_YAML, encoding="utf-8")
         logger.info("Created default egress config at %s", config_path)
     except PermissionError:
-        logger.warning("Cannot create %s (permission denied) -- using in-memory defaults", config_path)
+        logger.warning(
+            "Cannot create %s (permission denied) -- using in-memory defaults", config_path
+        )
     except Exception as exc:
         logger.warning("Cannot create default config: %s -- using in-memory defaults", exc)
 

@@ -31,13 +31,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from orion.security.sandbox_lifecycle import (
-    SandboxLifecycle,
     _PHASE_BOOTING,
     _PHASE_CHECKING,
     _PHASE_FAILED,
     _PHASE_NOT_STARTED,
     _PHASE_RUNNING,
     _PHASE_STOPPED,
+    SandboxLifecycle,
     get_sandbox_lifecycle,
     reset_sandbox_lifecycle,
 )
@@ -65,8 +65,10 @@ class TestBootWithDocker:
         """SL-01: Lifecycle boot with Docker available (steps 1-5)."""
         mock_orch = MagicMock()
 
-        with patch.object(lifecycle, "_check_docker", return_value=True), \
-             patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch):
+        with (
+            patch.object(lifecycle, "_check_docker", return_value=True),
+            patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch),
+        ):
             result = lifecycle.boot(background=False)
 
         assert result is True
@@ -282,10 +284,11 @@ class TestStatusAfterFailure:
 class TestSignalHandlers:
     def test_atexit_and_signals_registered(self, lifecycle):
         """SL-12: atexit and signal handlers are registered."""
-        with patch("atexit.register") as mock_atexit, \
-             patch("signal.getsignal", return_value=signal.SIG_DFL), \
-             patch("signal.signal") as mock_signal:
-
+        with (
+            patch("atexit.register") as mock_atexit,
+            patch("signal.getsignal", return_value=signal.SIG_DFL),
+            patch("signal.signal") as mock_signal,
+        ):
             lifecycle._register_signal_handlers()
 
             mock_atexit.assert_called_once_with(lifecycle._atexit_handler)
@@ -294,10 +297,11 @@ class TestSignalHandlers:
 
     def test_idempotent(self, lifecycle):
         """SL-12b: Signal registration is idempotent."""
-        with patch("atexit.register") as mock_atexit, \
-             patch("signal.getsignal", return_value=signal.SIG_DFL), \
-             patch("signal.signal"):
-
+        with (
+            patch("atexit.register") as mock_atexit,
+            patch("signal.getsignal", return_value=signal.SIG_DFL),
+            patch("signal.signal"),
+        ):
             lifecycle._register_signal_handlers()
             lifecycle._register_signal_handlers()
 
@@ -352,8 +356,10 @@ class TestBootFailure:
         mock_orch = MagicMock()
         mock_orch._boot_step_3_egress_proxy.side_effect = RuntimeError("port 8888 in use")
 
-        with patch.object(lifecycle, "_check_docker", return_value=True), \
-             patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch):
+        with (
+            patch.object(lifecycle, "_check_docker", return_value=True),
+            patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch),
+        ):
             result = lifecycle.boot(background=False)
 
         assert result is False
@@ -370,8 +376,10 @@ class TestBootFailure:
             "docker-compose.yml not found"
         )
 
-        with patch.object(lifecycle, "_check_docker", return_value=True), \
-             patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch):
+        with (
+            patch.object(lifecycle, "_check_docker", return_value=True),
+            patch("orion.security.orchestrator.SandboxOrchestrator", return_value=mock_orch),
+        ):
             result = lifecycle.boot(background=False)
 
         assert result is False

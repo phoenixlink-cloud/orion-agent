@@ -35,9 +35,7 @@ _docker_reason = "Docker CLI not found in PATH"
 
 if _docker_available:
     try:
-        result = subprocess.run(
-            ["docker", "info"], capture_output=True, timeout=10
-        )
+        result = subprocess.run(["docker", "info"], capture_output=True, timeout=10)
         _docker_available = result.returncode == 0
         if not _docker_available:
             _docker_reason = "Docker daemon not running"
@@ -45,9 +43,7 @@ if _docker_available:
         _docker_available = False
         _docker_reason = f"Docker check failed: {exc}"
 
-skip_no_docker = pytest.mark.skipif(
-    not _docker_available, reason=_docker_reason
-)
+skip_no_docker = pytest.mark.skipif(not _docker_available, reason=_docker_reason)
 
 
 @pytest.fixture(autouse=True)

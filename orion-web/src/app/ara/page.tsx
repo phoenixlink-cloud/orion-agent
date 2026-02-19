@@ -9,7 +9,7 @@ interface RoleInfo { name: string; scope: string; auth_method: string; source: s
 interface SessionInfo { session_id: string; role: string; goal: string; status: string; cost_usd?: number; elapsed_seconds?: number; progress?: number; created_at?: string }
 interface ActivityItem { icon: 'code' | 'search' | 'write' | 'check'; title: string; desc: string; time: string }
 interface DashSection { title: string; content: string; style: string; session_id?: string }
-interface SkillInfo { name: string; description: string; version: string; source: string; trust_level: string; aegis_approved: boolean; tags: string[] }
+interface SkillInfo { name: string; description: string; version: string; source: string; trust_level: string; aegis_approved: boolean; tags: string[]; instructions?: string; author?: string }
 interface ARASettingsData { [key: string]: any }
 interface ReviewFileDiff { path: string; status: string; additions: number; deletions: number; diff: string; content: string; original: string; conflict: boolean }
 interface ReviewDiffData { loading: boolean; files: ReviewFileDiff[]; summary: { total_files: number; added: number; modified: number; deleted: number; additions: number; deletions: number; conflicts: number } | null; fallbackText?: string }
@@ -59,6 +59,12 @@ export default function ARAPage() {
   const [skillError, setSkillError] = useState('')
   const [selectedSkill, setSelectedSkill] = useState<SkillInfo | null>(null)
   const [assignSkillRole, setAssignSkillRole] = useState('')
+  const [skillContent, setSkillContent] = useState<string>('')
+  const [skillContentLoading, setSkillContentLoading] = useState(false)
+  const [editingSkillContent, setEditingSkillContent] = useState(false)
+  const [editedContent, setEditedContent] = useState('')
+  const [skillSaving, setSkillSaving] = useState(false)
+  const [skillSaveMsg, setSkillSaveMsg] = useState('')
 
   // ARA Settings
   const [araSettings, setAraSettings] = useState<ARASettingsData>({})
@@ -81,6 +87,7 @@ export default function ARAPage() {
   // Role editing
   const [editingRole, setEditingRole] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ scope: '', auth_method: '', description: '' })
+  const [roleAddSkill, setRoleAddSkill] = useState('')
 
   // Consent gate inline review
   const [expandedReview, setExpandedReview] = useState<string | null>(null)
@@ -314,6 +321,56 @@ export default function ARAPage() {
       if (!res.ok) { const e = await res.json(); alert(e.detail || 'Failed'); return }
       loadData()
     } catch { alert('API unavailable') }
+  }
+
+  const handleSelectSkill = async (skill: SkillInfo) => {
+    if (selectedSkill?.name === skill.name) {
+      setSelectedSkill(null)
+      setSkillContent('')
+      setEditingSkillContent(false)
+      return
+    }
+    setSelectedSkill(skill)
+    setEditingSkillContent(false)
+    setSkillSaveMsg('')
+    setSkillContentLoading(true)
+    try {
+      const res = await fetch(`${API}/api/ara/skills/${encodeURIComponent(skill.name)}`)
+      if (res.ok) {
+        const d = await res.json()
+        const content = d.data?.instructions || ''
+        setSkillContent(content)
+        setEditedContent(content)
+      } else {
+        setSkillContent('')
+        setEditedContent('')
+      }
+    } catch { setSkillContent(''); setEditedContent('') }
+    setSkillContentLoading(false)
+  }
+
+  const handleSaveSkillContent = async () => {
+    if (!selectedSkill) return
+    setSkillSaving(true)
+    setSkillSaveMsg('')
+    try {
+      const res = await fetch(`${API}/api/ara/skills/${encodeURIComponent(selectedSkill.name)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructions: editedContent }),
+      })
+      if (res.ok) {
+        setSkillContent(editedContent)
+        setEditingSkillContent(false)
+        setSkillSaveMsg('Saved!')
+        setTimeout(() => setSkillSaveMsg(''), 3000)
+        loadData()
+      } else {
+        const e = await res.json().catch(() => ({ detail: 'Save failed' }))
+        setSkillSaveMsg(e.detail || 'Save failed')
+      }
+    } catch { setSkillSaveMsg('API unavailable') }
+    setSkillSaving(false)
   }
 
   const handleScanSkill = async (name: string) => {
@@ -1084,114 +1141,115 @@ export default function ARAPage() {
               </div>
             )}
 
-            {/* Roles List */}
+            {/* Roles List (accordion — detail expands inline) */}
             <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {roles.map((r, i) => (
-                  <div key={i} onClick={() => setSelectedRole(selectedRole?.name === r.name ? null : r)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: selectedRole?.name === r.name ? C.glowBlue : C.bg2, borderRadius: 10, border: `1px solid ${selectedRole?.name === r.name ? 'rgba(59,130,246,0.3)' : C.borderSub}`, cursor: 'pointer', transition: 'all 0.2s ease' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: r.source === 'starter' ? C.glowBlue : C.glowGreen, color: r.source === 'starter' ? C.blue : C.green, fontSize: 16, fontWeight: 600 }}>{r.name.charAt(0).toUpperCase()}</div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500 }}>{r.name}</div>
-                        <div style={{ fontSize: 12, color: C.txtMut }}>{r.scope} · {r.auth_method} · {r.source}</div>
+                {roles.map((r, i) => {
+                  const isOpen = selectedRole?.name === r.name
+                  const isEditing = editingRole === r.name
+                  return (
+                    <div key={i} style={{ borderRadius: 10, border: `1px solid ${isOpen ? 'rgba(59,130,246,0.3)' : C.borderSub}`, overflow: 'hidden', transition: 'all 0.2s ease' }}>
+                      {/* Row header — click to toggle */}
+                      <div onClick={() => { if (isOpen) { setSelectedRole(null); setEditingRole(null) } else { setSelectedRole(r); setEditingRole(null) } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: isOpen ? C.glowBlue : C.bg2, cursor: 'pointer', transition: 'background 0.15s ease' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 12, color: C.txtMut, transition: 'transform 0.2s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>&#9654;</span>
+                          <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: r.source === 'starter' ? C.glowBlue : C.glowGreen, color: r.source === 'starter' ? C.blue : C.green, fontSize: 16, fontWeight: 600 }}>{r.name.charAt(0).toUpperCase()}</div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 500 }}>{r.name}</div>
+                            <div style={{ fontSize: 12, color: C.txtMut }}>{r.scope} · {r.auth_method} · {r.source}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <button onClick={e => { e.stopPropagation(); setSelectedRole(r); setEditingRole(r.name); setEditForm({ scope: r.scope, auth_method: r.auth_method, description: r.description || '' }) }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.2)' }}>Edit</button>
+                          {r.source !== 'starter' && <button onClick={e => { e.stopPropagation(); handleDeleteRole(r.name) }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Delete</button>}
+                          <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: r.source === 'starter' ? C.glowBlue : 'rgba(34,197,94,0.1)', color: r.source === 'starter' ? C.blue : C.green }}>{r.source}</span>
+                        </div>
                       </div>
+
+                      {/* Inline expanded detail */}
+                      {isOpen && (
+                        <div style={{ padding: '16px 20px', background: C.bg1, borderTop: `1px solid ${C.border}` }}>
+                          {isEditing ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                  <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Scope</label>
+                                  <select value={editForm.scope} onChange={e => setEditForm(p => ({ ...p, scope: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
+                                    <option value="coding">coding</option><option value="research">research</option><option value="devops">devops</option><option value="full">full</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Auth Method</label>
+                                  <select value={editForm.auth_method} onChange={e => setEditForm(p => ({ ...p, auth_method: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
+                                    <option value="pin">pin</option><option value="totp">totp</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Description</label>
+                                <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} placeholder="Describe the role..." rows={4} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
+                              </div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => handleUpdateRole(r.name)} style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Save Changes</button>
+                                <button onClick={() => setEditingRole(null)} style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                              <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Scope</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{r.scope}</div></div>
+                              <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Auth Method</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{r.auth_method}</div></div>
+                              <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Source</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{r.source}</div></div>
+                              {r.description && <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8, gridColumn: '1 / -1' }}><div style={{ fontSize: 11, color: C.txtMut }}>Description</div><div style={{ fontSize: 13, marginTop: 4, whiteSpace: 'pre-wrap', lineHeight: 1.5, color: C.txtSec }}>{r.description}</div></div>}
+                            </div>
+                          )}
+
+                          {/* Assigned Skills */}
+                          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 16, paddingTop: 16 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Assigned Skills</div>
+                            {(r.assigned_skills && r.assigned_skills.length > 0) ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {r.assigned_skills.map((sk, si) => {
+                                  const skillInfo = skills.find(s => s.name === sk)
+                                  return (
+                                    <div key={si} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: C.bg2, borderRadius: 8, border: `1px solid ${C.borderSub}` }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 13 }}>&#129513;</span>
+                                        <div>
+                                          <div style={{ fontSize: 12, fontWeight: 500 }}>{sk}</div>
+                                          {skillInfo && <div style={{ fontSize: 11, color: C.txtMut }}>{skillInfo.description?.slice(0, 60) || 'No description'}</div>}
+                                        </div>
+                                      </div>
+                                      <button onClick={() => handleUnassignSkill(sk, r.name)} style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Remove</button>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ) : (
+                              <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8, color: C.txtMut, fontSize: 12 }}>No skills assigned yet.</div>
+                            )}
+
+                            {/* Add skill dropdown */}
+                            {(() => {
+                              const unassigned = skills.filter(s => !(r.assigned_skills || []).includes(s.name))
+                              return unassigned.length > 0 ? (
+                                <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+                                  <select value={roleAddSkill} onChange={e => setRoleAddSkill(e.target.value)} style={{ flex: 1, padding: '8px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 12 }}>
+                                    <option value="">Add a skill...</option>
+                                    {unassigned.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                                  </select>
+                                  <button onClick={async () => { if (roleAddSkill) { await handleAssignSkill(roleAddSkill, r.name); setRoleAddSkill('') } }} disabled={!roleAddSkill} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: roleAddSkill ? 'pointer' : 'not-allowed', background: roleAddSkill ? C.green : C.bg3, color: roleAddSkill ? C.bg0 : C.txtMut, border: 'none', whiteSpace: 'nowrap' }}>+ Add</button>
+                                </div>
+                              ) : null
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button onClick={e => { e.stopPropagation(); setEditingRole(r.name); setEditForm({ scope: r.scope, auth_method: r.auth_method, description: r.description || '' }); setSelectedRole(r) }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.2)' }}>Edit</button>
-                      {r.source !== 'starter' && <button onClick={e => { e.stopPropagation(); handleDeleteRole(r.name) }} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Delete</button>}
-                      <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: r.source === 'starter' ? C.glowBlue : 'rgba(34,197,94,0.1)', color: r.source === 'starter' ? C.blue : C.green }}>{r.source}</span>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
                 {roles.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: C.txtMut }}>No roles found. Click &quot;+ Create Role&quot; to get started.</div>}
               </div>
             </div>
-
-            {/* Role Detail (expanded) */}
-            {selectedRole && (
-              <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>Role: {selectedRole.name}</div>
-                  {editingRole !== selectedRole.name && (
-                    <button onClick={() => { setEditingRole(selectedRole.name); setEditForm({ scope: selectedRole.scope, auth_method: selectedRole.auth_method, description: selectedRole.description || '' }) }} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.3)' }}>Edit Role</button>
-                  )}
-                </div>
-
-                {editingRole === selectedRole.name ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      <div>
-                        <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Scope</label>
-                        <select value={editForm.scope} onChange={e => setEditForm(p => ({ ...p, scope: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
-                          <option value="coding">coding</option>
-                          <option value="research">research</option>
-                          <option value="devops">devops</option>
-                          <option value="full">full</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Auth Method</label>
-                        <select value={editForm.auth_method} onChange={e => setEditForm(p => ({ ...p, auth_method: e.target.value }))} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
-                          <option value="pin">pin</option>
-                          <option value="totp">totp</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: C.txtMut, display: 'block', marginBottom: 4 }}>Description</label>
-                      <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} placeholder="Describe the role's responsibilities, context, and expected behavior in detail..." rows={5} style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => handleUpdateRole(selectedRole.name)} style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Save Changes</button>
-                      <button onClick={() => setEditingRole(null)} style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Scope</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.scope}</div></div>
-                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Auth Method</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.auth_method}</div></div>
-                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Source</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedRole.source}</div></div>
-                    <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8, gridColumn: '1 / -1' }}><div style={{ fontSize: 11, color: C.txtMut }}>Description</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{selectedRole.description || 'No description'}</div></div>
-                  </div>
-                )}
-
-                {/* Assigned Skills */}
-                <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 16, paddingTop: 16 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Assigned Skills</div>
-                  {(selectedRole.assigned_skills && selectedRole.assigned_skills.length > 0) ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {selectedRole.assigned_skills.map((sk, si) => {
-                        const skillInfo = skills.find(s => s.name === sk)
-                        return (
-                          <div key={si} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: C.bg2, borderRadius: 8, border: `1px solid ${C.borderSub}` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <span style={{ fontSize: 14 }}>🧩</span>
-                              <div>
-                                <div style={{ fontSize: 13, fontWeight: 500 }}>{sk}</div>
-                                {skillInfo && <div style={{ fontSize: 11, color: C.txtMut }}>{skillInfo.description?.slice(0, 80) || 'No description'}</div>}
-                              </div>
-                            </div>
-                            <button onClick={() => handleUnassignSkill(sk, selectedRole.name)} style={{ padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Remove</button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div style={{ padding: '14px 16px', background: C.bg2, borderRadius: 8, color: C.txtMut, fontSize: 13 }}>No skills assigned. Go to Skills → select a skill → Assign to Role.</div>
-                  )}
-                  {(selectedRole.assigned_skill_groups && selectedRole.assigned_skill_groups.length > 0) && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: C.txtSec, marginBottom: 6 }}>Skill Groups</div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {selectedRole.assigned_skill_groups.map((sg, sgi) => (
-                          <span key={sgi} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 6, background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.2)' }}>{sg}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </>)}
 
           {/* ═══ SKILLS VIEW ═══ */}
@@ -1226,60 +1284,98 @@ export default function ARAPage() {
               </div>
             )}
 
-            {/* Skills List */}
+            {/* Skills List (accordion — detail expands inline) */}
             <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden' }}>
               <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {skills.map((s, i) => (
-                  <div key={i} onClick={() => setSelectedSkill(selectedSkill?.name === s.name ? null : s)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: selectedSkill?.name === s.name ? C.glowBlue : C.bg2, borderRadius: 10, border: `1px solid ${selectedSkill?.name === s.name ? 'rgba(59,130,246,0.3)' : C.borderSub}`, cursor: 'pointer', transition: 'all 0.2s ease' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: s.aegis_approved ? C.glowGreen : 'rgba(239,68,68,0.1)', color: s.aegis_approved ? C.green : C.red, fontSize: 16, fontWeight: 600 }}>{s.aegis_approved ? '✓' : '✗'}</div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
-                        <div style={{ fontSize: 12, color: C.txtMut }}>{s.description?.slice(0, 60) || 'No description'}</div>
+                {skills.map((s, i) => {
+                  const isOpen = selectedSkill?.name === s.name
+                  return (
+                    <div key={i} style={{ borderRadius: 10, border: `1px solid ${isOpen ? 'rgba(59,130,246,0.3)' : C.borderSub}`, overflow: 'hidden', transition: 'all 0.2s ease' }}>
+                      {/* Row header — click to toggle */}
+                      <div onClick={() => handleSelectSkill(s)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: isOpen ? C.glowBlue : C.bg2, cursor: 'pointer', transition: 'background 0.15s ease' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ fontSize: 12, color: C.txtMut, transition: 'transform 0.2s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>&#9654;</span>
+                          <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: s.aegis_approved ? C.glowGreen : 'rgba(239,68,68,0.1)', color: s.aegis_approved ? C.green : C.red, fontSize: 16, fontWeight: 600 }}>{s.aegis_approved ? '\u2713' : '\u2717'}</div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 500 }}>{s.name}</div>
+                            <div style={{ fontSize: 12, color: C.txtMut }}>{s.description?.slice(0, 60) || 'No description'}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          {s.tags?.slice(0, 2).map((t, ti) => <span key={ti} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: C.bg3, color: C.txtSec }}>{t}</span>)}
+                          <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: s.trust_level === 'verified' ? C.glowGreen : s.trust_level === 'blocked' ? 'rgba(239,68,68,0.1)' : C.glowBlue, color: s.trust_level === 'verified' ? C.green : s.trust_level === 'blocked' ? C.red : C.blue }}>{s.trust_level}</span>
+                          <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: s.source === 'imported' ? C.glowBlue : 'rgba(34,197,94,0.1)', color: s.source === 'imported' ? C.blue : C.green }}>{s.source}</span>
+                        </div>
                       </div>
+
+                      {/* Inline expanded detail */}
+                      {isOpen && (
+                        <div style={{ padding: '16px 20px', background: C.bg1, borderTop: `1px solid ${C.border}` }}>
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+                            {skillSaveMsg && <span style={{ fontSize: 12, color: skillSaveMsg === 'Saved!' ? C.green : C.red, marginRight: 'auto' }}>{skillSaveMsg}</span>}
+                            <button onClick={() => handleScanSkill(s.name)} style={{ padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.3)' }}>Re-scan</button>
+                            {s.source !== 'bundled' && <button onClick={() => handleDeleteSkill(s.name)} style={{ padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Delete</button>}
+                          </div>
+
+                          {/* Metadata grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+                            <div style={{ padding: '8px 12px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 10, color: C.txtMut }}>Version</div><div style={{ fontSize: 13, fontWeight: 500, marginTop: 2 }}>{s.version}</div></div>
+                            <div style={{ padding: '8px 12px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 10, color: C.txtMut }}>Trust</div><div style={{ fontSize: 13, fontWeight: 500, marginTop: 2, color: s.trust_level === 'verified' ? C.green : s.trust_level === 'blocked' ? C.red : C.blue }}>{s.trust_level}</div></div>
+                            <div style={{ padding: '8px 12px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 10, color: C.txtMut }}>AEGIS</div><div style={{ fontSize: 13, fontWeight: 500, marginTop: 2, color: s.aegis_approved ? C.green : C.red }}>{s.aegis_approved ? 'Approved' : 'Not approved'}</div></div>
+                            <div style={{ padding: '8px 12px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 10, color: C.txtMut }}>Source</div><div style={{ fontSize: 13, fontWeight: 500, marginTop: 2 }}>{s.source}</div></div>
+                          </div>
+
+                          {/* Tags */}
+                          {s.tags && s.tags.length > 0 && (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                              {s.tags.map((t, ti) => <span key={ti} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: C.bg3, color: C.txtSec }}>{t}</span>)}
+                            </div>
+                          )}
+
+                          {/* SKILL.md Content */}
+                          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, marginBottom: 14 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600 }}>SKILL.md Content</div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                {editingSkillContent ? (
+                                  <>
+                                    <button onClick={handleSaveSkillContent} disabled={skillSaving} style={{ padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: skillSaving ? 'wait' : 'pointer', background: C.green, color: C.bg0, border: 'none', opacity: skillSaving ? 0.6 : 1 }}>{skillSaving ? 'Saving...' : 'Save'}</button>
+                                    <button onClick={() => { setEditingSkillContent(false); setEditedContent(skillContent) }} style={{ padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                                  </>
+                                ) : (
+                                  <button onClick={() => { setEditingSkillContent(true); setEditedContent(skillContent) }} disabled={s.source === 'bundled'} style={{ padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: s.source === 'bundled' ? 'not-allowed' : 'pointer', background: s.source === 'bundled' ? C.bg3 : C.glowBlue, color: s.source === 'bundled' ? C.txtMut : C.blue, border: `1px solid ${s.source === 'bundled' ? C.border : 'rgba(59,130,246,0.3)'}` }}>{s.source === 'bundled' ? 'Read-only (bundled)' : 'Edit'}</button>
+                                )}
+                              </div>
+                            </div>
+                            {skillContentLoading ? (
+                              <div style={{ padding: 16, textAlign: 'center', color: C.txtMut, fontSize: 12 }}>Loading skill content...</div>
+                            ) : editingSkillContent ? (
+                              <textarea value={editedContent} onChange={e => setEditedContent(e.target.value)} rows={14} style={{ width: '100%', padding: '10px 12px', background: C.bg0, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 12, fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace", lineHeight: 1.5, resize: 'vertical' }} />
+                            ) : (
+                              <pre style={{ margin: 0, padding: '10px 12px', background: C.bg0, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txtSec, fontSize: 12, fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace", lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 350, overflowY: 'auto' }}>{skillContent || '(no instructions)'}</pre>
+                            )}
+                          </div>
+
+                          {/* Assign to Role */}
+                          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Assign to Role</div>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <select value={assignSkillRole} onChange={e => setAssignSkillRole(e.target.value)} style={{ flex: 1, padding: '8px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 12 }}>
+                                <option value="">Select a role...</option>
+                                {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                              </select>
+                              <button onClick={() => assignSkillRole && handleAssignSkill(s.name, assignSkillRole)} disabled={!assignSkillRole} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: assignSkillRole ? 'pointer' : 'not-allowed', background: assignSkillRole ? C.green : C.bg3, color: assignSkillRole ? C.bg0 : C.txtMut, border: 'none' }}>Assign</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      {s.tags?.slice(0, 2).map((t, ti) => <span key={ti} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: C.bg3, color: C.txtSec }}>{t}</span>)}
-                      <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: s.trust_level === 'verified' ? C.glowGreen : s.trust_level === 'blocked' ? 'rgba(239,68,68,0.1)' : C.glowBlue, color: s.trust_level === 'verified' ? C.green : s.trust_level === 'blocked' ? C.red : C.blue }}>{s.trust_level}</span>
-                      <span style={{ fontSize: 10, padding: '3px 10px', borderRadius: 6, background: s.source === 'imported' ? C.glowBlue : 'rgba(34,197,94,0.1)', color: s.source === 'imported' ? C.blue : C.green }}>{s.source}</span>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
                 {skills.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: C.txtMut }}>No skills found. Click &quot;+ Create Skill&quot; or use /skill create in the CLI.</div>}
               </div>
             </div>
-
-            {/* Skill Detail (expanded) */}
-            {selectedSkill && (
-              <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600 }}>Skill: {selectedSkill.name}</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleScanSkill(selectedSkill.name)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.3)' }}>Re-scan</button>
-                    {selectedSkill.source !== 'imported' && <button onClick={() => handleDeleteSkill(selectedSkill.name)} style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.2)' }}>Delete</button>}
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Version</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.version}</div></div>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Trust Level</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.trust_level}</div></div>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>AEGIS Approved</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4, color: selectedSkill.aegis_approved ? C.green : C.red }}>{selectedSkill.aegis_approved ? 'Yes' : 'No'}</div></div>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8 }}><div style={{ fontSize: 11, color: C.txtMut }}>Source</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.source}</div></div>
-                  <div style={{ padding: '10px 14px', background: C.bg2, borderRadius: 8, gridColumn: '1 / -1' }}><div style={{ fontSize: 11, color: C.txtMut }}>Tags</div><div style={{ fontSize: 14, fontWeight: 500, marginTop: 4 }}>{selectedSkill.tags?.join(', ') || 'None'}</div></div>
-                </div>
-
-                {/* Assign to Role */}
-                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Assign to Role</div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <select value={assignSkillRole} onChange={e => setAssignSkillRole(e.target.value)} style={{ flex: 1, padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14 }}>
-                      <option value="">Select a role...</option>
-                      {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
-                    </select>
-                    <button onClick={() => assignSkillRole && handleAssignSkill(selectedSkill.name, assignSkillRole)} disabled={!assignSkillRole} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: assignSkillRole ? 'pointer' : 'not-allowed', background: assignSkillRole ? C.green : C.bg3, color: assignSkillRole ? C.bg0 : C.txtMut, border: 'none' }}>Assign</button>
-                  </div>
-                </div>
-              </div>
-            )}
           </>)}
 
           {/* ═══ MEMORY VIEW ═══ */}

@@ -38,7 +38,11 @@ async def health_check():
         lifecycle = get_sandbox_lifecycle()
         result["sandbox"] = lifecycle.get_status()
     except Exception:
-        result["sandbox"] = {"available": False, "phase": "not_started", "reason": "lifecycle not loaded"}
+        result["sandbox"] = {
+            "available": False,
+            "phase": "not_started",
+            "reason": "lifecycle not loaded",
+        }
 
     return result
 

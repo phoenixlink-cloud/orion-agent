@@ -2,7 +2,7 @@ name: Orion CI/CD
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, "feature/*"]
     tags: ["v*"]
   pull_request:
     branches: [master, main]

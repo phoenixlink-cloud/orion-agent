@@ -47,7 +47,7 @@ Non-GET requests to non-LLM domains are inspected for credential patterns:
 | GitHub PAT | `ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
 | OpenAI API Key | `sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
 | Anthropic API Key | `sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
-| Google API Key | `AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
+| Google API Key | `[matches AIza... pattern, 39 chars]` |
 | Slack Token | `xoxb-xxxxxxxxxxxx-xxxxxxxxxxxx-xxxxxxxx` |
 | Private SSH Key | `-----BEGIN RSA PRIVATE KEY-----` |
 
