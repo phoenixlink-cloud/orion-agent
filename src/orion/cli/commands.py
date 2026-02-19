@@ -1348,26 +1348,16 @@ def _handle_google(parts, console):
         if sub == "login":
             import webbrowser
 
-            # Check if client_id is configured
-            client_id = None
-            import os
+            from orion.security.egress.google_oauth_config import resolve_client_id
 
-            client_id = os.environ.get("ORION_GOOGLE_CLIENT_ID")
-            if not client_id:
-                try:
-                    from orion.integrations.oauth_manager import get_client_id
-
-                    client_id = get_client_id("google")
-                except Exception:
-                    pass
+            client_id = resolve_client_id()
 
             if not client_id:
                 console.print_error(
                     "Google OAuth client_id not configured.\n"
-                    "Set ORION_GOOGLE_CLIENT_ID environment variable, or register\n"
-                    "a Google Cloud OAuth app and save the client_id via:\n"
-                    "  POST /api/oauth/quick-setup  (provider: google)\n"
-                    "See docs/USER_GUIDE.md for setup instructions."
+                    "Run /google setup to configure your Google Cloud credentials,\n"
+                    "or set the ORION_GOOGLE_CLIENT_ID environment variable.\n"
+                    "See docs/GOOGLE_SETUP.md for step-by-step instructions."
                 )
                 return {}
 
@@ -1441,17 +1431,101 @@ def _handle_google(parts, console):
             console.print_success(f"Google account disconnected ({email})")
             console.print_info("All stored credentials have been cleared")
 
+        elif sub == "setup":
+            _handle_google_setup(console)
+
         else:
             console.print_info(
-                "Usage: /google [login|status|disconnect]\n"
+                "Usage: /google [login|status|disconnect|setup]\n"
                 "  login      -- Open browser for Google sign-in (LLM-only scopes)\n"
                 "  status     -- Show connected Google account status\n"
-                "  disconnect -- Revoke access and clear stored credentials"
+                "  disconnect -- Revoke access and clear stored credentials\n"
+                "  setup      -- Configure Google OAuth app credentials (client_id)"
             )
 
     except Exception as e:
         console.print_error(f"Google command failed: {e}")
     return {}
+
+
+def _handle_google_setup(console):
+    """Interactive setup wizard for Google OAuth app credentials.
+
+    Guides the user through:
+      1. Creating a Google Cloud OAuth application
+      2. Entering the client_id (validated)
+      3. Optionally entering the client_secret
+      4. Saving to ~/.orion/google_oauth.json
+    """
+    from orion.security.egress.google_oauth_config import (
+        save,
+        validate,
+    )
+    from orion.security.egress.google_oauth_config import (
+        status as cfg_status,
+    )
+
+    current = cfg_status()
+    if current["configured"]:
+        console.print_info(
+            f"Google OAuth is already configured (source: {current['source']})\n"
+            f"  Client ID: {current['client_id_masked']}\n"
+            f"  Has secret: {current['has_client_secret']}"
+        )
+        console.print_info("Enter new credentials to overwrite, or press Enter to keep current.")
+
+    console.print_info(
+        "\n--- Google OAuth Setup ---\n"
+        "You need a Google Cloud OAuth 2.0 Client ID.\n"
+        "Steps:\n"
+        "  1. Go to https://console.cloud.google.com/apis/credentials\n"
+        "  2. Create a project (or select existing)\n"
+        "  3. Click 'Create Credentials' -> 'OAuth 2.0 Client ID'\n"
+        "  4. Application type: 'Desktop app' (recommended for PKCE)\n"
+        "  5. Copy the Client ID below\n"
+    )
+
+    try:
+        client_id = input("Client ID: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        console.print_info("\nSetup cancelled.")
+        return
+
+    if not client_id:
+        if current["configured"]:
+            console.print_info("Keeping existing configuration.")
+        else:
+            console.print_info("No client_id entered. Setup cancelled.")
+        return
+
+    # Validate before asking for secret
+    valid, reason = validate(client_id)
+    if not valid:
+        console.print_error(f"Invalid client_id: {reason}")
+        return
+
+    console.print_info(
+        "\nClient secret (optional -- Desktop apps using PKCE can leave this empty):"
+    )
+    try:
+        client_secret = input("Client Secret (or Enter to skip): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        client_secret = ""
+
+    try:
+        path = save(client_id, client_secret)
+        console.print_success(f"Google OAuth credentials saved to {path}")
+        console.print_info("You can now use /google login to connect your Google account.")
+    except ValueError as e:
+        console.print_error(f"Save failed: {e}")
+        return
+
+    # Also show how to delete
+    console.print_info(
+        "\nTo remove these credentials later:\n"
+        "  /google setup  (enter empty client_id)\n"
+        "  Or delete ~/.orion/google_oauth.json manually"
+    )
 
 
 def _handle_sandbox(parts, console):

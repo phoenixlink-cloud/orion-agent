@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.2] -- 2026-02-19
+
+### Added
+- **PIN Management API** — 3 new endpoints for secure PIN lifecycle management
+  - `GET /api/ara/auth/pin/status` — check if a PIN is configured
+  - `POST /api/ara/auth/pin` — set or change PIN (requires current PIN verification when changing)
+  - `POST /api/ara/auth/pin/verify` — test-verify a PIN
+- **PIN Management Web UI** — dedicated card in ARA Settings tab
+  - Set initial PIN or change existing PIN with current-PIN verification
+  - Digit-only masked inputs (4-8 digits), confirmation field, inline success/error feedback
+  - Dynamic UI adapts to whether a PIN is already configured
+- **17 E2E API tests** (`tests/test_pin_api_e2e.py`) — full lifecycle coverage via FastAPI TestClient
+  - Status, set, change, verify, validation (too short, non-digits, max length), and complete lifecycle flow
+
+### Fixed
+- **`cmd_work()` workspace fallback** — now reads `default_workspace` from `~/.orion/settings.json` before falling back to `Path.cwd()`, fixing failures when running under systemd or from non-project directories
+- **Consent Gates approve button** — added PIN prompt modal and inline feedback banner; approve flow now correctly requests PIN when `auth_method=pin` instead of silently failing with AEGIS gate block
+
 ## [10.0.1] -- 2026-02-19
 
 ### Added
@@ -20,8 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Web UI — Google Account card** in Settings panel (connect, disconnect, refresh, status display, AEGIS scope info)
 - **CLI — `/google` command** with `login`, `status`, `disconnect` subcommands
 - 54 tests covering scope validation, credential storage, container security, API routes, CLI commands, and security invariants
-
-### Changed
 - Automatic sandbox boot on Orion startup (CLI, Web UI, API modes)
 - Graceful degradation when Docker is unavailable (BYOK-only mode)
 - Sandbox status in `/api/health` endpoint and CLI banner
@@ -29,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/sandbox restart` command
 - `SandboxLifecycle` manager (`src/orion/security/sandbox_lifecycle.py`)
 - 20 unit tests + 5 integration tests for sandbox lifecycle
+
+### Changed
 - **ARA Web UI — Inline accordion expansion** for Skills and Roles lists (click to expand/collapse detail view directly beneath each item)
 - **Skills detail panel** — metadata grid (version, trust, AEGIS, source), tags, full SKILL.md content viewer with monospace rendering
 - **Skills SKILL.md editor** — Edit button switches to textarea for non-bundled skills; Save persists via API; bundled skills show "Read-only"

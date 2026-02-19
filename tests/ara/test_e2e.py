@@ -113,6 +113,7 @@ class TestFullSessionLifecycle:
             role_name="e2e-coder",
             goal="Add unit tests for auth module",
             workspace_path=str(workspace),
+            project_mode="continue",
             roles_dir=roles_dir,
             control=DaemonControl(state_dir=tmp_path / "daemon"),
         )

@@ -71,6 +71,14 @@ export default function ARAPage() {
   const [araSaving, setAraSaving] = useState(false)
   const [araSaveMsg, setAraSaveMsg] = useState('')
 
+  // PIN management (Settings tab)
+  const [pinConfigured, setPinConfigured] = useState(false)
+  const [pinMgmtCurrent, setPinMgmtCurrent] = useState('')
+  const [pinMgmtNew, setPinMgmtNew] = useState('')
+  const [pinMgmtConfirm, setPinMgmtConfirm] = useState('')
+  const [pinMgmtSaving, setPinMgmtSaving] = useState(false)
+  const [pinMgmtMsg, setPinMgmtMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   // Chat — WebSocket (same pipeline as main chat)
   const WS_URL = (process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001/ws/chat')
   const [chatMessages, setChatMessages] = useState<{role: string; text: string; type?: string}[]>([
@@ -99,6 +107,12 @@ export default function ARAPage() {
   const [rejectFeedback, setRejectFeedback] = useState('')
   const [rejectSubmitting, setRejectSubmitting] = useState(false)
 
+  // Consent gate PIN prompt & inline feedback
+  const [pinPromptSid, setPinPromptSid] = useState<string | null>(null)
+  const [pinInput, setPinInput] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [gateFeedback, setGateFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
+
   // New work session
   const [showNewSession, setShowNewSession] = useState(false)
   const [newSession, setNewSession] = useState({ role: '', goal: '', workspace: '' })
@@ -118,7 +132,7 @@ export default function ARAPage() {
   const loadData = useCallback(async () => {
     setRefreshing(true)
     try {
-      const [setupR, rolesR, sessR, statusR, dashR, settingsR, skillsR, notifR] = await Promise.allSettled([
+      const [setupR, rolesR, sessR, statusR, dashR, settingsR, skillsR, notifR, pinR] = await Promise.allSettled([
         fetch(`${API}/api/ara/setup`),
         fetch(`${API}/api/ara/roles`),
         fetch(`${API}/api/ara/sessions`),
@@ -127,6 +141,7 @@ export default function ARAPage() {
         fetch(`${API}/api/settings`),
         fetch(`${API}/api/ara/skills`),
         fetch(`${API}/api/ara/notifications`),
+        fetch(`${API}/api/ara/auth/pin/status`),
       ])
       if (setupR.status === 'fulfilled' && setupR.value.ok) {
         const d = await setupR.value.json(); setSetupChecks(d.data?.checks || [])
@@ -164,6 +179,10 @@ export default function ARAPage() {
       if (notifR.status === 'fulfilled' && notifR.value.ok) {
         const d = await notifR.value.json()
         setNotifications(d.data?.notifications || [])
+      }
+      if (pinR.status === 'fulfilled' && pinR.value.ok) {
+        const d = await pinR.value.json()
+        setPinConfigured(!!d.configured)
       }
       setError(null)
       setLastRefresh(new Date())
@@ -273,6 +292,31 @@ export default function ARAPage() {
       else setAraSaveMsg('Save failed')
     } catch { setAraSaveMsg('API unavailable') }
     setAraSaving(false)
+  }
+
+  const handleSetPin = async () => {
+    setPinMgmtMsg(null)
+    if (!pinMgmtNew.trim()) { setPinMgmtMsg({ type: 'error', text: 'New PIN is required.' }); return }
+    if (pinMgmtNew !== pinMgmtConfirm) { setPinMgmtMsg({ type: 'error', text: 'PINs do not match.' }); return }
+    if (!/^\d{4,8}$/.test(pinMgmtNew)) { setPinMgmtMsg({ type: 'error', text: 'PIN must be 4-8 digits.' }); return }
+    if (pinConfigured && !pinMgmtCurrent.trim()) { setPinMgmtMsg({ type: 'error', text: 'Current PIN is required.' }); return }
+    setPinMgmtSaving(true)
+    try {
+      const res = await fetch(`${API}/api/ara/auth/pin`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_pin: pinMgmtNew, current_pin: pinConfigured ? pinMgmtCurrent : null }),
+      })
+      if (res.ok) {
+        setPinMgmtMsg({ type: 'success', text: 'PIN saved successfully!' })
+        setPinConfigured(true)
+        setPinMgmtCurrent(''); setPinMgmtNew(''); setPinMgmtConfirm('')
+        setTimeout(() => setPinMgmtMsg(null), 4000)
+      } else {
+        const e = await res.json()
+        setPinMgmtMsg({ type: 'error', text: e.detail || 'Failed to set PIN.' })
+      }
+    } catch { setPinMgmtMsg({ type: 'error', text: 'API unavailable.' }) }
+    setPinMgmtSaving(false)
   }
 
   const handleCreateSkill = async () => {
@@ -561,9 +605,28 @@ export default function ARAPage() {
     setRejectSubmitting(false)
   }
 
-  const handleReview = async (sid?: string) => {
+  const initiateReview = (sid?: string) => {
+    setGateFeedback(null)
+    // Look up the session's role to check if PIN auth is required
+    const session = sessions.find(s => s.session_id === sid)
+    const roleName = session?.role
+    const role = roleName ? roles.find(r => r.name === roleName) : null
+    if (role?.auth_method === 'pin' || role?.auth_method === 'totp') {
+      // Show PIN prompt modal — actual review happens in executeReview after PIN entry
+      setPinPromptSid(sid || null)
+      setPinInput('')
+      setPinError('')
+    } else {
+      // No auth required — execute immediately
+      executeReview(sid)
+    }
+  }
+
+  const executeReview = async (sid?: string, credential?: string) => {
+    setGateFeedback({ type: 'info', message: 'Reviewing session...' })
     try {
-      const params = sid ? `?session_id=${encodeURIComponent(sid)}` : ''
+      let params = sid ? `?session_id=${encodeURIComponent(sid)}` : ''
+      if (credential) params += `${params ? '&' : '?'}credential=${encodeURIComponent(credential)}`
       const reviewRes = await fetch(`${API}/api/ara/review${params}`, { method: 'POST' })
       if (reviewRes.ok) {
         const rd = await reviewRes.json()
@@ -572,21 +635,40 @@ export default function ARAPage() {
           const promoteRes = await fetch(`${API}/api/ara/promote`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: sid || null }),
+            body: JSON.stringify({ session_id: sid || null, credential: credential || null }),
           })
           if (promoteRes.ok) {
             const pd = await promoteRes.json()
-            setChatMessages(prev => [...prev, { role: 'ai', text: `✅ ${pd.message || 'Session promoted to workspace.'}` }])
+            const msg = pd.message || 'Session promoted to workspace.'
+            setGateFeedback({ type: 'success', message: msg })
+            setChatMessages(prev => [...prev, { role: 'ai', text: `✅ ${msg}` }])
           } else {
             const pe = await promoteRes.json().catch(() => ({ detail: 'Promotion failed' }))
-            setChatMessages(prev => [...prev, { role: 'ai', text: `⚠ AEGIS approved but promotion failed: ${pe.detail || pe.message}`, type: 'error' }])
+            const msg = `AEGIS approved but promotion failed: ${pe.detail || pe.message}`
+            setGateFeedback({ type: 'error', message: msg })
+            setChatMessages(prev => [...prev, { role: 'ai', text: `⚠ ${msg}`, type: 'error' }])
           }
         } else {
-          setChatMessages(prev => [...prev, { role: 'ai', text: `🔒 AEGIS Gate blocked: ${rd.message}`, type: 'error' }])
+          const msg = `AEGIS Gate blocked: ${rd.message}`
+          setGateFeedback({ type: 'error', message: msg })
+          setChatMessages(prev => [...prev, { role: 'ai', text: `🔒 ${msg}`, type: 'error' }])
         }
+      } else {
+        const err = await reviewRes.json().catch(() => ({ detail: 'Review request failed' }))
+        setGateFeedback({ type: 'error', message: err.detail || err.message || 'Review request failed' })
       }
       loadData()
-    } catch {}
+    } catch {
+      setGateFeedback({ type: 'error', message: 'API unavailable — could not complete review.' })
+    }
+  }
+
+  const handlePinSubmit = () => {
+    if (!pinInput.trim()) { setPinError('PIN is required'); return }
+    const sid = pinPromptSid || undefined
+    setPinPromptSid(null)
+    executeReview(sid, pinInput.trim())
+    setPinInput('')
   }
 
   const handleViewPlan = async (sid?: string) => {
@@ -996,7 +1078,7 @@ export default function ARAPage() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       {s.status === 'running' && <><button onClick={() => handleSessionAction('pause')} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowAmber, color: C.amber, border: '1px solid rgba(245,158,11,0.3)' }}>Pause</button><button onClick={() => handleSessionAction('cancel')} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: 'rgba(239,68,68,0.1)', color: C.red, border: '1px solid rgba(239,68,68,0.3)' }}>Cancel</button></>}
                       {s.status === 'paused' && <button onClick={() => handleSessionAction('resume')} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowGreen, color: C.green, border: '1px solid rgba(34,197,94,0.3)' }}>Resume</button>}
-                      {s.status === 'completed' && <button onClick={() => handleReview(s.session_id)} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.3)' }}>Review & Promote</button>}
+                      {s.status === 'completed' && <button onClick={() => initiateReview(s.session_id)} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.glowBlue, color: C.blue, border: '1px solid rgba(59,130,246,0.3)' }}>Review & Promote</button>}
                     </div>
                   </div>
                 ))}
@@ -1016,6 +1098,17 @@ export default function ARAPage() {
           {/* ═══ CONSENT GATES VIEW ═══ */}
           {activeNav === 'consent' && (<>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Consent Gates</div>
+            {gateFeedback && (
+              <div style={{
+                background: gateFeedback.type === 'success' ? 'rgba(34,197,94,0.1)' : gateFeedback.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+                border: `1px solid ${gateFeedback.type === 'success' ? 'rgba(34,197,94,0.3)' : gateFeedback.type === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(59,130,246,0.3)'}`,
+                borderRadius: 10, padding: '12px 16px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span style={{ fontSize: 16 }}>{gateFeedback.type === 'success' ? '✅' : gateFeedback.type === 'error' ? '⚠' : '⏳'}</span>
+                <span style={{ fontSize: 13, color: gateFeedback.type === 'success' ? C.green : gateFeedback.type === 'error' ? C.red : C.blue, fontWeight: 500, flex: 1 }}>{gateFeedback.message}</span>
+                <button onClick={() => setGateFeedback(null)} style={{ background: 'none', border: 'none', color: C.txtMut, cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1 }}>×</button>
+              </div>
+            )}
             {pendingCount > 0 && dashSections.filter(s => s.title.toLowerCase().includes('pending') || s.title.toLowerCase().includes('review')).map((s, i) => {
               // Use session_id from dashboard section data (added by API), with regex fallback
               let pendingSid = s.session_id || undefined
@@ -1034,7 +1127,7 @@ export default function ARAPage() {
                     <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: C.amber }}>⚠</span> {s.title}</div>
                     <div style={{ fontSize: 13, color: C.txtSec, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{s.content}</div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                      <button onClick={() => handleReview(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
+                      <button onClick={() => initiateReview(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
                       <button onClick={() => handleViewPlan(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: isExpanded ? 'rgba(59,130,246,0.15)' : C.bg2, color: isExpanded ? C.blue : C.txtSec, border: `1px solid ${isExpanded ? 'rgba(59,130,246,0.3)' : C.border}` }}>Review First {isExpanded ? '▲' : '▼'}</button>
                       <button onClick={() => handleRejectWithFeedback(pendingSid)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: rejectingGate === key ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', color: C.red, border: '1px solid rgba(239,68,68,0.25)' }}>Reject {rejectingGate === key ? '▲' : ''}</button>
                     </div>
@@ -1068,7 +1161,7 @@ export default function ARAPage() {
                     <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: C.amber }}>🔒</span> Review: {s.goal?.slice(0, 60)}</div>
                     <div style={{ fontSize: 13, color: C.txtSec, marginBottom: 12 }}>Session {s.session_id?.slice(0, 8)} completed by {s.role}. Ready for sandbox review and promotion.</div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => handleReview(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve & Promote</button>
+                      <button onClick={() => initiateReview(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve & Promote</button>
                       <button onClick={() => handleViewPlan(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: isExpanded ? 'rgba(59,130,246,0.15)' : C.bg2, color: isExpanded ? C.blue : C.txtSec, border: `1px solid ${isExpanded ? 'rgba(59,130,246,0.3)' : C.border}` }}>Review Diff {isExpanded ? '▲' : '▼'}</button>
                       <button onClick={() => handleRejectWithFeedback(s.session_id)} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: rejectingGate === key ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.08)', color: C.red, border: '1px solid rgba(239,68,68,0.25)' }}>Reject {rejectingGate === key ? '▲' : ''}</button>
                     </div>
@@ -1437,6 +1530,40 @@ export default function ARAPage() {
                 </div>
               ))}
             </div>
+
+            {/* ── PIN Management ──────────────────────────── */}
+            <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, marginTop: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>PIN Management</div>
+              <div style={{ fontSize: 12, color: C.txtMut, marginBottom: 16 }}>
+                {pinConfigured ? 'Your PIN is configured. You can change it below.' : 'No PIN is set. Create one to secure autonomous session approvals.'}
+              </div>
+
+              {pinMgmtMsg && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13, background: pinMgmtMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${pinMgmtMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, color: pinMgmtMsg.type === 'success' ? C.green : C.red }}>
+                  {pinMgmtMsg.text}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 340 }}>
+                {pinConfigured && (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 500, color: C.txtSec, display: 'block', marginBottom: 4 }}>Current PIN</label>
+                    <input type="password" inputMode="numeric" maxLength={8} value={pinMgmtCurrent} onChange={e => setPinMgmtCurrent(e.target.value.replace(/\D/g, ''))} placeholder="Enter current PIN" style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, letterSpacing: 4, boxSizing: 'border-box' }} />
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: C.txtSec, display: 'block', marginBottom: 4 }}>New PIN</label>
+                  <input type="password" inputMode="numeric" maxLength={8} value={pinMgmtNew} onChange={e => setPinMgmtNew(e.target.value.replace(/\D/g, ''))} placeholder="4-8 digits" style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, letterSpacing: 4, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: C.txtSec, display: 'block', marginBottom: 4 }}>Confirm New PIN</label>
+                  <input type="password" inputMode="numeric" maxLength={8} value={pinMgmtConfirm} onChange={e => setPinMgmtConfirm(e.target.value.replace(/\D/g, ''))} placeholder="Re-enter new PIN" style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, letterSpacing: 4, boxSizing: 'border-box' }} />
+                </div>
+                <button onClick={handleSetPin} disabled={pinMgmtSaving} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.blue, color: '#fff', border: 'none', opacity: pinMgmtSaving ? 0.5 : 1, alignSelf: 'flex-start', marginTop: 4 }}>
+                  {pinMgmtSaving ? 'Saving...' : pinConfigured ? 'Change PIN' : 'Set PIN'}
+                </button>
+              </div>
+            </div>
           </>)}
         </main>
 
@@ -1455,7 +1582,7 @@ export default function ARAPage() {
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: C.amber }}>🔒</span> Promote: {s.goal?.slice(0, 40)}</div>
                 <div style={{ fontSize: 13, color: C.txtSec, marginBottom: 12, lineHeight: 1.5 }}>Session by {s.role} ready for review.</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => handleReview(s.session_id)} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
+                  <button onClick={() => initiateReview(s.session_id)} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
                   <button onClick={() => handleViewPlan(s.session_id)} style={{ padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Review First</button>
                 </div>
               </div>
@@ -1524,6 +1651,32 @@ export default function ARAPage() {
           </div>
         </aside>
       </div>
+
+      {/* ═══ PIN PROMPT MODAL ═══ */}
+      {pinPromptSid !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setPinPromptSid(null)}>
+          <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28, width: 360, maxWidth: '90vw' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>🔑 PIN Required</div>
+            <div style={{ fontSize: 13, color: C.txtSec, marginBottom: 16 }}>This role requires PIN authentication to approve the AEGIS gate.</div>
+            <input
+              type="password"
+              autoFocus
+              value={pinInput}
+              onChange={e => { setPinInput(e.target.value); setPinError('') }}
+              onKeyDown={e => { if (e.key === 'Enter') handlePinSubmit() }}
+              placeholder="Enter PIN"
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 10, border: `1px solid ${pinError ? 'rgba(239,68,68,0.5)' : C.border}`, background: C.bg2, color: C.txt, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+            {pinError && <div style={{ color: C.red, fontSize: 12, marginTop: 6 }}>{pinError}</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button onClick={() => setPinPromptSid(null)} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+              <button onClick={handlePinSubmit} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.green, color: C.bg0, border: 'none' }}>Approve</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }

@@ -145,7 +145,21 @@ def cmd_work(
                     f"Run: /auth-switch {role.auth_method} to set it up first.",
                 )
 
-    # Resolve workspace
+    # Resolve workspace — prefer user's configured default, cwd() is last resort
+    if not workspace_path:
+        try:
+            _settings_path = Path.home() / ".orion" / "settings.json"
+            if _settings_path.exists():
+                import json as _json
+
+                _user_settings = _json.loads(_settings_path.read_text())
+                workspace_path = (
+                    _user_settings.get("default_workspace")
+                    or _user_settings.get("workspace")
+                    or None
+                )
+        except Exception:
+            pass
     resolved_workspace = workspace_path or str(Path.cwd())
     ws = Path(resolved_workspace)
 
@@ -1738,6 +1752,7 @@ def _get_skill_library(skills_dir: Path | None = None):
                 existing.source = "bundled"
                 existing.trust_level = "verified"
                 existing.aegis_approved = True
+
 
     # Cache only when using default dir
     if skills_dir is None:
