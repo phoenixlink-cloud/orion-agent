@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.1] -- 2026-02-19
+
 ### Added
+- **Google Account OAuth Sign-In** — Dedicated sign-in flow for Google LLM access (Gemini, Vertex AI)
+  - `src/orion/api/routes/google.py` — 5 API endpoints: connect, callback, status, disconnect, refresh
+  - OAuth2 Authorization Code flow with PKCE (S256) and state validation
+  - AEGIS scope enforcement: LLM-only scopes allowed (openid, email, profile, cloud-platform, generative-language.*)
+  - Blocked scopes: Drive, Gmail, Calendar, YouTube, Contacts, Photos — rejected at token exchange
+  - Container receives read-only access token only (no refresh token)
+  - Host-side token refresh via `GoogleCredentialManager`
+- **Web UI — Google Account card** in Settings panel (connect, disconnect, refresh, status display, AEGIS scope info)
+- **CLI — `/google` command** with `login`, `status`, `disconnect` subcommands
+- 54 tests covering scope validation, credential storage, container security, API routes, CLI commands, and security invariants
+
+### Changed
 - Automatic sandbox boot on Orion startup (CLI, Web UI, API modes)
 - Graceful degradation when Docker is unavailable (BYOK-only mode)
 - Sandbox status in `/api/health` endpoint and CLI banner
@@ -21,12 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`PUT /api/ara/skills/{name}`** API endpoint — updates skill description, instructions, or tags via `cmd_skill_update`
 - **Roles inline detail** — expanding a role shows scope/auth/source/description, assigned skills with Remove buttons, and "Add a skill" dropdown
 - **Roles inline edit form** — Edit button expands edit form (scope, auth method, description) with Save/Cancel directly inside the accordion
-
-### Changed
 - `/sandbox` commands now use shared lifecycle singleton (no duplicate orchestrator instances)
 - Skills and Roles lists now use accordion UI pattern (detail expands inline under each item, not as a separate panel below the list)
-- Skill list rows show ▶ arrow indicator that rotates on expand/collapse
-- Role list rows show ▶ arrow indicator that rotates on expand/collapse
 
 ### Fixed
 - **Seed skills (debug-issue, deploy-to-staging, docker-setup) no longer display as "blocked"** — `_get_skill_library` now explicitly marks seed skills as `verified`, `bundled`, `aegis_approved: True` and fixes user copies that were incorrectly blocked by SkillGuard
