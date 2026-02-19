@@ -481,9 +481,7 @@ class TestCmdWorkProjectMode:
         )
         assert result.success is True
 
-    def test_new_skips_decision(
-        self, roles_dir: Path, control: DaemonControl, tmp_path: Path
-    ):
+    def test_new_skips_decision(self, roles_dir: Path, control: DaemonControl, tmp_path: Path):
         ws = tmp_path / "workspace"
         ws.mkdir()
         (ws / "old.py").write_text("old")
@@ -498,9 +496,7 @@ class TestCmdWorkProjectMode:
         assert result.success is True
         assert result.data.get("needs_decision") is not True
 
-    def test_continue_skips_decision(
-        self, roles_dir: Path, control: DaemonControl, tmp_path: Path
-    ):
+    def test_continue_skips_decision(self, roles_dir: Path, control: DaemonControl, tmp_path: Path):
         ws = tmp_path / "workspace"
         ws.mkdir()
         (ws / "app.py").write_text("existing app")

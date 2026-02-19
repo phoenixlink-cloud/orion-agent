@@ -132,7 +132,9 @@ def cmd_workspace_clear() -> CommandResult:
     # Clean empty directories (bottom-up)
     skip = {".git", ".orion-archive", "__pycache__", "node_modules", ".venv", ".env"}
     for d in sorted(ws.rglob("*"), reverse=True):
-        if d.is_dir() and not any(part.startswith(".") or part in skip for part in d.relative_to(ws).parts):
+        if d.is_dir() and not any(
+            part.startswith(".") or part in skip for part in d.relative_to(ws).parts
+        ):
             try:
                 d.rmdir()  # only removes if empty
             except OSError:
@@ -309,7 +311,11 @@ def cmd_work(
         f"Daemon: spawning background process..."
         + auth_warning
         + "\n\nUse '/status' to monitor, '/notifications' when done.",
-        data={"session_id": session.session_id, "role_name": role.name, "project_mode": project_mode},
+        data={
+            "session_id": session.session_id,
+            "role_name": role.name,
+            "project_mode": project_mode,
+        },
     )
 
 
