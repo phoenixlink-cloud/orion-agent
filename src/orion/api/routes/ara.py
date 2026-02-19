@@ -60,6 +60,11 @@ class ARASettingsUpdate(BaseModel):
     settings: dict[str, Any]
 
 
+class PinSetRequest(BaseModel):
+    new_pin: str
+    current_pin: str | None = None
+
+
 # =============================================================================
 # Session Control
 # =============================================================================
@@ -498,6 +503,76 @@ async def update_ara_settings(req: ARASettingsUpdate):
 
         result = cmd_settings_ara(settings=req.settings)
         return {"success": result.success, "message": result.message, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# PIN / Auth Management
+# =============================================================================
+
+
+@router.get("/auth/pin/status")
+async def get_pin_status():
+    """Check whether a PIN is currently configured."""
+    try:
+        from orion.ara.auth import AuthStore
+
+        store = AuthStore()
+        return {
+            "configured": store.has_pin,
+            "has_totp": store.has_totp,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/auth/pin")
+async def set_pin(req: PinSetRequest):
+    """Set or change the PIN.
+
+    If a PIN already exists, `current_pin` must be provided and verified first.
+    """
+    try:
+        from orion.ara.auth import AuthStore
+
+        store = AuthStore()
+
+        # If PIN already set, require current PIN for verification
+        if store.has_pin:
+            if not req.current_pin:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Current PIN is required to change an existing PIN.",
+                )
+            result = store.verify_pin(req.current_pin)
+            if not result.success:
+                raise HTTPException(status_code=403, detail=result.message)
+
+        # Validate and store new PIN
+        store.set_pin(req.new_pin)
+        return {"success": True, "message": "PIN set successfully."}
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/auth/pin/verify")
+async def verify_pin(credential: str):
+    """Test-verify a PIN (useful for the UI to confirm it works)."""
+    try:
+        from orion.ara.auth import AuthStore
+
+        store = AuthStore()
+        result = store.verify_pin(credential)
+        return {
+            "success": result.success,
+            "message": result.message,
+            "remaining_attempts": result.remaining_attempts,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

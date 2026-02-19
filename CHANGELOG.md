@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.2] -- 2026-02-19
+
+### Added
+- **PIN Management API** — 3 new endpoints for secure PIN lifecycle management
+  - `GET /api/ara/auth/pin/status` — check if a PIN is configured
+  - `POST /api/ara/auth/pin` — set or change PIN (requires current PIN verification when changing)
+  - `POST /api/ara/auth/pin/verify` — test-verify a PIN
+- **PIN Management Web UI** — dedicated card in ARA Settings tab
+  - Set initial PIN or change existing PIN with current-PIN verification
+  - Digit-only masked inputs (4-8 digits), confirmation field, inline success/error feedback
+  - Dynamic UI adapts to whether a PIN is already configured
+- **17 E2E API tests** (`tests/test_pin_api_e2e.py`) — full lifecycle coverage via FastAPI TestClient
+  - Status, set, change, verify, validation (too short, non-digits, max length), and complete lifecycle flow
+
+### Fixed
+- **`cmd_work()` workspace fallback** — now reads `default_workspace` from `~/.orion/settings.json` before falling back to `Path.cwd()`, fixing failures when running under systemd or from non-project directories
+- **Consent Gates approve button** — added PIN prompt modal and inline feedback banner; approve flow now correctly requests PIN when `auth_method=pin` instead of silently failing with AEGIS gate block
+
 ## [10.0.1] -- 2026-02-19
 
 ### Added

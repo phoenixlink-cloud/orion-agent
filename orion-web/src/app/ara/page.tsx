@@ -71,6 +71,14 @@ export default function ARAPage() {
   const [araSaving, setAraSaving] = useState(false)
   const [araSaveMsg, setAraSaveMsg] = useState('')
 
+  // PIN management (Settings tab)
+  const [pinConfigured, setPinConfigured] = useState(false)
+  const [pinMgmtCurrent, setPinMgmtCurrent] = useState('')
+  const [pinMgmtNew, setPinMgmtNew] = useState('')
+  const [pinMgmtConfirm, setPinMgmtConfirm] = useState('')
+  const [pinMgmtSaving, setPinMgmtSaving] = useState(false)
+  const [pinMgmtMsg, setPinMgmtMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   // Chat — WebSocket (same pipeline as main chat)
   const WS_URL = (process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8001/ws/chat')
   const [chatMessages, setChatMessages] = useState<{role: string; text: string; type?: string}[]>([
@@ -124,7 +132,7 @@ export default function ARAPage() {
   const loadData = useCallback(async () => {
     setRefreshing(true)
     try {
-      const [setupR, rolesR, sessR, statusR, dashR, settingsR, skillsR, notifR] = await Promise.allSettled([
+      const [setupR, rolesR, sessR, statusR, dashR, settingsR, skillsR, notifR, pinR] = await Promise.allSettled([
         fetch(`${API}/api/ara/setup`),
         fetch(`${API}/api/ara/roles`),
         fetch(`${API}/api/ara/sessions`),
@@ -133,6 +141,7 @@ export default function ARAPage() {
         fetch(`${API}/api/settings`),
         fetch(`${API}/api/ara/skills`),
         fetch(`${API}/api/ara/notifications`),
+        fetch(`${API}/api/ara/auth/pin/status`),
       ])
       if (setupR.status === 'fulfilled' && setupR.value.ok) {
         const d = await setupR.value.json(); setSetupChecks(d.data?.checks || [])
@@ -170,6 +179,10 @@ export default function ARAPage() {
       if (notifR.status === 'fulfilled' && notifR.value.ok) {
         const d = await notifR.value.json()
         setNotifications(d.data?.notifications || [])
+      }
+      if (pinR.status === 'fulfilled' && pinR.value.ok) {
+        const d = await pinR.value.json()
+        setPinConfigured(!!d.configured)
       }
       setError(null)
       setLastRefresh(new Date())
@@ -279,6 +292,31 @@ export default function ARAPage() {
       else setAraSaveMsg('Save failed')
     } catch { setAraSaveMsg('API unavailable') }
     setAraSaving(false)
+  }
+
+  const handleSetPin = async () => {
+    setPinMgmtMsg(null)
+    if (!pinMgmtNew.trim()) { setPinMgmtMsg({ type: 'error', text: 'New PIN is required.' }); return }
+    if (pinMgmtNew !== pinMgmtConfirm) { setPinMgmtMsg({ type: 'error', text: 'PINs do not match.' }); return }
+    if (!/^\d{4,8}$/.test(pinMgmtNew)) { setPinMgmtMsg({ type: 'error', text: 'PIN must be 4-8 digits.' }); return }
+    if (pinConfigured && !pinMgmtCurrent.trim()) { setPinMgmtMsg({ type: 'error', text: 'Current PIN is required.' }); return }
+    setPinMgmtSaving(true)
+    try {
+      const res = await fetch(`${API}/api/ara/auth/pin`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_pin: pinMgmtNew, current_pin: pinConfigured ? pinMgmtCurrent : null }),
+      })
+      if (res.ok) {
+        setPinMgmtMsg({ type: 'success', text: 'PIN saved successfully!' })
+        setPinConfigured(true)
+        setPinMgmtCurrent(''); setPinMgmtNew(''); setPinMgmtConfirm('')
+        setTimeout(() => setPinMgmtMsg(null), 4000)
+      } else {
+        const e = await res.json()
+        setPinMgmtMsg({ type: 'error', text: e.detail || 'Failed to set PIN.' })
+      }
+    } catch { setPinMgmtMsg({ type: 'error', text: 'API unavailable.' }) }
+    setPinMgmtSaving(false)
   }
 
   const handleCreateSkill = async () => {
@@ -1491,6 +1529,40 @@ export default function ARAPage() {
                   )}
                 </div>
               ))}
+            </div>
+
+            {/* ── PIN Management ──────────────────────────── */}
+            <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, marginTop: 16 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>PIN Management</div>
+              <div style={{ fontSize: 12, color: C.txtMut, marginBottom: 16 }}>
+                {pinConfigured ? 'Your PIN is configured. You can change it below.' : 'No PIN is set. Create one to secure autonomous session approvals.'}
+              </div>
+
+              {pinMgmtMsg && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13, background: pinMgmtMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: `1px solid ${pinMgmtMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, color: pinMgmtMsg.type === 'success' ? C.green : C.red }}>
+                  {pinMgmtMsg.text}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 340 }}>
+                {pinConfigured && (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 500, color: C.txtSec, display: 'block', marginBottom: 4 }}>Current PIN</label>
+                    <input type="password" inputMode="numeric" maxLength={8} value={pinMgmtCurrent} onChange={e => setPinMgmtCurrent(e.target.value.replace(/\D/g, ''))} placeholder="Enter current PIN" style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, letterSpacing: 4, boxSizing: 'border-box' }} />
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: C.txtSec, display: 'block', marginBottom: 4 }}>New PIN</label>
+                  <input type="password" inputMode="numeric" maxLength={8} value={pinMgmtNew} onChange={e => setPinMgmtNew(e.target.value.replace(/\D/g, ''))} placeholder="4-8 digits" style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, letterSpacing: 4, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: C.txtSec, display: 'block', marginBottom: 4 }}>Confirm New PIN</label>
+                  <input type="password" inputMode="numeric" maxLength={8} value={pinMgmtConfirm} onChange={e => setPinMgmtConfirm(e.target.value.replace(/\D/g, ''))} placeholder="Re-enter new PIN" style={{ width: '100%', padding: '10px 14px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 14, letterSpacing: 4, boxSizing: 'border-box' }} />
+                </div>
+                <button onClick={handleSetPin} disabled={pinMgmtSaving} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.blue, color: '#fff', border: 'none', opacity: pinMgmtSaving ? 0.5 : 1, alignSelf: 'flex-start', marginTop: 4 }}>
+                  {pinMgmtSaving ? 'Saving...' : pinConfigured ? 'Change PIN' : 'Set PIN'}
+                </button>
+              </div>
             </div>
           </>)}
         </main>
