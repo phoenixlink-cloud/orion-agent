@@ -280,19 +280,13 @@ class TestNoHardcodedSecrets:
             files.extend(repo_root.rglob(f"*{ext}"))
         # Exclude node_modules, .git, __pycache__, dist, build
         exclude_dirs = {"node_modules", ".git", "__pycache__", "dist", "build", ".next"}
-        return [
-            f
-            for f in files
-            if not any(part in exclude_dirs for part in f.parts)
-        ]
+        return [f for f in files if not any(part in exclude_dirs for part in f.parts)]
 
     def test_no_real_google_client_id_in_source(self):
         """No file should contain a real-looking Google OAuth client_id."""
         import re
 
-        pattern = re.compile(
-            r"\d{10,14}-[a-zA-Z0-9_]{20,}\.apps\.googleusercontent\.com"
-        )
+        pattern = re.compile(r"\d{10,14}-[a-zA-Z0-9_]{20,}\.apps\.googleusercontent\.com")
         violations = []
         for f in self._get_source_files():
             try:
@@ -317,8 +311,7 @@ class TestNoHardcodedSecrets:
                     violations.append(f"{f}:{i}: {line.strip()[:120]}")
 
         assert violations == [], (
-            "Found real-looking Google client_id in source files:\n"
-            + "\n".join(violations)
+            "Found real-looking Google client_id in source files:\n" + "\n".join(violations)
         )
 
     def test_no_real_google_client_secret_in_source(self):
@@ -347,8 +340,7 @@ class TestNoHardcodedSecrets:
                     violations.append(f"{f}:{i}: {line.strip()[:120]}")
 
         assert violations == [], (
-            "Found real-looking Google client_secret in source files:\n"
-            + "\n".join(violations)
+            "Found real-looking Google client_secret in source files:\n" + "\n".join(violations)
         )
 
     def test_no_google_api_key_in_source(self):
@@ -370,8 +362,11 @@ class TestNoHardcodedSecrets:
                         continue
                     # Allow runtime-constructed fake keys in tests
                     if "AIza" in line and (
-                        "+" in line or "join" in line or "prefix" in line
-                        or "FAKE" in line.upper() or "construct" in line.lower()
+                        "+" in line
+                        or "join" in line
+                        or "prefix" in line
+                        or "FAKE" in line.upper()
+                        or "construct" in line.lower()
                     ):
                         continue
                     # Allow regex/pattern definitions
@@ -381,9 +376,8 @@ class TestNoHardcodedSecrets:
                         continue
                     violations.append(f"{f}:{i}: {line.strip()[:120]}")
 
-        assert violations == [], (
-            "Found real-looking Google API key in source files:\n"
-            + "\n".join(violations)
+        assert violations == [], "Found real-looking Google API key in source files:\n" + "\n".join(
+            violations
         )
 
     def test_oauth_defaults_has_empty_client_ids(self):

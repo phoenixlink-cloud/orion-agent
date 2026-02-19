@@ -62,9 +62,7 @@ CONFIG_PATH: Path = SETTINGS_DIR / "google_oauth.json"
 
 # Google OAuth client_id typically looks like:
 #   123456789012-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com
-_CLIENT_ID_PATTERN = re.compile(
-    r"^[0-9]+-[a-zA-Z0-9_]+\.apps\.googleusercontent\.com$"
-)
+_CLIENT_ID_PATTERN = re.compile(r"^[0-9]+-[a-zA-Z0-9_]+\.apps\.googleusercontent\.com$")
 
 # Google OAuth client_secret (web/desktop) typically starts with GOCSPX-
 _CLIENT_SECRET_PATTERN = re.compile(r"^GOCSPX-[A-Za-z0-9_-]+$")

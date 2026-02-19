@@ -1753,7 +1753,6 @@ def _get_skill_library(skills_dir: Path | None = None):
                 existing.trust_level = "verified"
                 existing.aegis_approved = True
 
-
     # Cache only when using default dir
     if skills_dir is None:
         _skill_library_cache = lib

@@ -200,9 +200,7 @@ class TestPinFullFlow:
         assert status["configured"] is True
 
         # 4. Verify the PIN
-        verify = client.post(
-            "/api/ara/auth/pin/verify", params={"credential": "1234"}
-        ).json()
+        verify = client.post("/api/ara/auth/pin/verify", params={"credential": "1234"}).json()
         assert verify["success"] is True
 
         # 5. Change PIN (provide current)
@@ -213,13 +211,9 @@ class TestPinFullFlow:
         assert resp.status_code == 200
 
         # 6. Old PIN no longer works
-        verify = client.post(
-            "/api/ara/auth/pin/verify", params={"credential": "1234"}
-        ).json()
+        verify = client.post("/api/ara/auth/pin/verify", params={"credential": "1234"}).json()
         assert verify["success"] is False
 
         # 7. New PIN works
-        verify = client.post(
-            "/api/ara/auth/pin/verify", params={"credential": "8888"}
-        ).json()
+        verify = client.post("/api/ara/auth/pin/verify", params={"credential": "8888"}).json()
         assert verify["success"] is True
