@@ -677,6 +677,10 @@ export default function SettingsPanel() {
   const [providerSetupClientSecret, setProviderSetupClientSecret] = useState<string>('')
   const [providerSetupSaving, setProviderSetupSaving] = useState(false)
 
+  // Google Account (sandbox LLM access)
+  const [googleStatus, setGoogleStatus] = useState<any>(null)
+  const [googleConnecting, setGoogleConnecting] = useState(false)
+
   // Connected Services (v6.4.0) — All platforms
   const [platformData, setPlatformData] = useState<any>(null)
   const [oauthProviders, setOauthProviders] = useState<Record<string, any>>({})
@@ -688,6 +692,13 @@ export default function SettingsPanel() {
   const [devicePollTimer, setDevicePollTimer] = useState<any>(null)
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'
+
+  const loadGoogleStatus = () => {
+    fetch(`${API_BASE}/api/google/status`)
+      .then(r => r.ok ? r.json() : null)
+      .then(s => { if (s) setGoogleStatus(s) })
+      .catch(() => {})
+  }
 
   const loadOAuthStatus = () => {
     fetch(`${API_BASE}/api/oauth/status`)
@@ -720,6 +731,10 @@ export default function SettingsPanel() {
   // Listen for OAuth popup success
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'google_account_connected') {
+        loadGoogleStatus()
+        setGoogleConnecting(false)
+      }
       if (event.data?.type === 'oauth_success') {
         loadOAuthStatus()
         loadPlatforms()
@@ -744,6 +759,7 @@ export default function SettingsPanel() {
   // Load all settings + model config + OAuth status on mount
   useEffect(() => {
     if (!isConnected) return
+    loadGoogleStatus()
     loadPlatforms()
     loadOAuthProviders()
     loadProviderAuthStatus()
@@ -1567,6 +1583,117 @@ export default function SettingsPanel() {
             </div>
           )
         })}
+      </CollapsibleSection>
+
+      {/* Google Account — Dedicated LLM sandbox access */}
+      <CollapsibleSection title="Google Account" description="Connect your Google account for Gemini API access in the governed sandbox. AEGIS enforces LLM-only scopes." defaultOpen={true}>
+        <div style={{ padding: '12px 16px', background: 'rgba(34, 211, 238, 0.08)', borderRadius: 'var(--r-sm)', marginBottom: 16, border: '1px solid rgba(34, 211, 238, 0.2)' }}>
+          <div style={{ fontSize: 13, color: 'var(--glow)' }}>
+            Orion never sees your Google password. Only LLM-related scopes are requested. The sandbox receives a read-only access token — no refresh token.
+          </div>
+        </div>
+
+        {googleStatus?.configured ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Connected status */}
+            <div style={{ padding: '14px 18px', background: 'rgba(100,255,100,0.08)', borderRadius: 'var(--r-sm)', border: '1px solid rgba(100,255,100,0.25)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#64ff64' }} />
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#64ff64' }}>Google Account Connected</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>
+                <strong style={{ color: 'var(--text)' }}>Email:</strong> {googleStatus.email || 'Unknown'}
+              </div>
+              {googleStatus.expires_at && (
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                  Token expires: {new Date(googleStatus.expires_at * 1000).toLocaleString()}
+                  {googleStatus.token_expired && <span style={{ color: '#ff6464', marginLeft: 8 }}>(expired)</span>}
+                </div>
+              )}
+              {googleStatus.scopes && (
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  Scopes: {googleStatus.scopes.join(', ')}
+                </div>
+              )}
+            </div>
+
+            {/* Actions row */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={async () => {
+                  try {
+                    await fetch(`${API_BASE}/api/google/refresh`, { method: 'POST' })
+                    loadGoogleStatus()
+                  } catch {}
+                }}
+                style={{ flex: 1, padding: '10px 16px', fontSize: 13, borderRadius: '999px', cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--tile)', color: 'var(--text)', transition: 'all var(--slow) var(--ease)' }}
+              >
+                Refresh Token
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm('Disconnect your Google account? The sandbox will lose Gemini API access.')) return
+                  try {
+                    await fetch(`${API_BASE}/api/google/disconnect`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ revoke_token: true }),
+                    })
+                    setGoogleStatus(null)
+                    loadGoogleStatus()
+                  } catch {}
+                }}
+                style={{ flex: 1, padding: '10px 16px', fontSize: 13, borderRadius: '999px', cursor: 'pointer', background: 'rgba(255,100,100,0.15)', border: '1px solid rgba(255,100,100,0.3)', color: '#ff8888', transition: 'all var(--slow) var(--ease)' }}
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ padding: '14px 18px', background: 'var(--tile)', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(159,214,255,0.3)' }} />
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>Not connected</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                Connect a Google account to enable Gemini API access inside the governed sandbox. Only AI/ML scopes are requested.
+              </div>
+            </div>
+            <button
+              disabled={googleConnecting}
+              onClick={async () => {
+                setGoogleConnecting(true)
+                try {
+                  const res = await fetch(`${API_BASE}/api/google/connect`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+                  const data = await res.json()
+                  if (data.auth_url) {
+                    const w = 500, h = 650
+                    const left = window.screenX + (window.outerWidth - w) / 2
+                    const top = window.screenY + (window.outerHeight - h) / 2
+                    window.open(data.auth_url, 'google_oauth', `width=${w},height=${h},left=${left},top=${top}`)
+                  } else {
+                    alert(data.detail || 'Failed to start Google sign-in. Check that GOOGLE_CLIENT_ID is configured.')
+                    setGoogleConnecting(false)
+                  }
+                } catch {
+                  alert('Failed to connect to Orion API.')
+                  setGoogleConnecting(false)
+                }
+              }}
+              style={{ padding: '12px 20px', fontSize: 14, fontWeight: 600, borderRadius: '999px', cursor: googleConnecting ? 'not-allowed' : 'pointer', border: '1px solid var(--line)', background: 'var(--tile)', color: 'var(--text)', boxShadow: '0 0 30px rgba(159, 214, 255, 0.15)', transition: 'all var(--slow) var(--ease)', opacity: googleConnecting ? 0.6 : 1, width: '100%' }}
+            >
+              {googleConnecting ? 'Opening Google Sign-In...' : 'Connect Google Account'}
+            </button>
+          </div>
+        )}
+
+        {/* Scope information */}
+        <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--r-sm)', fontSize: 12, color: 'var(--muted)' }}>
+          <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>AEGIS Scope Enforcement</div>
+          <div>Allowed: openid, email, profile, cloud-platform, generative-language.*</div>
+          <div style={{ color: '#ff8888', marginTop: 2 }}>Blocked: Drive, Gmail, Calendar, YouTube, Contacts, Photos</div>
+        </div>
       </CollapsibleSection>
 
       {/* Connected Services (v6.4.0) — One-Click OAuth */}
