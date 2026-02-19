@@ -100,57 +100,17 @@ def _generate_pkce_pair() -> tuple[str, str]:
 
 
 def _get_google_client_id() -> str | None:
-    """Get Google OAuth client_id from config, env, or bundled defaults."""
-    import os
+    """Get Google OAuth client_id via centralized config resolver."""
+    from orion.security.egress.google_oauth_config import resolve_client_id
 
-    # 1. Environment variable
-    env_val = os.environ.get("ORION_GOOGLE_CLIENT_ID")
-    if env_val:
-        return env_val
-
-    # 2. User config via oauth_manager
-    try:
-        from orion.integrations.oauth_manager import get_client_id
-
-        client_id = get_client_id("google")
-        if client_id:
-            return client_id
-    except Exception:
-        pass
-
-    # 3. SecureStore
-    try:
-        from orion.security.store import get_secure_store
-
-        store = get_secure_store()
-        if store:
-            client_id = store.get_key("oauth_google_client_id")
-            if client_id:
-                return client_id
-    except Exception:
-        pass
-
-    return None
+    return resolve_client_id()
 
 
 def _get_google_client_secret() -> str | None:
-    """Get Google OAuth client_secret (optional for PKCE flows)."""
-    import os
+    """Get Google OAuth client_secret via centralized config resolver."""
+    from orion.security.egress.google_oauth_config import resolve_client_secret
 
-    env_val = os.environ.get("ORION_GOOGLE_CLIENT_SECRET")
-    if env_val:
-        return env_val
-
-    try:
-        from orion.integrations.oauth_manager import get_client_secret
-
-        secret = get_client_secret("google")
-        if secret:
-            return secret
-    except Exception:
-        pass
-
-    return None
+    return resolve_client_secret()
 
 
 # ---------------------------------------------------------------------------
@@ -537,3 +497,69 @@ async def google_refresh():
         "expires_at": manager.get_credentials(auto_refresh=False).expires_at,
         "message": "Access token refreshed. Container credentials updated.",
     }
+
+
+# ---------------------------------------------------------------------------
+# Google OAuth App Credential Configuration
+# ---------------------------------------------------------------------------
+
+
+class GoogleConfigureRequest(BaseModel):
+    """Request to save Google OAuth app credentials."""
+
+    client_id: str
+    client_secret: str = ""
+
+
+@router.post("/api/google/configure")
+async def google_configure(request: GoogleConfigureRequest):
+    """Save user-provided Google OAuth app credentials.
+
+    Users must register their own Google Cloud OAuth application and provide
+    the client_id (and optionally client_secret) here.  Credentials are
+    stored locally in ``~/.orion/google_oauth.json`` (gitignored, 0600).
+
+    See docs/GOOGLE_SETUP.md for step-by-step instructions.
+    """
+    from orion.security.egress.google_oauth_config import save
+    from orion.security.egress.google_oauth_config import status as cfg_status
+
+    try:
+        path = save(request.client_id, request.client_secret)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    logger.info("Google OAuth app credentials configured via API")
+    return {
+        "status": "configured",
+        "config_path": str(path),
+        **cfg_status(),
+    }
+
+
+@router.get("/api/google/configure")
+async def google_configure_status():
+    """Check whether Google OAuth app credentials are configured.
+
+    Returns masked client_id, source (env/config_file/oauth_clients),
+    and whether a client_secret is present.  No secrets are exposed.
+    """
+    from orion.security.egress.google_oauth_config import status as cfg_status
+
+    return cfg_status()
+
+
+@router.delete("/api/google/configure")
+async def google_configure_delete():
+    """Delete the local Google OAuth app credentials file.
+
+    This removes ``~/.orion/google_oauth.json`` but does NOT affect
+    environment variables or ``~/.orion/oauth_clients.json``.
+    """
+    from orion.security.egress.google_oauth_config import clear
+
+    deleted = clear()
+    if deleted:
+        logger.info("Google OAuth app credentials deleted via API")
+        return {"status": "deleted", "message": "Google OAuth config file removed."}
+    return {"status": "not_found", "message": "No Google OAuth config file to delete."}

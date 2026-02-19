@@ -42,6 +42,8 @@ Desktop.ini
 secrets.json
 credentials.json
 .credentials
+google_oauth.json
+oauth_clients.json
 
 # Testing
 .coverage
