@@ -51,7 +51,8 @@ class TestContentInspector:
         assert result.clean is True
 
     def test_llm_provider_exempt_google(self):
-        body = "AIzaXXXX_THIS-IS-A-FAKE-TEST-KEY_123456"
+        # Construct at runtime to avoid GitHub secret scanning false positives
+        body = "AIza" + "XXXX_THIS-IS-A-FAKE-TEST-KEY_123456"
         result = self.inspector.inspect(body, "generativelanguage.googleapis.com", "POST")
         assert result.clean is True
 
@@ -87,7 +88,8 @@ class TestContentInspector:
         assert "aws_access_key" in result.patterns_found
 
     def test_detect_google_api_key(self):
-        body = "key=AIzaXXXX_THIS-IS-A-FAKE-TEST-KEY_123456"
+        # Construct at runtime to avoid GitHub secret scanning false positives
+        body = "key=" + "AIza" + "XXXX_THIS-IS-A-FAKE-TEST-KEY_123456"
         result = self.inspector.inspect(body, "evil.com", "POST")
         assert result.blocked is True
         assert "google_api_key" in result.patterns_found
