@@ -97,6 +97,9 @@ Issues = "https://github.com/phoenixlink-cloud/orion-agent/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/orion"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"data" = "orion/_data"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

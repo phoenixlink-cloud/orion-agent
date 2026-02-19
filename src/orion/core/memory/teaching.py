@@ -34,9 +34,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from orion.data_path import get_seed_file
+
 logger = logging.getLogger("orion.memory.teaching")
 
-CURRICULUM_PATH = Path(__file__).resolve().parents[4] / "data" / "seed" / "curriculum.json"
+CURRICULUM_PATH = get_seed_file("seed/curriculum.json")
 GRADEBOOK_PATH = Path.home() / ".orion" / "gradebook.json"
 
 

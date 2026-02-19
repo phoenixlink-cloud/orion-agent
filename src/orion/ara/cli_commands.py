@@ -41,13 +41,14 @@ from orion.ara.role_profile import (
     validate_role_file,
 )
 from orion.ara.session import SessionState, SessionStatus
+from orion.data_path import get_seed_roles_dir, get_seed_skills_dir
 
 logger = logging.getLogger("orion.ara.cli_commands")
 
 DEFAULT_ROLES_DIR = Path.home() / ".orion" / "roles"
-STARTER_ROLES_DIR = Path(__file__).resolve().parents[3] / "data" / "roles"
+STARTER_ROLES_DIR = get_seed_roles_dir()
 DEFAULT_SKILLS_DIR = Path.home() / ".orion" / "skills"
-SEED_SKILLS_DIR = Path(__file__).resolve().parents[3] / "data" / "seed" / "skills"
+SEED_SKILLS_DIR = get_seed_skills_dir()
 
 
 @dataclass

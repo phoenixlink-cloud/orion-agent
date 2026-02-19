@@ -134,8 +134,9 @@ def _save_client_configs(configs: dict[str, Any]):
 
 def _load_bundled_defaults() -> dict[str, Any]:
     """Load bundled OAuth defaults shipped with Orion (data/oauth_defaults.json)."""
-    # Look relative to this file: src/orion/integrations/ -> ../../.. -> data/
-    bundled = Path(__file__).resolve().parent.parent.parent.parent / "data" / "oauth_defaults.json"
+    from orion.data_path import get_seed_file
+
+    bundled = get_seed_file("oauth_defaults.json")
     if bundled.exists():
         try:
             return json.loads(bundled.read_text())
