@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.3] -- 2026-02-19
+
+### Added
+- **Workspace Decision UI** — when starting a new session with existing files in the workspace, the user is prompted to choose between "New Project" (fresh start) or "Continue Existing" (build on current files)
+  - `project_mode` parameter (`auto`/`new`/`continue`) on `cmd_work()` and `POST /api/ara/work`
+  - `GET /api/ara/workspace` — list files in the resolved workspace directory
+  - `DELETE /api/ara/workspace` — clear user project files (preserves `.git` and hidden dirs)
+  - `_resolve_workspace()` helper reads `default_workspace` from `~/.orion/settings.json`
+  - Frontend overlay in New Session form shows file list and New/Continue/Cancel buttons
+- **24 new tests** — 19 unit tests (`test_cli_commands.py`) + 5 E2E API tests (`test_workspace_api_e2e.py`)
+  - `_scan_workspace`, `_resolve_workspace`, `cmd_workspace_list`, `cmd_workspace_clear`, `cmd_work` project_mode variants
+
 ## [10.0.2] -- 2026-02-19
 
 ### Added
