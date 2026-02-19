@@ -35,6 +35,7 @@ class WorkRequest(BaseModel):
     role_name: str
     goal: str
     workspace_path: str | None = None
+    project_mode: str = "auto"
 
 
 class FeedbackRequest(BaseModel):
@@ -92,12 +93,45 @@ async def post_work(req: WorkRequest):
             role_name=req.role_name,
             goal=req.goal,
             workspace_path=req.workspace_path,
+            project_mode=req.project_mode,
         )
+        # needs_decision is returned as success=False but is not an error
+        if result.data and result.data.get("needs_decision"):
+            return {
+                "success": False,
+                "needs_decision": True,
+                "message": result.message,
+                "data": result.data,
+            }
         if result.success:
             return {"success": True, "message": result.message, "data": result.data}
         raise HTTPException(status_code=409, detail=result.message)
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/workspace")
+async def get_workspace():
+    """List files in the resolved workspace directory."""
+    try:
+        from orion.ara.cli_commands import cmd_workspace_list
+
+        result = cmd_workspace_list()
+        return {"success": result.success, "message": result.message, "data": result.data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/workspace")
+async def delete_workspace():
+    """Clear user project files from the workspace."""
+    try:
+        from orion.ara.cli_commands import cmd_workspace_clear
+
+        result = cmd_workspace_clear()
+        return {"success": result.success, "message": result.message, "data": result.data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

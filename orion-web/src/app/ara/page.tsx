@@ -119,6 +119,10 @@ export default function ARAPage() {
   const [newSessionError, setNewSessionError] = useState('')
   const [newSessionLoading, setNewSessionLoading] = useState(false)
 
+  // Workspace decision (when existing files found)
+  const [wsDecision, setWsDecision] = useState<{ files: string[]; role: string; goal: string; workspace: string } | null>(null)
+  const [wsDecisionLoading, setWsDecisionLoading] = useState(false)
+
   // Notifications
   const [notifications, setNotifications] = useState<{id: string; message: string; type: string; time: string; read: boolean}[]>([])
 
@@ -240,6 +244,17 @@ export default function ARAPage() {
       })
       if (res.ok) {
         const d = await res.json()
+        // Check if backend is asking the user to decide about existing files
+        if (d.needs_decision && d.data?.workspace_files) {
+          setWsDecision({
+            files: d.data.workspace_files,
+            role: d.data.role_name || newSession.role,
+            goal: d.data.goal || newSession.goal,
+            workspace: d.data.workspace_path || newSession.workspace || '',
+          })
+          setNewSessionLoading(false)
+          return
+        }
         setChatMessages(prev => [...prev, { role: 'ai', text: `🚀 ${d.message || 'Session started.'}` }])
         setNewSession({ role: '', goal: '', workspace: '' })
         setShowNewSession(false)
@@ -250,6 +265,40 @@ export default function ARAPage() {
       }
     } catch { setNewSessionError('API unavailable') }
     setNewSessionLoading(false)
+  }
+
+  const handleWorkspaceDecision = async (mode: 'new' | 'continue') => {
+    if (!wsDecision) return
+    setWsDecisionLoading(true)
+    setNewSessionError('')
+    try {
+      // If user chose 'new', optionally clear workspace first
+      if (mode === 'new') {
+        await fetch(`${API}/api/ara/workspace`, { method: 'DELETE' })
+      }
+      const res = await fetch(`${API}/api/ara/work`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role_name: wsDecision.role,
+          goal: wsDecision.goal,
+          workspace_path: wsDecision.workspace || null,
+          project_mode: mode,
+        }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        const modeLabel = mode === 'continue' ? '(building on existing files)' : '(fresh workspace)'
+        setChatMessages(prev => [...prev, { role: 'ai', text: `🚀 ${d.message || 'Session started.'} ${modeLabel}` }])
+        setNewSession({ role: '', goal: '', workspace: '' })
+        setWsDecision(null)
+        setShowNewSession(false)
+        loadData()
+      } else {
+        const e = await res.json().catch(() => ({ detail: 'Failed to start session' }))
+        setNewSessionError(e.detail || e.message || 'Failed')
+      }
+    } catch { setNewSessionError('API unavailable') }
+    setWsDecisionLoading(false)
   }
 
   const handleSessionAction = async (action: string) => {
@@ -938,10 +987,33 @@ export default function ARAPage() {
                         <input value={newSession.goal} onChange={e => setNewSession(p => ({ ...p, goal: e.target.value }))} placeholder="Describe what the agent should accomplish..." style={{ width: '100%', padding: '10px 12px', background: C.bg2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.txt, fontSize: 13 }} />
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button onClick={handleStartWork} disabled={newSessionLoading} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: newSessionLoading ? 'wait' : 'pointer', background: C.green, color: C.bg0, border: 'none', opacity: newSessionLoading ? 0.6 : 1 }}>{newSessionLoading ? 'Starting...' : 'Start Session'}</button>
-                      <button onClick={() => { setShowNewSession(false); setNewSessionError('') }} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
-                    </div>
+                    {!wsDecision && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button onClick={handleStartWork} disabled={newSessionLoading} style={{ padding: '10px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: newSessionLoading ? 'wait' : 'pointer', background: C.green, color: C.bg0, border: 'none', opacity: newSessionLoading ? 0.6 : 1 }}>{newSessionLoading ? 'Starting...' : 'Start Session'}</button>
+                        <button onClick={() => { setShowNewSession(false); setNewSessionError(''); setWsDecision(null) }} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                      </div>
+                    )}
+                    {wsDecision && (
+                      <div style={{ marginTop: 12, padding: 16, background: 'rgba(168,216,185,0.08)', border: `1px solid rgba(168,216,185,0.25)`, borderRadius: 12 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, color: C.txt }}>Existing Files Detected</div>
+                        <div style={{ fontSize: 12, color: C.txtSec, marginBottom: 8 }}>
+                          Found {wsDecision.files.length} file(s) in workspace:
+                        </div>
+                        <div style={{ maxHeight: 120, overflowY: 'auto', marginBottom: 12, padding: '8px 10px', background: C.bg2, borderRadius: 8, fontSize: 11, fontFamily: 'monospace', color: C.txtMut, lineHeight: 1.6 }}>
+                          {wsDecision.files.slice(0, 15).map((f, i) => <div key={i}>{f}</div>)}
+                          {wsDecision.files.length > 15 && <div style={{ color: C.txtSec }}>... and {wsDecision.files.length - 15} more</div>}
+                        </div>
+                        <div style={{ fontSize: 12, color: C.txtSec, marginBottom: 12 }}>
+                          Is this a <strong>new project</strong> or are you <strong>continuing</strong> an existing one?
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => handleWorkspaceDecision('new')} disabled={wsDecisionLoading} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: wsDecisionLoading ? 'wait' : 'pointer', background: C.blue, color: '#fff', border: 'none', opacity: wsDecisionLoading ? 0.6 : 1 }}>New Project</button>
+                          <button onClick={() => handleWorkspaceDecision('continue')} disabled={wsDecisionLoading} style={{ padding: '10px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: wsDecisionLoading ? 'wait' : 'pointer', background: C.green, color: C.bg0, border: 'none', opacity: wsDecisionLoading ? 0.6 : 1 }}>Continue Existing</button>
+                          <button onClick={() => { setWsDecision(null); setNewSessionError('') }} disabled={wsDecisionLoading} style={{ padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', background: C.bg2, color: C.txtSec, border: `1px solid ${C.border}` }}>Cancel</button>
+                        </div>
+                        {newSessionError && <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: C.red, fontSize: 11 }}>{newSessionError}</div>}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

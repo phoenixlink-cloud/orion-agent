@@ -82,6 +82,69 @@ def _scan_workspace(workspace: Path) -> list[str]:
     return files[:50]  # Cap to avoid overwhelming output
 
 
+def _resolve_workspace() -> Path:
+    """Resolve the workspace path from settings or cwd."""
+    try:
+        _settings_path = Path.home() / ".orion" / "settings.json"
+        if _settings_path.exists():
+            _user_settings = json.loads(_settings_path.read_text())
+            ws = _user_settings.get("default_workspace") or _user_settings.get("workspace")
+            if ws:
+                return Path(ws)
+    except Exception:
+        pass
+    return Path.cwd()
+
+
+def cmd_workspace_list() -> CommandResult:
+    """List files in the resolved workspace directory."""
+    ws = _resolve_workspace()
+    if not ws.exists():
+        return CommandResult(
+            success=True,
+            message=f"Workspace directory does not exist: {ws}",
+            data={"workspace_path": str(ws), "files": []},
+        )
+    files = _scan_workspace(ws)
+    return CommandResult(
+        success=True,
+        message=f"Found {len(files)} file(s) in workspace: {ws}",
+        data={"workspace_path": str(ws), "files": files, "total": len(files)},
+    )
+
+
+def cmd_workspace_clear() -> CommandResult:
+    """Clear user project files from the workspace (keeps hidden dirs like .git)."""
+    ws = _resolve_workspace()
+    if not ws.exists():
+        return CommandResult(
+            success=True,
+            message=f"Workspace directory does not exist: {ws}",
+            data={"workspace_path": str(ws), "removed": 0},
+        )
+    files = _scan_workspace(ws)
+    removed = 0
+    for rel in files:
+        fp = ws / rel
+        if fp.exists():
+            fp.unlink()
+            removed += 1
+    # Clean empty directories (bottom-up)
+    skip = {".git", ".orion-archive", "__pycache__", "node_modules", ".venv", ".env"}
+    for d in sorted(ws.rglob("*"), reverse=True):
+        if d.is_dir() and not any(part.startswith(".") or part in skip for part in d.relative_to(ws).parts):
+            try:
+                d.rmdir()  # only removes if empty
+            except OSError:
+                pass
+    logger.info("Cleared %d files from workspace %s", removed, ws)
+    return CommandResult(
+        success=True,
+        message=f"Cleared {removed} file(s) from workspace: {ws}",
+        data={"workspace_path": str(ws), "removed": removed},
+    )
+
+
 def cmd_work(
     role_name: str,
     goal: str,
@@ -246,7 +309,7 @@ def cmd_work(
         f"Daemon: spawning background process..."
         + auth_warning
         + "\n\nUse '/status' to monitor, '/notifications' when done.",
-        data={"session_id": session.session_id, "role_name": role.name},
+        data={"session_id": session.session_id, "role_name": role.name, "project_mode": project_mode},
     )
 
 
