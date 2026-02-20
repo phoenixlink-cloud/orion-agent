@@ -248,6 +248,70 @@ class DesktopProvider(NotificationProvider):
         return result.returncode == 0
 
 
+class MessagingProvider(NotificationProvider):
+    """Messaging platform notification provider (Phase 4E).
+
+    Routes notifications to the originating messaging platform (Slack, Telegram,
+    Discord, etc.) using the existing adapters in orion.integrations.messaging.
+    """
+
+    def __init__(
+        self,
+        platform: str = "",
+        channel: str = "",
+    ):
+        self._platform = platform
+        self._channel = channel  # user_id or channel_id on the platform
+
+    @property
+    def provider_name(self) -> str:
+        return f"messaging:{self._platform}" if self._platform else "messaging"
+
+    @property
+    def platform(self) -> str:
+        return self._platform
+
+    @property
+    def channel(self) -> str:
+        return self._channel
+
+    def send(self, notification: Notification) -> bool:
+        """Send notification via the messaging platform adapter."""
+        if not self._platform or not self._channel:
+            logger.warning("MessagingProvider not configured (platform=%s, channel=%s)",
+                           self._platform, self._channel)
+            return False
+
+        try:
+            from orion.integrations.messaging import get_messaging_provider
+
+            provider = get_messaging_provider(self._platform)
+            if provider is None:
+                logger.warning("No messaging provider found for platform: %s", self._platform)
+                return False
+
+            # send_message is async but NotificationProvider.send is sync.
+            # Use fire-and-forget scheduling via asyncio if an event loop is running,
+            # otherwise log the message for later delivery.
+            import asyncio
+
+            text = notification.message
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(provider.send_message(self._channel, text))
+                logger.info("Messaging notification queued for %s/%s", self._platform, self._channel)
+                return True
+            except RuntimeError:
+                # No running event loop — attempt synchronous send
+                asyncio.run(provider.send_message(self._channel, text))
+                logger.info("Messaging notification sent (sync) to %s/%s", self._platform, self._channel)
+                return True
+
+        except Exception as e:
+            logger.error("Messaging send failed (%s/%s): %s", self._platform, self._channel, e)
+            return False
+
+
 class NotificationManager:
     """Manages notification delivery across providers with AEGIS rate limiting.
 
@@ -324,6 +388,27 @@ class NotificationManager:
         )
 
         return successes > 0
+
+    def enable_messaging(self, platform: str, channel: str) -> MessagingProvider:
+        """Wire a messaging platform as an additional notification provider.
+
+        Call this when a session originates from a messaging platform so that
+        all subsequent ``notify()`` calls also reach the originating user.
+
+        Returns the created MessagingProvider instance.
+        """
+        mp = MessagingProvider(platform=platform, channel=channel)
+        self.add_provider(mp)
+        logger.info("Messaging notifications enabled for %s/%s", platform, channel)
+        return mp
+
+    @property
+    def messaging_provider(self) -> MessagingProvider | None:
+        """Return the first MessagingProvider attached, or None."""
+        for p in self._providers:
+            if isinstance(p, MessagingProvider):
+                return p
+        return None
 
     def reset(self) -> None:
         """Reset notification counter (for new session)."""
