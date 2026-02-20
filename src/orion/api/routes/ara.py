@@ -874,3 +874,99 @@ async def add_skill_to_group(req: SkillGroupAssignRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Activity Logger (Phase 4C)
+# =============================================================================
+
+
+@router.get("/activity/{session_id}")
+async def get_activity(session_id: str, limit: int = 50, action_type: str | None = None):
+    """Get activity log entries for a session."""
+    try:
+        from orion.ara.cli_commands import get_activity_logger
+
+        al = get_activity_logger(session_id)
+        if al is None:
+            raise HTTPException(status_code=404, detail=f"No active logger for session {session_id}")
+
+        entries = al.get_entries(limit=limit, action_type=action_type)
+        return {
+            "success": True,
+            "data": {
+                "session_id": session_id,
+                "entries": [e.to_dict() for e in entries],
+                "total": al.entry_count,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/activity/{session_id}/summary")
+async def get_activity_summary(session_id: str):
+    """Get activity summary for a session."""
+    try:
+        from orion.ara.cli_commands import get_activity_logger
+
+        al = get_activity_logger(session_id)
+        if al is None:
+            raise HTTPException(status_code=404, detail=f"No active logger for session {session_id}")
+
+        summary = al.get_summary()
+        return {"success": True, "data": summary}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Message Bridge (Phase 4E)
+# =============================================================================
+
+
+class MessageRequest(BaseModel):
+    platform: str
+    user_id: str
+    text: str
+    thread_id: str | None = None
+    reply_to: str | None = None
+    metadata: dict[str, Any] = {}
+
+
+@router.post("/message")
+async def post_message(req: MessageRequest):
+    """Receive an inbound message from a messaging platform webhook.
+
+    The messaging platform's webhook handler normalises its native message
+    into the request body above, calls this endpoint, and sends the
+    returned OutboundMessage back via its platform SDK.
+    """
+    try:
+        from orion.ara.message_bridge import InboundMessage, MessageBridge
+
+        bridge = MessageBridge()
+        inbound = InboundMessage(
+            platform=req.platform,
+            user_id=req.user_id,
+            text=req.text,
+            thread_id=req.thread_id,
+            reply_to=req.reply_to,
+            metadata=req.metadata or {},
+        )
+        outbound = await bridge.handle_message(inbound)
+        return {
+            "success": True,
+            "response": {
+                "text": outbound.text,
+                "session_id": outbound.session_id,
+                "platform": outbound.platform,
+                "recipient_id": outbound.recipient_id,
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
