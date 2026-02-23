@@ -1,0 +1,21 @@
+# Orion Agent — Base stack image
+# All stack images inherit from this base.
+# Provides: shell, curl, git, common build tools
+FROM ubuntu:22.04
+
+LABEL maintainer="Phoenix Link (Pty) Ltd"
+LABEL orion.stack="base"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    jq \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash orion
+USER orion
+WORKDIR /workspace

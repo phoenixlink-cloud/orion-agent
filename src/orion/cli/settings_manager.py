@@ -225,6 +225,19 @@ SETTING_CATEGORIES = {
             "default": True,
             "description": "Enable tamper-proof audit logging for ARA sessions",
         },
+        "ara_enable_command_execution": {
+            "label": "Command Execution",
+            "type": "bool",
+            "default": False,
+            "description": "Allow ARA sessions to run commands inside Docker sandbox containers",
+        },
+        "ara_resource_profile": {
+            "label": "Resource Profile",
+            "type": "choice",
+            "choices": ["light", "standard", "heavy"],
+            "default": "standard",
+            "description": "Docker container resource limits for ARA command execution",
+        },
     },
 }
 

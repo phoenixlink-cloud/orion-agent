@@ -211,6 +211,9 @@ class ARATaskExecutor:
         sandbox_dir: Path | None = None,
         goal: str = "",
         institutional_memory: Any | None = None,
+        session_container: Any | None = None,
+        execution_feedback: Any | None = None,
+        execution_memory: Any | None = None,
     ):
         self.provider = provider
         self.model = model
@@ -222,6 +225,20 @@ class ARATaskExecutor:
         self._completed_task_summaries: list[str] = []
         # Tier 3 institutional memory (teach-student cycle)
         self._institutional = institutional_memory
+        # Phase 4: Persistent session container + feedback loop
+        self._container = session_container
+        self._feedback = execution_feedback
+        # Phase 4D: Execution memory for learning loop
+        self._execution_memory = execution_memory
+        # Phase 4D.2: Proactive learner (auto-created if memory available)
+        self._proactive_learner = None
+        if execution_memory:
+            try:
+                from orion.ara.proactive_learner import ProactiveLearner
+
+                self._proactive_learner = ProactiveLearner(execution_memory=execution_memory)
+            except Exception:
+                pass
 
     def add_task_context(self, task_id: str, title: str, output: str) -> None:
         """Record a completed task's output for inter-task context."""
@@ -275,6 +292,15 @@ class ARATaskExecutor:
             parts.append("\nCompleted tasks so far:")
             for s in self._completed_task_summaries[-10:]:  # Last 10
                 parts.append(f"  {s}")
+        # Phase 4D.2: Proactive execution experience
+        if self._proactive_learner:
+            try:
+                stack = "python"  # Default; overridden per-task in execute()
+                experience = self._proactive_learner.get_task_context(stack, self.goal)
+                if experience:
+                    parts.append(f"\n{experience}")
+            except Exception as e:
+                logger.debug("Could not load execution experience: %s", e)
         # Tier 3 institutional wisdom (teach-student cycle: READ path)
         if self._institutional:
             try:
@@ -296,7 +322,11 @@ class ARATaskExecutor:
 
         start = time.time()
         try:
-            if action == "analyze":
+            # Phase 4B: Check for multi-step workflow in metadata
+            metadata = getattr(task, "metadata", {}) or {}
+            if metadata.get("execution_steps") and self._container:
+                result = await self._execute_workflow(task)
+            elif action == "analyze":
                 result = await self._execute_analyze(task)
             elif action in ("write_file", "write_files"):
                 result = await self._execute_write_file(task)
@@ -304,6 +334,12 @@ class ARATaskExecutor:
                 result = await self._execute_edit_file(task)
             elif action in ("run_tests", "validate"):
                 result = await self._execute_validate(task)
+            elif action == "run_command":
+                result = await self._execute_run_command(task)
+            elif action == "install_deps":
+                result = await self._execute_install(task)
+            elif action == "run_tests_sandbox":
+                result = await self._execute_run_tests_sandbox(task)
             elif action == "read_files":
                 result = {"success": True, "output": f"Analyzed: {desc}", "confidence": 0.9}
             else:
@@ -676,6 +712,213 @@ class ARATaskExecutor:
             "output": f"Validated: {files_summary}",
             "confidence": 0.95,
         }
+
+    # =========================================================================
+    # WORKFLOW EXECUTION (Phase 4B — multi-step workflows)
+    # =========================================================================
+
+    async def _execute_workflow(self, task: Any) -> dict[str, Any]:
+        """Execute a multi-step workflow from task metadata.
+
+        Extracts ``execution_steps`` from metadata and runs them sequentially
+        via WorkflowRunner. Falls back to single-action execution if no
+        steps are found.
+        """
+        from orion.ara.execution_step import WorkflowRunner, extract_steps
+
+        metadata = getattr(task, "metadata", {}) or {}
+        steps = extract_steps(metadata)
+
+        if not steps:
+            return {
+                "success": False,
+                "error": "No execution steps found in task metadata",
+                "confidence": 0.0,
+            }
+
+        runner = WorkflowRunner(
+            container=self._container,
+            feedback=self._feedback,
+        )
+        workflow_result = await runner.run(steps)
+
+        return {
+            "success": workflow_result.success,
+            "output": workflow_result.summary(),
+            "confidence": workflow_result.confidence,
+            "workflow_steps": [s.to_dict() for s in workflow_result.steps],
+            "completed_steps": workflow_result.completed_count,
+            "failed_steps": workflow_result.failed_count,
+            "skipped_steps": workflow_result.skipped_count,
+        }
+
+    # =========================================================================
+    # RUN COMMAND (Phase 4 — execute inside SessionContainer)
+    # =========================================================================
+
+    async def _execute_run_command(self, task: Any) -> dict[str, Any]:
+        """Execute a shell command inside the persistent session container.
+
+        Uses ExecutionFeedbackLoop for automatic error correction when available.
+        Falls back to a simple exec() if no feedback loop is configured.
+
+        The command is extracted from task.metadata["command"] or task.description.
+        """
+        if not self._container:
+            return {
+                "success": False,
+                "error": "No session container available for run_command",
+                "confidence": 0.0,
+            }
+
+        command = self._extract_command(task)
+        if not command:
+            return {
+                "success": False,
+                "error": "No command found in task metadata or description",
+                "confidence": 0.0,
+            }
+
+        timeout = int(getattr(task, "metadata", {}).get("timeout", 120))
+
+        if self._feedback:
+            # Use feedback loop for automatic error correction
+            feedback_result = await self._feedback.run_with_feedback(command, timeout=timeout)
+            confidence = 0.9 if feedback_result.success else 0.2
+            if feedback_result.attempts > 1 and feedback_result.success:
+                confidence = 0.7  # Lower confidence if retries were needed
+            return {
+                "success": feedback_result.success,
+                "output": feedback_result.final_stdout[:2000],
+                "error": feedback_result.final_stderr[:1000] if not feedback_result.success else "",
+                "confidence": confidence,
+                "feedback_attempts": feedback_result.attempts,
+                "fixes_applied": len(feedback_result.fixes_applied),
+            }
+        else:
+            # Direct exec without feedback
+            result = await self._container.exec(command, timeout=timeout)
+            return {
+                "success": result.exit_code == 0,
+                "output": result.stdout[:2000],
+                "error": result.stderr[:1000] if result.exit_code != 0 else "",
+                "confidence": 0.9 if result.exit_code == 0 else 0.2,
+            }
+
+    # =========================================================================
+    # INSTALL DEPS (Phase 4 — install via egress proxy)
+    # =========================================================================
+
+    async def _execute_install(self, task: Any) -> dict[str, Any]:
+        """Install dependencies inside the session container.
+
+        Uses exec_install() which temporarily connects the egress proxy network.
+        The command is extracted from task.metadata["install_command"] or description.
+        """
+        if not self._container:
+            return {
+                "success": False,
+                "error": "No session container available for install_deps",
+                "confidence": 0.0,
+            }
+
+        command = getattr(task, "metadata", {}).get("install_command") or self._extract_command(
+            task
+        )
+        if not command:
+            return {
+                "success": False,
+                "error": "No install command found in task",
+                "confidence": 0.0,
+            }
+
+        timeout = int(getattr(task, "metadata", {}).get("timeout", 300))
+        result = await self._container.exec_install(command, timeout=timeout)
+
+        return {
+            "success": result.exit_code == 0,
+            "output": result.stdout[:2000],
+            "error": result.stderr[:1000] if result.exit_code != 0 else "",
+            "confidence": 0.9 if result.exit_code == 0 else 0.3,
+        }
+
+    # =========================================================================
+    # RUN TESTS SANDBOX (Phase 4 — run test suite inside container)
+    # =========================================================================
+
+    async def _execute_run_tests_sandbox(self, task: Any) -> dict[str, Any]:
+        """Run a test command inside the session container.
+
+        Similar to run_command but uses the feedback loop and interprets
+        test-specific output (pass/fail counts).
+        """
+        if not self._container:
+            # Fall back to local validation
+            return await self._execute_validate(task)
+
+        command = (
+            getattr(task, "metadata", {}).get("test_command")
+            or self._extract_command(task)
+            or "echo 'No test command specified'"
+        )
+        timeout = int(getattr(task, "metadata", {}).get("timeout", 180))
+
+        if self._feedback:
+            feedback_result = await self._feedback.run_with_feedback(command, timeout=timeout)
+            output = feedback_result.final_stdout[:2000]
+            stderr = feedback_result.final_stderr[:1000]
+            success = feedback_result.success
+        else:
+            result = await self._container.exec(command, timeout=timeout)
+            output = result.stdout[:2000]
+            stderr = result.stderr[:1000]
+            success = result.exit_code == 0
+
+        # Parse test results for confidence scoring
+        confidence = self._score_test_output(output, success)
+
+        return {
+            "success": success,
+            "output": output,
+            "error": stderr if not success else "",
+            "confidence": confidence,
+        }
+
+    # =========================================================================
+    # COMMAND EXTRACTION HELPERS (Phase 4)
+    # =========================================================================
+
+    @staticmethod
+    def _extract_command(task: Any) -> str:
+        """Extract a shell command from task metadata or description."""
+        metadata = getattr(task, "metadata", {}) or {}
+        # Priority: metadata["command"] > metadata["install_command"] > description
+        if metadata.get("command"):
+            return metadata["command"]
+        if metadata.get("install_command"):
+            return metadata["install_command"]
+        if metadata.get("test_command"):
+            return metadata["test_command"]
+        # Last resort: use the description as the command
+        desc = getattr(task, "description", "")
+        if desc and len(desc) < 500:
+            return desc
+        return ""
+
+    @staticmethod
+    def _score_test_output(output: str, success: bool) -> float:
+        """Score test output for confidence level."""
+        if not success:
+            return 0.3
+        # Look for common test framework output patterns
+        lower = output.lower()
+        if "passed" in lower and "failed" not in lower:
+            return 0.95
+        if "ok" in lower and "fail" not in lower:
+            return 0.9
+        if "passed" in lower:
+            return 0.7  # Some passed, some may have failed
+        return 0.8  # Default for success
 
     # =========================================================================
     # GENERIC (also writes to file if code is produced)

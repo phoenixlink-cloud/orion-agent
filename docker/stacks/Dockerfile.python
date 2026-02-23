@@ -1,0 +1,27 @@
+# Orion Agent — Python stack image
+# Pre-baked with Python 3.11, pip, venv
+FROM ubuntu:22.04
+
+LABEL maintainer="Phoenix Link (Pty) Ltd"
+LABEL orion.stack="python"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    jq \
+    make \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python3
+
+RUN useradd -m -s /bin/bash orion
+USER orion
+WORKDIR /workspace

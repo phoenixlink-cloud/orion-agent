@@ -1,0 +1,28 @@
+# Orion Agent — Rust stack image
+# Pre-baked with Rust stable via rustup
+FROM ubuntu:22.04
+
+LABEL maintainer="Phoenix Link (Pty) Ltd"
+LABEL orion.stack="rust"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CARGO_HOME=/home/orion/.cargo
+ENV RUSTUP_HOME=/home/orion/.rustup
+ENV PATH=$PATH:/home/orion/.cargo/bin
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    jq \
+    make \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash orion
+USER orion
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain stable --profile minimal
+
+WORKDIR /workspace

@@ -122,6 +122,8 @@ class SessionState:
     last_checkpoint_at: float | None = None
     error_message: str | None = None
     progress: TaskProgress = field(default_factory=TaskProgress)
+    source_platform: str | None = None  # Phase 4E: originating messaging platform
+    source_user_id: str | None = None  # Phase 4E: originating user on that platform
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property

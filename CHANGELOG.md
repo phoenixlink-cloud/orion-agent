@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Phase 4A: Execution Pipeline** — Structured execution steps with feedback, memory, and autonomous learning
+  - `ExecutionStep` — validated step dataclass with status tracking
+  - `ExecutionConfig` — pipeline configuration and defaults
+  - `ExecutionFeedback` — step-level feedback collection and aggregation
+  - `ExecutionMemory` — execution history storage and pattern recall
+  - `ProactiveLearner` — autonomous learning from execution outcomes
+  - `RuffTool` — Ruff linter integration for automated code quality checks
+  - 6 new test files: unit, integration, and E2E coverage
+- **Phase 4B: Container Infrastructure** — Per-session Docker container management with stack detection
+  - `SandboxConfig` — container resource limits, security policies, and volume mounts
+  - `SessionContainer` — per-session Docker container lifecycle (create, start, stop, cleanup)
+  - `StackDetector` — language/framework auto-detection for optimal container images
+  - `RegistryWhitelist` — approved container image registry with hash verification
+  - Docker stack Dockerfiles: base, Go, Node, Python, Rust
+  - 5 new test files including E2E coverage
+- **Phase 4C: Performance Metrics** — Execution timing, cost tracking, and quality dashboards
+  - `PerformanceMetrics` — execution timing, token cost, and quality score tracking
+  - `cli_performance` — CLI dashboard for performance visualization
+  - `routes/performance` — API endpoints for metrics retrieval and aggregation
+  - Activity persistence and activity logger enhancements
+  - 4 new test files including E2E coverage
+- **Phase 4D: Pipeline Integration Wiring** — Full integration of Phase 4A-4C into existing ARA pipeline
+  - `TaskExecutor` — wired execution steps, feedback, memory, and metrics into task execution flow
+  - `cli_commands` — new CLI commands for execution pipeline management
+  - `commands.py` — CLI command registration for Phase 4 features
+  - `settings_manager` — configuration management for execution pipeline settings
+  - `server.py` — API server wiring for performance and execution routes
+  - `routes/ara.py` and `routes/settings.py` — new endpoints for pipeline control
+- **Phase 4E: Messaging Bridge** — Inbound/outbound messaging integration with execution pipeline
+  - `MessageBridge` — inbound message handling with intent classification, session routing
+  - `MessagingProvider` — outbound session events via NotificationManager
+  - Activity log streaming via `ActivityMessagingSummary` callback
+  - Performance and review summary delivery to messaging platforms
+  - `POST /api/ara/message` endpoint for platform webhook ingestion
+  - 5 new test files (81 tests): message bridge, notifications, activity, review, E2E
+
 ## [10.0.3] -- 2026-02-19
 
 ### Added

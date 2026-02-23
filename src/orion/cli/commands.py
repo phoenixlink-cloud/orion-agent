@@ -229,6 +229,26 @@ def handle_command(
     elif command == "/sandbox":
         return _handle_sandbox(parts, console)
 
+    # =====================================================================
+    # Activity Log Commands (Phase 4C -- Docker Activity Logger)
+    # =====================================================================
+
+    elif command == "/activity":
+        return _handle_activity(parts, console)
+
+    # =====================================================================
+    # Performance Dashboard (Phase 4D -- Execution Learning Loop)
+    # =====================================================================
+
+    elif command == "/performance":
+        try:
+            from orion.cli.cli_performance import handle_performance_command
+
+            return handle_performance_command(parts, console)
+        except Exception as e:
+            console.print_error(f"Performance dashboard failed: {e}")
+        return {}
+
     else:
         console.print_error(f"Unknown command: {command}")
         return {}
@@ -1637,4 +1657,41 @@ def _handle_ara_notifications(parts, console):
             console.print_error(result.message)
     except Exception as e:
         console.print_error(f"Notifications failed: {e}")
+    return {}
+
+
+def _handle_activity(parts, console):
+    """Handle /activity command — show Docker session activity log.
+
+    Usage:
+        /activity              Show last 20 entries
+        /activity 50           Show last 50 entries
+        /activity --errors     Show only errors
+        /activity --summary    Show session summary
+    """
+    try:
+        from orion.ara.cli_commands import cmd_activity
+
+        # Parse options
+        limit = 20
+        errors_only = "--errors" in parts or "-e" in parts
+        summary_mode = "--summary" in parts or "-s" in parts
+
+        # Check for numeric limit argument
+        for p in parts[1:]:
+            if p.isdigit():
+                limit = int(p)
+                break
+
+        result = cmd_activity(
+            limit=limit,
+            errors_only=errors_only,
+            summary_mode=summary_mode,
+        )
+        if result.success:
+            console.print_info(result.message)
+        else:
+            console.print_error(result.message)
+    except Exception as e:
+        console.print_error(f"Activity command failed: {e}")
     return {}
