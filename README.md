@@ -6,7 +6,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1800%2B%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-3000%2B%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Status: Stable](https://img.shields.io/badge/status-10.0.4-brightgreen.svg)](#)
 
@@ -22,7 +22,7 @@
 
 </div>
 
-> **v10.0.0** -- Orion Agent's full governed execution pipeline is operational and proven (1,800+ passing tests, 26/26 operational validation, 17/17 E2E live tests). The Digital Agent Architecture (Phase 2), Graduated Services (Phase 3), and Execution Pipeline (Phase 4) are complete: execution steps with feedback and memory, container infrastructure with stack detection, performance metrics, full pipeline integration wiring, and messaging bridge -- all verified with real Ollama LLM generating real code through governed infrastructure. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+> **v10.0.4** -- Orion Agent's full governed execution pipeline is operational and proven (3,000+ passing tests, 26/26 operational validation, 17/17 E2E live tests). The Digital Agent Architecture (Phase 2), Graduated Services (Phase 3), and Execution Pipeline (Phase 4) are complete: execution steps with feedback and memory, container infrastructure with stack detection, performance metrics, full pipeline integration wiring, and messaging bridge -- all verified with real Ollama LLM generating real code through governed infrastructure. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
 
 ---
 
@@ -85,7 +85,7 @@ Orion understands *what you mean*, not just what you type:
 
 ### Autonomous Role Architecture (ARA)
 
-Orion can work autonomously in the background with configurable roles (38+ modules, 750+ ARA tests):
+Orion can work autonomously in the background with configurable roles (37+ modules, 750+ ARA tests):
 
 | Component | Purpose |
 |-----------|----------|
