@@ -278,8 +278,11 @@ class MessagingProvider(NotificationProvider):
     def send(self, notification: Notification) -> bool:
         """Send notification via the messaging platform adapter."""
         if not self._platform or not self._channel:
-            logger.warning("MessagingProvider not configured (platform=%s, channel=%s)",
-                           self._platform, self._channel)
+            logger.warning(
+                "MessagingProvider not configured (platform=%s, channel=%s)",
+                self._platform,
+                self._channel,
+            )
             return False
 
         try:
@@ -299,12 +302,16 @@ class MessagingProvider(NotificationProvider):
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(provider.send_message(self._channel, text))
-                logger.info("Messaging notification queued for %s/%s", self._platform, self._channel)
+                logger.info(
+                    "Messaging notification queued for %s/%s", self._platform, self._channel
+                )
                 return True
             except RuntimeError:
                 # No running event loop — attempt synchronous send
                 asyncio.run(provider.send_message(self._channel, text))
-                logger.info("Messaging notification sent (sync) to %s/%s", self._platform, self._channel)
+                logger.info(
+                    "Messaging notification sent (sync) to %s/%s", self._platform, self._channel
+                )
                 return True
 
         except Exception as e:

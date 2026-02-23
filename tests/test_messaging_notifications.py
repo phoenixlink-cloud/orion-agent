@@ -31,13 +31,12 @@ import pytest
 from orion.ara.message_bridge import InboundMessage, MessageBridge
 from orion.ara.notifications import (
     MAX_NOTIFICATIONS_PER_SESSION,
+    TEMPLATES,
     MessagingProvider,
     Notification,
     NotificationManager,
-    TEMPLATES,
 )
 from orion.ara.session import SessionState
-
 
 # =========================================================================
 # 1. MessagingProvider construction
@@ -66,17 +65,23 @@ class TestMessagingProviderConstruction:
 class TestMessagingProviderSend:
     def test_send_no_platform_returns_false(self):
         mp = MessagingProvider(platform="", channel="u1")
-        n = Notification(template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"})
+        n = Notification(
+            template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"}
+        )
         assert mp.send(n) is False
 
     def test_send_no_channel_returns_false(self):
         mp = MessagingProvider(platform="slack", channel="")
-        n = Notification(template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"})
+        n = Notification(
+            template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"}
+        )
         assert mp.send(n) is False
 
     def test_send_missing_adapter_returns_false(self):
         mp = MessagingProvider(platform="nonexistent_platform", channel="u1")
-        n = Notification(template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"})
+        n = Notification(
+            template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"}
+        )
         with patch("orion.integrations.messaging.get_messaging_provider", return_value=None):
             assert mp.send(n) is False
 
@@ -85,17 +90,25 @@ class TestMessagingProviderSend:
         mock_provider.send_message = AsyncMock(return_value={"ok": True})
 
         mp = MessagingProvider(platform="telegram", channel="u1")
-        n = Notification(template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"})
+        n = Notification(
+            template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"}
+        )
 
-        with patch("orion.integrations.messaging.get_messaging_provider", return_value=mock_provider):
+        with patch(
+            "orion.integrations.messaging.get_messaging_provider", return_value=mock_provider
+        ):
             # When no running loop, asyncio.run is used
             result = mp.send(n)
             assert result is True
 
     def test_send_exception_returns_false(self):
         mp = MessagingProvider(platform="telegram", channel="u1")
-        n = Notification(template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"})
-        with patch("orion.integrations.messaging.get_messaging_provider", side_effect=RuntimeError("boom")):
+        n = Notification(
+            template="session_started", params={"session_id": "s1", "role_name": "r", "goal": "g"}
+        )
+        with patch(
+            "orion.integrations.messaging.get_messaging_provider", side_effect=RuntimeError("boom")
+        ):
             assert mp.send(n) is False
 
 
@@ -122,9 +135,9 @@ class TestNotificationManagerMessaging:
         mp = nm.enable_messaging("telegram", "u1")
 
         with patch.object(mp, "send", return_value=True) as mock_send:
-            result = nm.notify("session_started", {
-                "session_id": "s1", "role_name": "r", "goal": "g"
-            })
+            result = nm.notify(
+                "session_started", {"session_id": "s1", "role_name": "r", "goal": "g"}
+            )
             assert result is True
             mock_send.assert_called_once()
             notification = mock_send.call_args[0][0]
@@ -137,9 +150,10 @@ class TestNotificationManagerMessaging:
 
         with patch.object(mp, "send", return_value=True):
             nm.notify("session_started", {"session_id": "s1", "role_name": "r", "goal": "g"})
-            nm.notify("session_completed", {
-                "session_id": "s1", "tasks_completed": 5, "tasks_total": 5, "elapsed": "2m"
-            })
+            nm.notify(
+                "session_completed",
+                {"session_id": "s1", "tasks_completed": 5, "tasks_total": 5, "elapsed": "2m"},
+            )
             # 3rd call should be rate-limited
             result = nm.notify("checkpoint_created", {"session_id": "s1", "checkpoint_number": 1})
             assert result is False

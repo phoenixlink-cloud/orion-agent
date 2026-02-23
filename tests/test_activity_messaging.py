@@ -34,12 +34,14 @@ from orion.ara.activity_logger import (
     ActivityMessagingSummary,
 )
 
-
 # =========================================================================
 # Helpers
 # =========================================================================
 
-def _entry(phase: str = "execute", status: str = "running", desc: str = "cmd", dur: float | None = None) -> ActivityEntry:
+
+def _entry(
+    phase: str = "execute", status: str = "running", desc: str = "cmd", dur: float | None = None
+) -> ActivityEntry:
     return ActivityEntry(
         session_id="s1",
         action_type="command",
@@ -118,7 +120,7 @@ class TestPhaseChangeTrigger:
         ams = ActivityMessagingSummary()
         ams.on_activity(_entry(phase="install"))
         ams.on_activity(_entry(phase="execute"))  # triggers install summary
-        ams.on_activity(_entry(phase="test"))      # triggers execute summary
+        ams.on_activity(_entry(phase="test"))  # triggers execute summary
         assert len(ams.sent_summaries) == 2
         assert ams.sent_summaries[0]["phase"] == "install"
         assert ams.sent_summaries[1]["phase"] == "execute"

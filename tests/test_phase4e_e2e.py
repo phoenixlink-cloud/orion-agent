@@ -47,7 +47,6 @@ from orion.ara.notifications import (
     NotificationManager,
 )
 
-
 # =========================================================================
 # Fake engines used across E2E tests
 # =========================================================================
@@ -158,17 +157,19 @@ class TestE2EFullLifecycle:
         nm = NotificationManager(max_per_session=20)
         recorder = RecordingMessagingProvider()
         nm.add_provider(recorder)
-        perf = FakePerfEngine({
-            "total_executions": 8,
-            "success_rate": 0.875,
-            "first_attempt_success_rate": 0.75,
-            "fix_rate": 0.5,
-            "mean_retries": 0.5,
-            "mean_duration_seconds": 2.1,
-            "mean_time_to_resolution": 3.0,
-            "error_distribution": {"syntax": 1},
-            "top_fixes": [],
-        })
+        perf = FakePerfEngine(
+            {
+                "total_executions": 8,
+                "success_rate": 0.875,
+                "first_attempt_success_rate": 0.75,
+                "fix_rate": 0.5,
+                "mean_retries": 0.5,
+                "mean_duration_seconds": 2.1,
+                "mean_time_to_resolution": 3.0,
+                "error_distribution": {"syntax": 1},
+                "top_fixes": [],
+            }
+        )
         bridge = MessageBridge(
             session_engine=engine,
             notification_manager=nm,
@@ -403,10 +404,14 @@ class TestE2ENotificationRateLimitRespected:
 
         # Send 3 notifications — should all succeed
         for i in range(3):
-            assert nm.notify("session_started", {"session_id": f"s{i}", "role_name": "dev", "goal": "test"})
+            assert nm.notify(
+                "session_started", {"session_id": f"s{i}", "role_name": "dev", "goal": "test"}
+            )
 
         # 4th should be blocked by rate limit
-        result = nm.notify("session_started", {"session_id": "s3", "role_name": "dev", "goal": "test"})
+        result = nm.notify(
+            "session_started", {"session_id": "s3", "role_name": "dev", "goal": "test"}
+        )
         assert result is False
         assert nm.remaining == 0
 

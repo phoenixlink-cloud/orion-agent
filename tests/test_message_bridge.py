@@ -42,7 +42,6 @@ from orion.ara.message_bridge import (
     OutboundMessage,
 )
 
-
 # =========================================================================
 # Helpers
 # =========================================================================
@@ -65,14 +64,16 @@ def _make_engine(session_id: str = "sess1234abcd") -> MagicMock:
     engine.get_status = MagicMock(return_value=status_obj)
     engine.cancel_session = MagicMock(return_value=True)
     engine.inject_correction = MagicMock(return_value=None)
-    engine.get_review = MagicMock(return_value={
-        "state": "completed",
-        "goal": "Build a Flask API",
-        "completed_tasks": 10,
-        "total_tasks": 10,
-        "duration": "3m",
-        "files_changed": 5,
-    })
+    engine.get_review = MagicMock(
+        return_value={
+            "state": "completed",
+            "goal": "Build a Flask API",
+            "completed_tasks": 10,
+            "total_tasks": 10,
+            "duration": "3m",
+            "files_changed": 5,
+        }
+    )
     return engine
 
 

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -49,7 +49,9 @@ class ActivityEntry:
 
     timestamp: str = ""
     session_id: str = ""
-    action_type: str = ""  # 'command', 'file_write', 'file_read', 'install', 'test', 'error', 'info'
+    action_type: str = (
+        ""  # 'command', 'file_write', 'file_read', 'install', 'test', 'error', 'info'
+    )
     description: str = ""
     command: str | None = None
     exit_code: int | None = None
@@ -262,9 +264,7 @@ class ActivityLogger:
         return filepath
 
     @classmethod
-    def load_from_file(
-        cls, session_id: str, directory: str | Path | None = None
-    ) -> ActivityLogger:
+    def load_from_file(cls, session_id: str, directory: str | Path | None = None) -> ActivityLogger:
         """Load an ActivityLogger from a persisted JSONL file.
 
         Args:
@@ -321,9 +321,7 @@ class ActivityLogger:
                     "session_id": filepath.stem,
                     "file_path": str(filepath),
                     "size_bytes": stat.st_size,
-                    "modified": datetime.fromtimestamp(
-                        stat.st_mtime, tz=timezone.utc
-                    ).isoformat(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
                 }
             )
         return sessions
@@ -491,7 +489,10 @@ class ActivityMessagingSummary:
                 if hasattr(self._notification_manager, "notify"):
                     sent = self._notification_manager.notify(
                         "checkpoint_created",
-                        {"session_id": entries[0].session_id if entries else "", "checkpoint_number": phase},
+                        {
+                            "session_id": entries[0].session_id if entries else "",
+                            "checkpoint_number": phase,
+                        },
                     )
             except Exception as exc:
                 logger.debug("Notification manager send failed: %s", exc)
@@ -518,4 +519,6 @@ class ActivityMessagingSummary:
 
         summary_record["sent"] = sent
         self._sent_summaries.append(summary_record)
-        logger.info("Activity summary for phase '%s' (%d entries, error=%s)", phase, len(entries), error)
+        logger.info(
+            "Activity summary for phase '%s' (%d entries, error=%s)", phase, len(entries), error
+        )

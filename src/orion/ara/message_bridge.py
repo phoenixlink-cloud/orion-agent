@@ -252,7 +252,9 @@ class MessageBridge:
             self._active_conversations[message.user_id] = session_id
 
             # Wire messaging notifications so session events reach the user
-            if self._notification_manager and hasattr(self._notification_manager, "enable_messaging"):
+            if self._notification_manager and hasattr(
+                self._notification_manager, "enable_messaging"
+            ):
                 self._notification_manager.enable_messaging(
                     platform=message.platform,
                     channel=message.user_id,
@@ -290,7 +292,7 @@ class MessageBridge:
 
         truncated = message.text[:100]
         return OutboundMessage(
-            text=f"Correction received. Adjusting approach: \"{truncated}\"",
+            text=f'Correction received. Adjusting approach: "{truncated}"',
             platform=message.platform,
             recipient_id=message.user_id,
             session_id=session_id,
@@ -445,9 +447,7 @@ class MessageBridge:
             return
         try:
             if hasattr(self._session_engine, "inject_correction"):
-                result = self._session_engine.inject_correction(
-                    session_id, correction_text
-                )
+                result = self._session_engine.inject_correction(session_id, correction_text)
                 if hasattr(result, "__await__"):
                     await result
         except Exception as exc:
