@@ -31,10 +31,10 @@ import pytest
 
 from orion.ara.activity_logger import ActivityEntry, ActivityLogger
 from orion.ara.execution_feedback import (
+    ErrorCategory,
     ExecutionFeedbackLoop,
     RuleBasedFixProvider,
     classify_error,
-    ErrorCategory,
 )
 from orion.ara.ruff_tool import (
     RuffResult,
@@ -78,9 +78,7 @@ class TestActivityLoggerSessionContainer:
 
         # Mock the docker command to succeed
         with patch.object(sc, "_run_docker", new_callable=AsyncMock) as mock_docker:
-            mock_docker.return_value = MagicMock(
-                stdout="hello world", stderr="", returncode=0
-            )
+            mock_docker.return_value = MagicMock(stdout="hello world", stderr="", returncode=0)
             result = await sc.exec("echo hello")
 
         assert result.exit_code == 0
@@ -160,14 +158,10 @@ class TestActivityLoggerRuffTool:
         al = ActivityLogger(session_id="e2e-ruff")
         mock_container = AsyncMock()
         mock_container.exec = AsyncMock(
-            return_value=ExecResult(
-                stdout="[]", stderr="", exit_code=0, duration_seconds=0.5
-            )
+            return_value=ExecResult(stdout="[]", stderr="", exit_code=0, duration_seconds=0.5)
         )
 
-        result = await run_ruff_in_container(
-            mock_container, activity_logger=al
-        )
+        result = await run_ruff_in_container(mock_container, activity_logger=al)
         assert result.success is True
         assert result.ruff_available is True
 
@@ -200,9 +194,7 @@ class TestActivityLoggerRuffTool:
             )
         )
 
-        result = await run_ruff_in_container(
-            mock_container, activity_logger=al
-        )
+        result = await run_ruff_in_container(mock_container, activity_logger=al)
         assert result.has_errors is True
 
         entries = al.get_entries(action_type="test")
@@ -496,7 +488,9 @@ class TestErrorClassificationIntegration:
         assert cat == ErrorCategory.TIMEOUT
 
         # File not found
-        cat = classify_error("FileNotFoundError: [Errno 2] No such file or directory: 'config.yaml'")
+        cat = classify_error(
+            "FileNotFoundError: [Errno 2] No such file or directory: 'config.yaml'"
+        )
         assert cat == ErrorCategory.FILE_NOT_FOUND
 
         # Permission

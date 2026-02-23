@@ -30,7 +30,6 @@ from orion.ara.execution_step import (
 )
 from orion.security.session_container import ExecResult
 
-
 # ---------------------------------------------------------------------------
 # Stubs
 # ---------------------------------------------------------------------------

@@ -20,7 +20,6 @@ import pytest
 from orion.ara.execution_memory import ExecutionLesson, ExecutionMemory
 from orion.ara.performance_metrics import PerformanceMetrics
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -57,7 +56,7 @@ def _mock_memory(lessons: list[ExecutionLesson]) -> MagicMock:
     def _query(stack: str = "", limit: int = 0, **kw):
         result = lessons
         if stack:
-            result = [l for l in result if l.stack == stack]
+            result = [lsn for lsn in result if lsn.stack == stack]
         if limit:
             result = result[:limit]
         return result

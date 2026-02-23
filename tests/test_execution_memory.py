@@ -29,7 +29,6 @@ import pytest
 from orion.ara.execution_feedback import ErrorCategory, FeedbackResult, FixAction
 from orion.ara.execution_memory import ExecutionLesson, ExecutionMemory
 
-
 # ---------------------------------------------------------------------------
 # Helpers — mock FeedbackResult factory
 # ---------------------------------------------------------------------------
@@ -293,7 +292,7 @@ class TestQuery:
         self._populate(em)
         results = em.query_lessons(stack="python")
         assert len(results) == 2
-        assert all(l.stack == "python" for l in results)
+        assert all(lsn.stack == "python" for lsn in results)
 
     def test_query_by_error_category(self):
         """EM-13: query_lessons(error_category='missing_dependency') works."""
@@ -301,7 +300,7 @@ class TestQuery:
         self._populate(em)
         results = em.query_lessons(error_category="missing_dependency")
         assert len(results) == 2
-        assert all(l.error_category == "missing_dependency" for l in results)
+        assert all(lsn.error_category == "missing_dependency" for lsn in results)
 
 
 class TestFallbackStorage:
@@ -423,7 +422,8 @@ class TestPromotion:
 
         # Check that remember was called with tier=2 for the first 3
         tier2_calls = [
-            c for c in mock_engine.remember.call_args_list
+            c
+            for c in mock_engine.remember.call_args_list
             if c.kwargs.get("tier") == 2 or (c.args and len(c.args) > 1 and c.args[1] == 2)
         ]
         assert len(tier2_calls) >= 3
@@ -440,10 +440,7 @@ class TestPromotion:
         em.capture_lesson(fb, "Flask task 4", "python", "s")
 
         # Should now have at least one tier=3 call
-        tier3_calls = [
-            c for c in mock_engine.remember.call_args_list
-            if c.kwargs.get("tier") == 3
-        ]
+        tier3_calls = [c for c in mock_engine.remember.call_args_list if c.kwargs.get("tier") == 3]
         assert len(tier3_calls) >= 1
 
 

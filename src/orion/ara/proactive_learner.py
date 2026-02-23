@@ -27,7 +27,7 @@ See Phase 4D.2 specification.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -150,7 +150,7 @@ class ProactiveLearner:
             return ""
 
         # Filter to high-confidence lessons
-        relevant = [l for l in lessons if l.confidence >= 0.6]
+        relevant = [lsn for lsn in lessons if lsn.confidence >= 0.6]
         if not relevant:
             return ""
 
@@ -159,24 +159,24 @@ class ProactiveLearner:
             f"(From {len(relevant)} past executions with {stack} stack)\n",
         ]
 
-        successes = [l for l in relevant if l.outcome == "success"]
-        fixed = [l for l in relevant if l.outcome == "failure_fixed"]
-        failed = [l for l in relevant if l.outcome == "failure_permanent"]
+        successes = [lsn for lsn in relevant if lsn.outcome == "success"]
+        fixed = [lsn for lsn in relevant if lsn.outcome == "failure_fixed"]
+        failed = [lsn for lsn in relevant if lsn.outcome == "failure_permanent"]
 
         if fixed:
             lines.append("**Common issues and fixes:**")
-            for l in fixed[:5]:
+            for lsn in fixed[:5]:
                 lines.append(
-                    f"- '{l.command}' failed with {l.error_category}, "
-                    f"fixed by: {l.fix_applied}"
+                    f"- '{lsn.command}' failed with {lsn.error_category}, "
+                    f"fixed by: {lsn.fix_applied}"
                 )
 
         if failed:
             lines.append("\n**Known problematic patterns:**")
-            for l in failed[:3]:
+            for lsn in failed[:3]:
                 lines.append(
-                    f"- '{l.command}' fails permanently with "
-                    f"{l.error_category}: avoid this approach"
+                    f"- '{lsn.command}' fails permanently with "
+                    f"{lsn.error_category}: avoid this approach"
                 )
 
         if successes:
@@ -188,9 +188,7 @@ class ProactiveLearner:
     # Private strategies
     # ------------------------------------------------------------------
 
-    def _suggest_dependency_fixes(
-        self, stack: str, task_description: str
-    ) -> list[ProactiveFix]:
+    def _suggest_dependency_fixes(self, stack: str, task_description: str) -> list[ProactiveFix]:
         """Strategy 1: Query known fixes for missing_dependency errors."""
         fixes: list[ProactiveFix] = []
         known = self._memory.get_known_fixes("missing_dependency", stack)
@@ -219,9 +217,7 @@ class ProactiveLearner:
 
         return fixes
 
-    def _suggest_error_prevention(
-        self, stack: str, command: str
-    ) -> list[ProactiveFix]:
+    def _suggest_error_prevention(self, stack: str, command: str) -> list[ProactiveFix]:
         """Strategy 2: Match command patterns to past failures."""
         if not command:
             return []
@@ -238,10 +234,7 @@ class ProactiveLearner:
                     ProactiveFix(
                         fix_type="run_command",
                         command=lesson.fix_applied,
-                        description=(
-                            f"Pre-apply fix for '{lesson.command}': "
-                            f"{lesson.fix_applied}"
-                        ),
+                        description=(f"Pre-apply fix for '{lesson.command}': {lesson.fix_applied}"),
                         confidence=lesson.confidence * 0.9,  # Slightly lower
                         source_lesson_id=lesson.lesson_id,
                     )
@@ -249,9 +242,7 @@ class ProactiveLearner:
 
         return fixes
 
-    def _suggest_from_dependency_map(
-        self, stack: str, task_description: str
-    ) -> list[ProactiveFix]:
+    def _suggest_from_dependency_map(self, stack: str, task_description: str) -> list[ProactiveFix]:
         """Strategy 3: Use the dependency map to find required packages."""
         fixes: list[ProactiveFix] = []
         dep_map = self._memory.get_dependency_map(stack)
@@ -267,8 +258,7 @@ class ProactiveLearner:
                                 fix_type="install_dependency",
                                 command=install_cmd,
                                 description=(
-                                    f"Install {pkg} (dependency map: "
-                                    f"'{keyword}' → {pkg})"
+                                    f"Install {pkg} (dependency map: '{keyword}' → {pkg})"
                                 ),
                                 confidence=0.75,
                             )

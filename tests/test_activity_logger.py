@@ -27,7 +27,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from orion.ara.activity_logger import ActivityEntry, ActivityLogger, _MAX_OUTPUT_CHARS
+from orion.ara.activity_logger import _MAX_OUTPUT_CHARS, ActivityEntry, ActivityLogger
 
 
 # =========================================================================
@@ -196,7 +196,10 @@ class TestActivityLogger:
         """remove_callback() should stop future notifications."""
         al = ActivityLogger(session_id="test-sess")
         received = []
-        cb = lambda e: received.append(e)
+
+        def cb(e):
+            received.append(e)
+
         al.on_activity(cb)
         al.log("info", "first")
         assert len(received) == 1

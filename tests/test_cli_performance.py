@@ -29,7 +29,6 @@ from orion.cli.cli_performance import (
     handle_performance_command,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -66,7 +65,7 @@ def _mock_memory(lessons: list[ExecutionLesson]) -> MagicMock:
     def _query(stack: str = "", limit: int = 0, **kw):
         result = lessons
         if stack:
-            result = [l for l in result if l.stack == stack]
+            result = [lsn for lsn in result if lsn.stack == stack]
         if limit:
             result = result[:limit]
         return result
@@ -107,7 +106,12 @@ class TestOverview:
     def test_overview_rendering(self):
         lessons = [
             _lesson(outcome="success", first_attempt=True, duration=1.5),
-            _lesson(outcome="failure_fixed", first_attempt=False, fix_applied="pip install x", duration=3.0),
+            _lesson(
+                outcome="failure_fixed",
+                first_attempt=False,
+                fix_applied="pip install x",
+                duration=3.0,
+            ),
             _lesson(outcome="failure_permanent", first_attempt=False, duration=5.0),
         ]
         console = _console()

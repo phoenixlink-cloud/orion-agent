@@ -119,7 +119,6 @@ def _render_trends(pm, console: Any) -> None:
     console.print_info("Performance Trends (last 10 vs previous 10):")
 
     symbols = {"improving": "↑", "regressing": "↓", "stable": "→"}
-    colors = {"improving": "green", "regressing": "red", "stable": "yellow"}
 
     for t in trends:
         sym = symbols.get(t.direction, "?")
@@ -140,9 +139,7 @@ def _render_hotspots(pm, console: Any) -> None:
     for h in hotspots:
         bar_len = int(h["percentage"] / 5)  # Scale to ~20 chars max
         bar = "█" * bar_len
-        console._print(
-            f"  {h['category']:<25} {h['count']:>3}  ({h['percentage']:>5.1f}%)  {bar}"
-        )
+        console._print(f"  {h['category']:<25} {h['count']:>3}  ({h['percentage']:>5.1f}%)  {bar}")
 
 
 def _render_stacks(pm, console: Any) -> None:

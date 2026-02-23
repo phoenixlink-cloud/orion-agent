@@ -95,7 +95,7 @@ class RuffIssue:
 
         location = item.get("location", {})
         end_location = item.get("end_location", {})
-        fix = item.get("fix", None)
+        fix = item.get("fix")
 
         return cls(
             code=code,

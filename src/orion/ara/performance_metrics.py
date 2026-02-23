@@ -27,11 +27,10 @@ from __future__ import annotations
 import logging
 import statistics
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from orion.ara.execution_memory import ExecutionLesson, ExecutionMemory
+    from orion.ara.execution_memory import ExecutionMemory
 
 logger = logging.getLogger("orion.ara.performance_metrics")
 
@@ -158,7 +157,9 @@ class PerformanceMetrics:
             ExecutionMetrics snapshot.
         """
         lessons = self._get_lessons(stack=stack, session_id=session_id, limit=limit)
-        return self._aggregate(lessons, stack=stack, session_id=session_id, window_label=window_label)
+        return self._aggregate(
+            lessons, stack=stack, session_id=session_id, window_label=window_label
+        )
 
     def compute_trends(
         self,
@@ -194,11 +195,19 @@ class PerformanceMetrics:
 
         # Compare key metrics
         metric_pairs = [
-            ("first_attempt_success_rate", current.first_attempt_success_rate, previous.first_attempt_success_rate),
+            (
+                "first_attempt_success_rate",
+                current.first_attempt_success_rate,
+                previous.first_attempt_success_rate,
+            ),
             ("success_rate", current.success_rate, previous.success_rate),
             ("fix_rate", current.fix_rate, previous.fix_rate),
             ("mean_retries", current.mean_retries, previous.mean_retries),
-            ("mean_duration_seconds", current.mean_duration_seconds, previous.mean_duration_seconds),
+            (
+                "mean_duration_seconds",
+                current.mean_duration_seconds,
+                previous.mean_duration_seconds,
+            ),
         ]
 
         for name, cur_val, prev_val in metric_pairs:
@@ -242,9 +251,9 @@ class PerformanceMetrics:
 
         counts: dict[str, int] = {}
         total_errors = 0
-        for l in lessons:
-            if l.outcome != "success" and l.error_category:
-                cat = l.error_category
+        for lsn in lessons:
+            if lsn.outcome != "success" and lsn.error_category:
+                cat = lsn.error_category
                 counts[cat] = counts.get(cat, 0) + 1
                 total_errors += 1
 
@@ -273,19 +282,21 @@ class PerformanceMetrics:
         # Get all lessons and group by stack
         all_lessons = self._get_lessons()
         stacks: dict[str, list] = {}
-        for l in all_lessons:
-            stacks.setdefault(l.stack, []).append(l)
+        for lsn in all_lessons:
+            stacks.setdefault(lsn.stack, []).append(lsn)
 
         result = []
         for stack_name, lessons in sorted(stacks.items()):
             m = self._aggregate(lessons, stack=stack_name)
-            result.append({
-                "stack": stack_name,
-                "total": m.total_executions,
-                "success_rate": round(m.success_rate, 4),
-                "first_attempt_success_rate": round(m.first_attempt_success_rate, 4),
-                "mean_retries": round(m.mean_retries, 2),
-            })
+            result.append(
+                {
+                    "stack": stack_name,
+                    "total": m.total_executions,
+                    "success_rate": round(m.success_rate, 4),
+                    "first_attempt_success_rate": round(m.first_attempt_success_rate, 4),
+                    "mean_retries": round(m.mean_retries, 2),
+                }
+            )
 
         return result
 
@@ -313,7 +324,7 @@ class PerformanceMetrics:
 
         # Filter by session if specified
         if session_id:
-            lessons = [l for l in lessons if l.session_id == session_id]
+            lessons = [lsn for lsn in lessons if lsn.session_id == session_id]
 
         return lessons
 
@@ -340,29 +351,29 @@ class PerformanceMetrics:
         retries_list: list[int] = []
         fix_counts: dict[str, int] = {}
 
-        for l in lessons:
-            if l.outcome == "success":
+        for lsn in lessons:
+            if lsn.outcome == "success":
                 metrics.successful += 1
-                if l.first_attempt_success:
+                if lsn.first_attempt_success:
                     metrics.first_attempt_successes += 1
-            elif l.outcome == "failure_fixed":
+            elif lsn.outcome == "failure_fixed":
                 metrics.successful += 1
                 metrics.failures_fixed += 1
-            elif l.outcome == "failure_permanent":
+            elif lsn.outcome == "failure_permanent":
                 metrics.permanent_failures += 1
 
-            if l.duration_seconds and l.duration_seconds > 0:
-                durations.append(l.duration_seconds)
+            if lsn.duration_seconds and lsn.duration_seconds > 0:
+                durations.append(lsn.duration_seconds)
 
-            retries_list.append(l.retries)
+            retries_list.append(lsn.retries)
 
-            if l.error_category:
-                metrics.error_distribution[l.error_category] = (
-                    metrics.error_distribution.get(l.error_category, 0) + 1
+            if lsn.error_category:
+                metrics.error_distribution[lsn.error_category] = (
+                    metrics.error_distribution.get(lsn.error_category, 0) + 1
                 )
 
-            if l.fix_applied:
-                fix_counts[l.fix_applied] = fix_counts.get(l.fix_applied, 0) + 1
+            if lsn.fix_applied:
+                fix_counts[lsn.fix_applied] = fix_counts.get(lsn.fix_applied, 0) + 1
 
         # Rates
         total = metrics.total_executions
@@ -371,9 +382,7 @@ class PerformanceMetrics:
             metrics.first_attempt_successes / total if total else 0.0
         )
         failures_total = metrics.failures_fixed + metrics.permanent_failures
-        metrics.fix_rate = (
-            metrics.failures_fixed / failures_total if failures_total else 0.0
-        )
+        metrics.fix_rate = metrics.failures_fixed / failures_total if failures_total else 0.0
 
         # Timing
         if durations:
@@ -383,9 +392,9 @@ class PerformanceMetrics:
 
         # MTTR: mean duration of fixed failures
         fixed_durations = [
-            l.duration_seconds
-            for l in lessons
-            if l.outcome == "failure_fixed" and l.duration_seconds > 0
+            lsn.duration_seconds
+            for lsn in lessons
+            if lsn.outcome == "failure_fixed" and lsn.duration_seconds > 0
         ]
         if fixed_durations:
             metrics.mean_time_to_resolution = statistics.mean(fixed_durations)

@@ -41,7 +41,6 @@ from orion.ara.task_executor import ARATaskExecutor
 from orion.security.session_container import ExecResult, SessionContainer
 from orion.security.stack_detector import detect_stack, detect_stack_from_goal, image_name
 
-
 # ---------------------------------------------------------------------------
 # Shared stubs
 # ---------------------------------------------------------------------------

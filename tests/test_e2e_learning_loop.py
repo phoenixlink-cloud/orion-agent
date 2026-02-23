@@ -27,7 +27,6 @@ from orion.ara.execution_memory import ExecutionLesson, ExecutionMemory
 from orion.ara.performance_metrics import PerformanceMetrics
 from orion.ara.proactive_learner import ProactiveLearner
 
-
 # ---------------------------------------------------------------------------
 # Helpers — build FeedbackResult fixtures without a real container
 # ---------------------------------------------------------------------------
@@ -224,20 +223,28 @@ class TestMetricsReflectLessons:
         for _ in range(5):
             em.capture_lesson(
                 _fb(success=True, attempts=1, duration=1.0),
-                "task", "python", "s1",
+                "task",
+                "python",
+                "s1",
             )
         for _ in range(2):
             em.capture_lesson(
                 _fb(
-                    success=True, attempts=2, duration=3.0,
+                    success=True,
+                    attempts=2,
+                    duration=3.0,
                     error_cat=ErrorCategory.MISSING_DEPENDENCY,
                     fixes=[_fix(install_cmd="pip install x")],
                 ),
-                "task", "python", "s1",
+                "task",
+                "python",
+                "s1",
             )
         em.capture_lesson(
             _fb(success=False, attempts=3, duration=6.0, error_cat=ErrorCategory.RUNTIME),
-            "task", "python", "s1",
+            "task",
+            "python",
+            "s1",
         )
 
         pm = PerformanceMetrics(execution_memory=em)
@@ -267,19 +274,25 @@ class TestTrendDetection:
         for _ in range(10):
             em.capture_lesson(
                 _fb(success=True, attempts=1, duration=1.0),
-                "task", "python", "s2",
+                "task",
+                "python",
+                "s2",
             )
 
         # Previous batch (next 10 appended = previous window): 50% failures
         for _ in range(5):
             em.capture_lesson(
                 _fb(success=True, attempts=1, duration=1.0),
-                "task", "python", "s1",
+                "task",
+                "python",
+                "s1",
             )
         for _ in range(5):
             em.capture_lesson(
                 _fb(success=False, attempts=3, duration=5.0, error_cat=ErrorCategory.RUNTIME),
-                "task", "python", "s1",
+                "task",
+                "python",
+                "s1",
             )
 
         pm = PerformanceMetrics(execution_memory=em)
@@ -310,15 +323,23 @@ class TestMultiStackIndependence:
         for _ in range(5):
             em.capture_lesson(
                 _fb(command="python app.py", success=True, attempts=1),
-                "task", "python", "s1",
+                "task",
+                "python",
+                "s1",
             )
 
         # Node: all failures
         for _ in range(5):
             em.capture_lesson(
-                _fb(command="node server.js", success=False, attempts=3,
-                    error_cat=ErrorCategory.RUNTIME),
-                "task", "node", "s1",
+                _fb(
+                    command="node server.js",
+                    success=False,
+                    attempts=3,
+                    error_cat=ErrorCategory.RUNTIME,
+                ),
+                "task",
+                "node",
+                "s1",
             )
 
         pm = PerformanceMetrics(execution_memory=em)
@@ -349,13 +370,16 @@ class TestPromotionTrigger:
         for i in range(4):
             em.capture_lesson(
                 _fb(command="python app.py", success=True, attempts=1),
-                "Build Flask API", "python", f"s{i}",
+                "Build Flask API",
+                "python",
+                f"s{i}",
             )
 
         # The 4th lesson should trigger promotion
         # Check that remember was called with tier=3 at least once
         tier3_calls = [
-            c for c in engine.remember.call_args_list
+            c
+            for c in engine.remember.call_args_list
             if c.kwargs.get("tier") == 3 or (len(c.args) > 1 and c.args[1] == 3)
         ]
         # There should be at least one T3 call (when 4th lesson sees 3 similar)
@@ -379,17 +403,24 @@ class TestFullPipeline:
         fix = _fix(desc="pip install flask", install_cmd="pip install flask")
         em.capture_lesson(
             _fb(
-                command="python app.py", success=True, attempts=2,
+                command="python app.py",
+                success=True,
+                attempts=2,
                 stderr="ModuleNotFoundError: No module named 'flask'",
                 error_cat=ErrorCategory.MISSING_DEPENDENCY,
-                fixes=[fix], duration=4.0,
+                fixes=[fix],
+                duration=4.0,
             ),
-            "Build Flask REST API", "python", "s1",
+            "Build Flask REST API",
+            "python",
+            "s1",
         )
         for _ in range(5):
             em.capture_lesson(
                 _fb(command="python app.py", success=True, attempts=1, duration=1.0),
-                "Run Flask API", "python", "s1",
+                "Run Flask API",
+                "python",
+                "s1",
             )
 
         # Phase 2: Proactive suggestions

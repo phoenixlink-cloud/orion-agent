@@ -51,15 +51,25 @@ class TestActivityPersistence:
         """load_from_file should restore entries from a JSONL file."""
         # Create a JSONL file manually
         entries = [
-            {"timestamp": "2025-01-01T00:00:00+00:00", "session_id": "load-test",
-             "action_type": "command", "description": "cmd 1", "status": "success", "entry_id": 1},
-            {"timestamp": "2025-01-01T00:00:01+00:00", "session_id": "load-test",
-             "action_type": "info", "description": "info 1", "status": "success", "entry_id": 2},
+            {
+                "timestamp": "2025-01-01T00:00:00+00:00",
+                "session_id": "load-test",
+                "action_type": "command",
+                "description": "cmd 1",
+                "status": "success",
+                "entry_id": 1,
+            },
+            {
+                "timestamp": "2025-01-01T00:00:01+00:00",
+                "session_id": "load-test",
+                "action_type": "info",
+                "description": "info 1",
+                "status": "success",
+                "entry_id": 2,
+            },
         ]
         filepath = tmp_path / "load-test.jsonl"
-        filepath.write_text(
-            "\n".join(json.dumps(e) for e in entries), encoding="utf-8"
-        )
+        filepath.write_text("\n".join(json.dumps(e) for e in entries), encoding="utf-8")
 
         al = ActivityLogger.load_from_file("load-test", directory=tmp_path)
         assert al.session_id == "load-test"
@@ -70,11 +80,25 @@ class TestActivityPersistence:
     def test_save_load_roundtrip(self, tmp_path: Path):
         """Save then load should preserve all entry data."""
         al = ActivityLogger(session_id="roundtrip")
-        al.log("command", "echo test", command="echo test", exit_code=0,
-               stdout="test output", duration_seconds=0.5, phase="execute", status="success")
+        al.log(
+            "command",
+            "echo test",
+            command="echo test",
+            exit_code=0,
+            stdout="test output",
+            duration_seconds=0.5,
+            phase="execute",
+            status="success",
+        )
         al.log("file_write", "Writing app.py", phase="execute", status="success")
-        al.log("command", "python app.py", command="python app.py",
-               exit_code=1, stderr="Error!", status="failed")
+        al.log(
+            "command",
+            "python app.py",
+            command="python app.py",
+            exit_code=1,
+            stderr="Error!",
+            status="failed",
+        )
 
         al.save_to_file(directory=tmp_path)
         loaded = ActivityLogger.load_from_file("roundtrip", directory=tmp_path)

@@ -263,11 +263,11 @@ from orion.api.routes.gdpr import router as gdpr_router
 from orion.api.routes.google import router as google_router
 from orion.api.routes.health import router as health_router
 from orion.api.routes.models import router as models_router
+from orion.api.routes.performance import router as performance_router
 from orion.api.routes.platforms import router as platforms_router
 from orion.api.routes.settings import router as settings_router
 from orion.api.routes.tools import router as tools_router
 from orion.api.routes.training import router as training_router
-from orion.api.routes.performance import router as performance_router
 
 app.include_router(health_router)
 app.include_router(chat_router)

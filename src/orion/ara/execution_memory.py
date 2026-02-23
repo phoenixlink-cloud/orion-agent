@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -114,10 +113,7 @@ class ExecutionLesson:
     def _generate_lesson_text(self) -> str:
         """Generate human-readable lesson text for memory storage."""
         if self.outcome == "success" and self.first_attempt_success:
-            return (
-                f"Command '{self.command}' succeeded on first attempt "
-                f"for {self.stack} stack."
-            )
+            return f"Command '{self.command}' succeeded on first attempt for {self.stack} stack."
         elif self.outcome == "failure_fixed":
             err = (self.error_message or "")[:200]
             return (
@@ -198,17 +194,13 @@ class ExecutionMemory:
             command=feedback_result.original_command,
             outcome=self._determine_outcome(feedback_result),
             error_category=(
-                feedback_result.error_category.value
-                if feedback_result.error_category
-                else None
+                feedback_result.error_category.value if feedback_result.error_category else None
             ),
             error_message=last_error[:500] if last_error else None,
             fix_applied=fix_applied,
             retries=feedback_result.attempts - 1,
             duration_seconds=feedback_result.total_duration_seconds,
-            first_attempt_success=(
-                feedback_result.success and feedback_result.attempts == 1
-            ),
+            first_attempt_success=(feedback_result.success and feedback_result.attempts == 1),
             confidence=self._calculate_confidence(feedback_result),
             tags=self._extract_tags(feedback_result, stack),
         )
@@ -237,9 +229,7 @@ class ExecutionMemory:
 
         # Also query memory engine for persisted lessons
         if self._memory_engine:
-            query = " ".join(
-                filter(None, [stack, error_category, command_pattern])
-            )
+            query = " ".join(filter(None, [stack, error_category, command_pattern]))
             if query:
                 memories = self._memory_engine.recall(
                     query,
@@ -259,30 +249,24 @@ class ExecutionMemory:
                             error_category=meta.get("error_category"),
                             fix_applied=meta.get("fix_applied"),
                             retries=meta.get("retries", 0),
-                            first_attempt_success=meta.get(
-                                "first_attempt_success", False
-                            ),
+                            first_attempt_success=meta.get("first_attempt_success", False),
                             confidence=mem.confidence,
                             tags=list(meta.get("tags", [])),
                             task_description=meta.get("task_description", ""),
                             session_id=meta.get("session_id", ""),
                         )
                         # Avoid duplicates (same lesson_id)
-                        if not any(
-                            l.lesson_id == lesson.lesson_id for l in results
-                        ):
+                        if not any(existing.lesson_id == lesson.lesson_id for existing in results):
                             results.append(lesson)
 
         # Apply filters
         if stack:
-            results = [l for l in results if l.stack == stack]
+            results = [lsn for lsn in results if lsn.stack == stack]
         if error_category:
-            results = [l for l in results if l.error_category == error_category]
+            results = [lsn for lsn in results if lsn.error_category == error_category]
         if command_pattern:
             pattern_lower = command_pattern.lower()
-            results = [
-                l for l in results if pattern_lower in l.command.lower()
-            ]
+            results = [lsn for lsn in results if pattern_lower in lsn.command.lower()]
 
         return results[-limit:]
 
@@ -329,9 +313,7 @@ class ExecutionMemory:
 
         return dep_map
 
-    def get_known_fixes(
-        self, error_category: str, stack: str
-    ) -> list[dict[str, Any]]:
+    def get_known_fixes(self, error_category: str, stack: str) -> list[dict[str, Any]]:
         """Get fixes that have worked for this error_category + stack combo.
 
         Returns:
@@ -360,15 +342,11 @@ class ExecutionMemory:
                 }
             fix_counts[fix]["times_applied"] += 1
             # Update confidence to the max seen
-            fix_counts[fix]["confidence"] = max(
-                fix_counts[fix]["confidence"], lesson.confidence
-            )
+            fix_counts[fix]["confidence"] = max(fix_counts[fix]["confidence"], lesson.confidence)
 
         # Sort by times_applied * confidence (most reliable first)
         results = list(fix_counts.values())
-        results.sort(
-            key=lambda x: x["times_applied"] * x["confidence"], reverse=True
-        )
+        results.sort(key=lambda x: x["times_applied"] * x["confidence"], reverse=True)
         return results
 
     # ------------------------------------------------------------------
@@ -403,8 +381,7 @@ class ExecutionMemory:
                         metadata=pattern["metadata"],
                     )
                     logger.info(
-                        "Lesson promoted to Tier 3: %s (confidence=%.2f, "
-                        "similar=%d)",
+                        "Lesson promoted to Tier 3: %s (confidence=%.2f, similar=%d)",
                         lesson.lesson_id,
                         lesson.confidence,
                         len(similar),
@@ -419,18 +396,14 @@ class ExecutionMemory:
         lessons: list[dict] = []
         if self._fallback_path.exists():
             try:
-                lessons = json.loads(
-                    self._fallback_path.read_text(encoding="utf-8")
-                )
+                lessons = json.loads(self._fallback_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 lessons = []
         lessons.append(lesson.to_memory_pattern())
         # Ring buffer: keep last 1000
         if len(lessons) > 1000:
             lessons = lessons[-1000:]
-        self._fallback_path.write_text(
-            json.dumps(lessons, indent=2, default=str), encoding="utf-8"
-        )
+        self._fallback_path.write_text(json.dumps(lessons, indent=2, default=str), encoding="utf-8")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -504,11 +477,11 @@ class ExecutionMemory:
     def _find_similar_lessons(self, lesson: ExecutionLesson) -> list[ExecutionLesson]:
         """Find past lessons with the same error_category + stack + similar command."""
         return [
-            l
-            for l in self._lessons
-            if l.error_category == lesson.error_category
-            and l.stack == lesson.stack
-            and l.lesson_id != lesson.lesson_id
+            lsn
+            for lsn in self._lessons
+            if lsn.error_category == lesson.error_category
+            and lsn.stack == lesson.stack
+            and lsn.lesson_id != lesson.lesson_id
         ]
 
     @staticmethod

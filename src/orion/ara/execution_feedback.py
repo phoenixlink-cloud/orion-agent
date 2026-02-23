@@ -518,8 +518,7 @@ class ExecutionFeedbackLoop:
                 self.activity_logger.log(
                     action_type="info",
                     description=(
-                        f"Retry {attempt + 1}/{self.max_retries}: "
-                        f"{feedback.error_category.value}"
+                        f"Retry {attempt + 1}/{self.max_retries}: {feedback.error_category.value}"
                     ),
                     phase="execute",
                     status="running",

@@ -2190,10 +2190,10 @@ def cmd_skill_group_assign(
 # =========================================================================
 
 # Module-level registry for active session loggers (session_id → ActivityLogger)
-_active_loggers: dict[str, "Any"] = {}
+_active_loggers: dict[str, Any] = {}
 
 
-def register_activity_logger(session_id: str, logger_instance: "Any") -> None:
+def register_activity_logger(session_id: str, logger_instance: Any) -> None:
     """Register an active ActivityLogger for CLI/API access."""
     _active_loggers[session_id] = logger_instance
 
@@ -2203,7 +2203,7 @@ def unregister_activity_logger(session_id: str) -> None:
     _active_loggers.pop(session_id, None)
 
 
-def get_activity_logger(session_id: str | None = None) -> "Any | None":
+def get_activity_logger(session_id: str | None = None) -> Any | None:
     """Get an active ActivityLogger. If no session_id, return the most recent."""
     if session_id:
         return _active_loggers.get(session_id)

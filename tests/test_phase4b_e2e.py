@@ -41,10 +41,9 @@ from orion.security.registry_whitelist import (
     get_install_phase_domains,
     get_registry_domains,
 )
-from orion.security.sandbox_config import get_profile, ResourceProfile
+from orion.security.sandbox_config import ResourceProfile, get_profile
 from orion.security.session_container import ExecResult
 from orion.security.stack_detector import detect_stack
-
 
 # ---------------------------------------------------------------------------
 # Shared stubs

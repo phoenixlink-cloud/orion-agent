@@ -25,14 +25,13 @@ import pytest
 from orion.security.registry_whitelist import (
     COMMON_REGISTRY_DOMAINS,
     REGISTRY_DOMAINS,
+    _is_valid_hostname,
     get_all_registry_domains,
     get_install_phase_domains,
     get_registry_domains,
     get_registry_rules,
     load_extra_registries,
-    _is_valid_hostname,
 )
-
 
 # ---------------------------------------------------------------------------
 # RW-01: Per-stack registry domains
