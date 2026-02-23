@@ -6,7 +6,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-1702%2B%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1800%2B%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Status: Stable](https://img.shields.io/badge/status-10.0.0-brightgreen.svg)](#)
 
@@ -22,7 +22,7 @@
 
 </div>
 
-> **v10.0.0** -- Orion Agent's full governed execution pipeline is operational and proven (1,702+ passing tests, 26/26 operational validation, 17/17 E2E live tests). The Digital Agent Architecture (Phase 2) and Graduated Services (Phase 3) are complete: egress proxy, DNS filter, approval queue, sandbox orchestrator, and AEGIS Invariant 7 -- all verified with real Ollama LLM generating real code through governed infrastructure. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
+> **v10.0.0** -- Orion Agent's full governed execution pipeline is operational and proven (1,800+ passing tests, 26/26 operational validation, 17/17 E2E live tests). The Digital Agent Architecture (Phase 2), Graduated Services (Phase 3), and Execution Pipeline (Phase 4) are complete: execution steps with feedback and memory, container infrastructure with stack detection, performance metrics, full pipeline integration wiring, and messaging bridge -- all verified with real Ollama LLM generating real code through governed infrastructure. We welcome feedback and bug reports via [GitHub Issues](https://github.com/phoenixlink-cloud/orion-agent/issues).
 
 ---
 
@@ -39,6 +39,11 @@
 | Sandbox Orchestrator | Shipped | 6-step governed boot, Docker isolation |
 | Graduated Google Services | Shipped | Per-service toggle, hot reload |
 | LLM Web Search Routing | Shipped | Search API auto-allow, research domain GET-only |
+| Execution Pipeline (Phase 4A) | Shipped | ExecutionStep, feedback, memory, proactive learner, ruff tool |
+| Container Infrastructure (Phase 4B) | Shipped | SandboxConfig, SessionContainer, StackDetector, RegistryWhitelist |
+| Performance Metrics (Phase 4C) | Shipped | PerformanceMetrics, CLI dashboard, API routes, activity persistence |
+| Pipeline Integration (Phase 4D) | Shipped | TaskExecutor wiring, CLI commands, API routes, settings manager |
+| Messaging Bridge (Phase 4E) | Shipped | MessageBridge, notifications, activity streaming, review summaries |
 | CLI (REPL) | Working | Interactive, Ollama + cloud providers |
 | Web UI | Working | Network dashboard, service toggles |
 
@@ -80,7 +85,7 @@ Orion understands *what you mean*, not just what you type:
 
 ### Autonomous Role Architecture (ARA)
 
-Orion can work autonomously in the background with configurable roles (28 modules, 671+ ARA tests):
+Orion can work autonomously in the background with configurable roles (38+ modules, 750+ ARA tests):
 
 | Component | Purpose |
 |-----------|----------|
@@ -438,8 +443,16 @@ src/orion/
 │   ├── audit_log      # HMAC-SHA256 hash chain tamper-proof log
 │   ├── keychain       # OS-native credential storage
 │   ├── user_isolation  # Multi-user OS-user scoping
-│   ├── notifications  # Email, webhook, desktop providers
+│   ├── notifications  # Email, webhook, desktop, messaging providers
+│   ├── message_bridge  # Inbound/outbound messaging with intent classification
 │   ├── feedback_store # Outcome recording + confidence calibration
+│   ├── execution_step  # Structured execution steps with validation
+│   ├── execution_config# Pipeline configuration and defaults
+│   ├── execution_feedback# Step-level feedback collection
+│   ├── execution_memory# Execution history and pattern recall
+│   ├── proactive_learner# Autonomous learning from execution outcomes
+│   ├── ruff_tool       # Ruff linter integration for code quality
+│   ├── performance_metrics# Execution timing, cost, and quality tracking
 │   ├── skill          # Skill + SkillGroup dataclasses, SKILL.md parser, validation
 │   ├── skill_guard    # SkillGuard security scanner (22+ patterns, NFKC hardening)
 │   ├── skill_library  # Central skill registry with CRUD, import, integrity verification
@@ -452,6 +465,10 @@ src/orion/
 │   └── routes/        # ara, auth, chat, gdpr, health, models, platforms, settings, tools, training
 ├── integrations/      # 79 connectors (LLM, voice, image, messaging, ...)
 ├── security/          # Encrypted store, Docker sandbox, secret scanner
+│   ├── sandbox_config  # Container resource limits and security policies
+│   ├── session_container# Per-session Docker container lifecycle
+│   ├── stack_detector  # Language/framework auto-detection for containers
+│   ├── registry_whitelist# Approved container image registry
 │   └── egress/        # Egress proxy, DNS filter, approval queue, content inspector, config
 └── plugins/           # Plugin lifecycle API (8 hooks)
 
