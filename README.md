@@ -8,7 +8,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-1800%2B%20passing-brightgreen.svg)](tests/)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![Status: Stable](https://img.shields.io/badge/status-10.0.0-brightgreen.svg)](#)
+[![Status: Stable](https://img.shields.io/badge/status-10.0.4-brightgreen.svg)](#)
 
 [Getting Started](#-quick-start) |
 [NLA](#-natural-language-architecture) |

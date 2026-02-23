@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [10.0.4] -- 2026-02-23
+
 ### Added
 - **Phase 4A: Execution Pipeline** — Structured execution steps with feedback, memory, and autonomous learning
   - `ExecutionStep` — validated step dataclass with status tracking
