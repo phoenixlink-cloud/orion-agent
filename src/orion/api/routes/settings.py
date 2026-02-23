@@ -88,6 +88,8 @@ async def get_all_settings() -> dict[str, Any]:
         "ara_sandbox_mode": "branch",
         "ara_prompt_guard": True,
         "ara_audit_log": True,
+        "ara_enable_command_execution": False,
+        "ara_resource_profile": "standard",
     }
     merged = {**defaults, **user_settings}
     return merged

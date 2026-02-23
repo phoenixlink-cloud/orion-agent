@@ -1581,6 +1581,11 @@ def cmd_settings_ara(
             "require_review_before_promote": True,
         },
         "replan_interval_tasks": 5,
+        "execution": {
+            "enable_command_execution": False,
+            "resource_profile": "standard",
+            "max_feedback_retries": 3,
+        },
     }
 
     # Merge defaults into current (don't overwrite existing)
@@ -2177,4 +2182,87 @@ def cmd_skill_group_assign(
     return CommandResult(
         success=False,
         message=f"Failed — check that both '{skill_name}' and group '{group_name}' exist.",
+    )
+
+
+# =========================================================================
+# Activity Logger Commands (Phase 4C)
+# =========================================================================
+
+# Module-level registry for active session loggers (session_id → ActivityLogger)
+_active_loggers: dict[str, "Any"] = {}
+
+
+def register_activity_logger(session_id: str, logger_instance: "Any") -> None:
+    """Register an active ActivityLogger for CLI/API access."""
+    _active_loggers[session_id] = logger_instance
+
+
+def unregister_activity_logger(session_id: str) -> None:
+    """Remove an ActivityLogger when the session ends."""
+    _active_loggers.pop(session_id, None)
+
+
+def get_activity_logger(session_id: str | None = None) -> "Any | None":
+    """Get an active ActivityLogger. If no session_id, return the most recent."""
+    if session_id:
+        return _active_loggers.get(session_id)
+    if _active_loggers:
+        return next(reversed(_active_loggers.values()))
+    return None
+
+
+def cmd_activity(
+    limit: int = 20,
+    errors_only: bool = False,
+    summary_mode: bool = False,
+    session_id: str | None = None,
+) -> CommandResult:
+    """Show Docker session activity log.
+
+    Args:
+        limit: Max entries to show.
+        errors_only: Only show failed entries.
+        summary_mode: Show summary instead of entries.
+        session_id: Specific session ID (default: most recent).
+    """
+    al = get_activity_logger(session_id)
+    if al is None:
+        return CommandResult(
+            success=False,
+            message="No active session with activity logging. Start a /work session first.",
+        )
+
+    if summary_mode:
+        summary = al.get_summary()
+        lines = [
+            f"Session: {summary['session_id']}",
+            f"Total entries: {summary['total_entries']}",
+            f"Errors: {summary['error_count']}",
+            f"Duration: {summary['total_duration_seconds']:.1f}s",
+            "",
+            "By type:",
+        ]
+        for atype, count in summary.get("counts_by_type", {}).items():
+            lines.append(f"  {atype}: {count}")
+        return CommandResult(success=True, message="\n".join(lines), data=summary)
+
+    # Get entries
+    entries = al.get_entries(limit=limit)
+    if errors_only:
+        entries = [e for e in entries if e.status == "failed"]
+
+    if not entries:
+        return CommandResult(success=True, message="No activity entries found.")
+
+    lines = [f"Activity Log ({len(entries)} entries):"]
+    for e in entries:
+        status_icon = "✓" if e.status == "success" else "✗" if e.status == "failed" else "…"
+        dur = f" ({e.duration_seconds:.1f}s)" if e.duration_seconds else ""
+        lines.append(f"  [{status_icon}] {e.action_type}: {e.description}{dur}")
+
+    return CommandResult(
+        success=True,
+        message="\n".join(lines),
+        data={"entries": [e.to_dict() for e in entries]},
     )

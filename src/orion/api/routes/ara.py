@@ -889,7 +889,9 @@ async def get_activity(session_id: str, limit: int = 50, action_type: str | None
 
         al = get_activity_logger(session_id)
         if al is None:
-            raise HTTPException(status_code=404, detail=f"No active logger for session {session_id}")
+            raise HTTPException(
+                status_code=404, detail=f"No active logger for session {session_id}"
+            )
 
         entries = al.get_entries(limit=limit, action_type=action_type)
         return {
@@ -914,7 +916,9 @@ async def get_activity_summary(session_id: str):
 
         al = get_activity_logger(session_id)
         if al is None:
-            raise HTTPException(status_code=404, detail=f"No active logger for session {session_id}")
+            raise HTTPException(
+                status_code=404, detail=f"No active logger for session {session_id}"
+            )
 
         summary = al.get_summary()
         return {"success": True, "data": summary}
